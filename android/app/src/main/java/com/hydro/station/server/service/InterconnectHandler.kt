@@ -74,6 +74,12 @@ class InterconnectHandler(
     /** Connected watch node names (nodeId -> displayName). */
     private val connectedWatchNames: MutableMap<String, String> = ConcurrentHashMap()
 
+    /** Last time we pushed server_info to each node (nodeId -> timestamp). */
+    private val lastServerInfoPushed: MutableMap<String, Long> = ConcurrentHashMap()
+
+    /** How often to (re-)push server_info to a connected watch. */
+    private val SERVER_INFO_PUSH_INTERVAL_MS = 5000L
+
     @Volatile
     private var running = false
 
@@ -287,9 +293,15 @@ class InterconnectHandler(
                     scope.launch {
                         ensureNodeRegistered(nodeId)
                     }
+                    // Periodically re-push server_info so a watch that missed the
+                    // first push (e.g. app just launched, or discover race) gets it.
+                    val lastPushed = lastServerInfoPushed[nodeId] ?: 0L
+                    if (registeredNodes.contains(nodeId) &&
+                        System.currentTimeMillis() - lastPushed >= SERVER_INFO_PUSH_INTERVAL_MS) {
+                        pushServerInfo(nodeId)
+                    }
                 }
-            }
-            ?.addOnFailureListener { e ->
+            }            ?.addOnFailureListener { e ->
                 when (e) {
                     is SignatureVerifyFailedException ->
                         Log.e(TAG, "SIGNATURE VERIFICATION FAILED! The quickapp signing " +
@@ -344,21 +356,40 @@ class InterconnectHandler(
                     Log.i(TAG, "Message listener registered for node $nodeId")
                     registeredNodes.add(nodeId)
                     notifyStatus()
+                    // Proactively push server info to the watch — don't rely on
+                    // the watch's discover message (which may not arrive).
+                    pushServerInfo(nodeId)
                 }
                 ?.addOnFailureListener { e ->
-                    when (e) {
-                        is SignatureVerifyFailedException ->
-                            Log.e(TAG, "addListener: SIGNATURE VERIFICATION FAILED for $nodeId", e)
-                        is PermissionDeniedException ->
-                            Log.e(TAG, "addListener: PERMISSION DENIED for $nodeId", e)
-                        else ->
-                            Log.w(TAG, "addListener failed for $nodeId", e)
+                    if (e.message?.contains("already registered") == true ||
+                        e is IllegalStateException) {
+                        // SDK says listener already exists — treat as success
+                        Log.i(TAG, "addListener: already registered for $nodeId (ok)")
+                        registeredNodes.add(nodeId)
+                        notifyStatus()
+                        pushServerInfo(nodeId)
+                    } else if (e is SignatureVerifyFailedException) {
+                        Log.e(TAG, "addListener: SIGNATURE VERIFICATION FAILED for $nodeId", e)
+                        permittedNodes.remove(nodeId)
+                    } else if (e is PermissionDeniedException) {
+                        Log.e(TAG, "addListener: PERMISSION DENIED for $nodeId", e)
+                        permittedNodes.remove(nodeId)
+                    } else {
+                        Log.w(TAG, "addListener failed for $nodeId", e)
+                        permittedNodes.remove(nodeId)
                     }
-                    permittedNodes.remove(nodeId)
                 }
         } catch (e: Exception) {
-            Log.e(TAG, "addListener exception for $nodeId", e)
-            permittedNodes.remove(nodeId)
+            if (e.message?.contains("already registered") == true ||
+                e is IllegalStateException) {
+                Log.i(TAG, "addListener: already registered for $nodeId (ok)")
+                registeredNodes.add(nodeId)
+                notifyStatus()
+                pushServerInfo(nodeId)
+            } else {
+                Log.e(TAG, "addListener exception for $nodeId", e)
+                permittedNodes.remove(nodeId)
+            }
         }
 
         // Step 3: Subscribe to connection state changes (for auto re-registration)
@@ -514,6 +545,21 @@ class InterconnectHandler(
         } catch (e: Exception) {
             Log.w(TAG, "sendMessage error", e)
         }
+    }
+
+    /**
+     * Proactively send our server info to the watch so it can add this phone
+     * to its device list — even if the watch never sends a discover message.
+     */
+    private fun pushServerInfo(nodeId: String) {
+        val response = JsonObject().apply {
+            addProperty("type", "server_info")
+            addProperty("host", "localhost")
+            addProperty("port", httpPort)
+        }
+        lastServerInfoPushed[nodeId] = System.currentTimeMillis()
+        Log.i(TAG, "Pushing server_info to $nodeId")
+        sendMessage(nodeId, response.toString())
     }
 
     companion object {

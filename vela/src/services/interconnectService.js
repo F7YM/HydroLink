@@ -121,10 +121,18 @@ export default {
       console.log('[interconnect] onopen, isReconnected=' + (data && data.isReconnected))
       this._ready = true
       if (this._onStatusChange) this._onStatusChange(true)
-      // Auto-send discover if there are pending requests
-      if (this._discoverResolvers.length > 0) {
-        this._rawSend({ type: 'discover' })
-      }
+      // Always try to send discover on connect — the phone side will respond
+      // with server_info if it's listening. Use a short delay to ensure
+      // the connection is fully ready.
+      setTimeout(() => {
+        if (this._discoverResolvers.length > 0) {
+          console.log('[interconnect] Sending discover (onopen, ' + this._discoverResolvers.length + ' resolvers)')
+          this._rawSend({ type: 'discover' })
+        } else {
+          console.log('[interconnect] onopen: no pending resolvers, sending discover anyway')
+          this._rawSend({ type: 'discover' })
+        }
+      }, 200)
     }
 
     connect.onclose = (data) => {
