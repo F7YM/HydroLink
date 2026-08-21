@@ -488,7 +488,7 @@ export default {
     tempDisplay: '--',
     pressedKey: '',
     releasedKey: '',
-    _errorCount: 0
+    errorCount: 0
   },
 
   onInit() {
@@ -541,7 +541,7 @@ export default {
         dev.host, dev.port, dev.deviceId
       )
       if (perf && perf.status === 'ok') {
-        this._errorCount = 0
+        this.errorCount = 0
         const cpu = Math.round(perf.cpu || 0)
         const memPct = Math.round(perf.mem_percent || 0)
         this.cpuPercent = cpu
@@ -573,8 +573,8 @@ export default {
   },
 
   handleFetchError() {
-    this._errorCount++
-    if (this._errorCount >= MAX_ERRORS) {
+    this.errorCount++
+    if (this.errorCount >= MAX_ERRORS) {
       this.stopRefresh()
       if (this.loading) this.loading = false
     } else if (this.loading) {

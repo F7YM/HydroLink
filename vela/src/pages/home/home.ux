@@ -278,7 +278,7 @@ export default {
     currentTime: '00:00',
     pressedKey: '',
     releasedKey: '',
-    _longPressTriggered: false,
+    longPressTriggered: false,
     icDevice: null
   },
 
@@ -291,12 +291,26 @@ export default {
     if (this._timeInterval) clearInterval(this._timeInterval)
     this.stopPing()
     this.stopIcRetry()
+    interconnectService.setServerInfoHandler(null)
   },
 
   onShow() {
     this.updateTime()
     this.loadDevices()
     this.tryInterconnectDiscover()
+    // Phone pushes server_info every 5s — handle it immediately so the
+    // device appears without waiting for a discover retry.
+    interconnectService.setServerInfoHandler((info) => {
+      if (info && info.host) {
+        console.log('[home] server_info handler: ' + JSON.stringify(info))
+        this.icDevice = {
+          name: 'HydroStation',
+          host: info.host,
+          port: info.port || 9000,
+          viaInterconnect: true
+        }
+      }
+    })
   },
 
   onHide() {
@@ -423,9 +437,9 @@ export default {
   /* ---- Interconnect device handlers ---- */
   onIcTouchStart() {
     this.pressDown('ic_device')
-    this._longPressTriggered = false
+    this.longPressTriggered = false
     this._longPressTimer = setTimeout(() => {
-      this._longPressTriggered = true
+      this.longPressTriggered = true
       this.pressedKey = ''
       this.openIcDevice('deviceDetail')
     }, 600)
@@ -436,8 +450,8 @@ export default {
       clearTimeout(this._longPressTimer)
       this._longPressTimer = null
     }
-    if (this._longPressTriggered) {
-      this._longPressTriggered = false
+    if (this.longPressTriggered) {
+      this.longPressTriggered = false
       return
     }
     this.pressRelease('ic_device')
@@ -449,7 +463,7 @@ export default {
       clearTimeout(this._longPressTimer)
       this._longPressTimer = null
     }
-    this._longPressTriggered = false
+    this.longPressTriggered = false
     this.pressCancel('ic_device')
   },
 
@@ -468,9 +482,9 @@ export default {
   /* ---- Manual device handlers ---- */
   onDeviceTouchStart(index) {
     this.pressDown('device_' + index)
-    this._longPressTriggered = false
+    this.longPressTriggered = false
     this._longPressTimer = setTimeout(() => {
-      this._longPressTriggered = true
+      this.longPressTriggered = true
       this.pressedKey = ''
       this.openDevice(index, 'deviceDetail')
     }, 600)
@@ -481,8 +495,8 @@ export default {
       clearTimeout(this._longPressTimer)
       this._longPressTimer = null
     }
-    if (this._longPressTriggered) {
-      this._longPressTriggered = false
+    if (this.longPressTriggered) {
+      this.longPressTriggered = false
       return
     }
     this.pressRelease('device_' + index)
@@ -508,7 +522,7 @@ export default {
       clearTimeout(this._longPressTimer)
       this._longPressTimer = null
     }
-    this._longPressTriggered = false
+    this.longPressTriggered = false
     this.pressCancel('device_' + index)
   },
 

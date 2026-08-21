@@ -36,6 +36,7 @@ export default {
   _available: true,
   _ready: false,
   _onStatusChange: null,
+  _onServerInfo: null,
   _serverInfo: null,
   _discoverResolvers: [],
 
@@ -51,6 +52,16 @@ export default {
 
     this._setupConnection()
     return this
+  },
+
+  /**
+   * Register a handler that is called immediately whenever server_info
+   * arrives (phone pushes it every 5s), so the UI can update right away
+   * instead of waiting for the next discoverServer retry.
+   * @param {Function} handler({host, port})
+   */
+  setServerInfoHandler(handler) {
+    this._onServerInfo = handler
   },
 
   /**
@@ -160,15 +171,26 @@ export default {
   },
 
   _handleMessage(data) {
+    // Log the FULL raw structure so we can diagnose delivery issues
+    try {
+      console.log('[interconnect] onmessage raw: ' + JSON.stringify(data))
+    } catch (e) {
+      console.log('[interconnect] onmessage raw (unserializable): ' + typeof data)
+    }
     if (!data) return
     let msg = null
-    const raw = data.data
+    // Try multiple field paths — the payload may arrive as data.data,
+    // data.message, data.msg, or data itself depending on SDK version.
+    const raw = data.data !== undefined ? data.data
+      : (data.message !== undefined ? data.message
+        : (data.msg !== undefined ? data.msg : data))
     try {
       if (typeof raw === 'string') {
         msg = JSON.parse(raw)
       } else if (typeof raw === 'object') {
         msg = raw
       } else {
+        console.warn('[interconnect] unexpected message payload type: ' + typeof raw)
         return
       }
     } catch (e) {
@@ -176,6 +198,8 @@ export default {
       return
     }
     if (!msg || typeof msg !== 'object') return
+
+    console.log('[interconnect] parsed message: ' + JSON.stringify(msg))
 
     if (msg.type === 'server_info') {
       this._serverInfo = {
@@ -186,6 +210,14 @@ export default {
       const resolvers = this._discoverResolvers
       this._discoverResolvers = []
       resolvers.forEach((resolve) => resolve(this._serverInfo))
+      // Notify the UI immediately if a handler is registered
+      if (this._onServerInfo) {
+        try {
+          this._onServerInfo(this._serverInfo)
+        } catch (e) {
+          console.warn('[interconnect] server info handler error', e)
+        }
+      }
     } else if (msg.type === 'api_response') {
       const id = msg.id
       const pending = _pending[id]
