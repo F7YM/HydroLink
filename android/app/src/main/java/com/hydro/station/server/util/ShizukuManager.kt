@@ -173,7 +173,7 @@ object ShizukuManager {
     private fun bindService() {
         if (isBinding || commandService != null) return
         try {
-            if (Shizuku.getVersion() < 10) return
+            if (Shizuku.isPreV11()) return
             isBinding = true
             Shizuku.bindUserService(userServiceArgs, serviceConnection)
         } catch (e: Throwable) {
@@ -259,11 +259,11 @@ object ShizukuManager {
             pendingCommand = null
             pendingCallback = null
 
-            try {
-                if (Shizuku.getVersion() < 10) {
-                    return Triple(false, "Shizuku version too old", -1)
-                }
-                isBinding = true
+                try {
+                    if (Shizuku.isPreV11()) {
+                        return Triple(false, "Shizuku version too old", -1)
+                    }
+                    isBinding = true
 
                 val tempConnection = object : ServiceConnection {
                     override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {

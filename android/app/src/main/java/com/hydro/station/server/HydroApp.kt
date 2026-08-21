@@ -5,21 +5,11 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
 import com.hydro.station.server.util.DataManager
-import rikka.sui.Sui
 
 class HydroApp : Application() {
 
     companion object {
         const val CHANNEL_ID = "hydro_server_channel"
-
-        init {
-            // Initialize Sui (Magisk module) — safe to call even if not installed
-            try {
-                Sui.init(BuildConfig.APPLICATION_ID)
-            } catch (e: Throwable) {
-                // Sui not available, ignore
-            }
-        }
     }
 
     override fun onCreate() {
