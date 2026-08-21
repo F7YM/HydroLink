@@ -1,0 +1,19 @@
+# Android build artifacts
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.apk
+*.aab
+
+# Vela build artifacts
+vela/build/
+vela/dist/
+vela/.temp/
+.temp_vela/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.DS_Store
