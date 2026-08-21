@@ -96,10 +96,14 @@ export default {
             console.log('[interconnect] getReadyState: already connected')
             this._ready = true
             if (this._onStatusChange) this._onStatusChange(true)
-            // If already connected, send pending discover
-            if (this._discoverResolvers.length > 0) {
-              this._rawSend({ type: 'discover' })
-            }
+            // IMPORTANT: If already connected, send discover immediately
+            // (onopen won't fire for existing connections)
+            setTimeout(() => {
+              if (this._discoverResolvers.length > 0) {
+                console.log('[interconnect] Sending discover (already connected)')
+                this._rawSend({ type: 'discover' })
+              }
+            }, 100)
           } else {
             console.log('[interconnect] getReadyState: status=' + (data && data.status) + ', waiting for onopen')
           }
@@ -241,13 +245,21 @@ export default {
       // Add resolver — will be resolved when server_info is received
       this._discoverResolvers.push(resolve)
 
-      // If already ready, send discover now
+      // If already ready, send discover now with a small delay to ensure
+      // the resolver is registered before any async callbacks fire
       if (this._ready) {
-        this._rawSend({ type: 'discover' }).catch((e) => {
-          const idx = this._discoverResolvers.indexOf(resolve)
-          if (idx >= 0) this._discoverResolvers.splice(idx, 1)
-          reject(e)
-        })
+        console.log('[interconnect] discoverServer: already ready, sending discover')
+        setTimeout(() => {
+          if (this._discoverResolvers.length > 0) {
+            this._rawSend({ type: 'discover' }).catch((e) => {
+              const idx = this._discoverResolvers.indexOf(resolve)
+              if (idx >= 0) this._discoverResolvers.splice(idx, 1)
+              reject(e)
+            })
+          }
+        }, 50)
+      } else {
+        console.log('[interconnect] discoverServer: not ready, waiting for onopen')
       }
       // If not ready, onopen will auto-send discover when connection establishes
 

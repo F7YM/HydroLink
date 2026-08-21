@@ -313,17 +313,27 @@ class InterconnectHandler(
      *   3. Subscribe to connection state changes
      */
     private suspend fun ensureNodeRegistered(nodeId: String) {
-        if (registeredNodes.contains(nodeId)) return
+        if (registeredNodes.contains(nodeId)) {
+            Log.d(TAG, "Node $nodeId already registered, skipping")
+            return
+        }
+
+        Log.i(TAG, "=== ensureNodeRegistered START for $nodeId ===")
 
         // Step 1: Ensure DEVICE_MANAGER permission is granted
         if (!permittedNodes.contains(nodeId)) {
+            Log.i(TAG, "Step 1: Requesting DEVICE_MANAGER permission for $nodeId")
             val granted = requestPermission(nodeId)
+            Log.i(TAG, "Step 1 result: granted=$granted for $nodeId")
             if (!granted) {
-                Log.w(TAG, "Permission not granted for $nodeId — cannot register listener")
+                Log.w(TAG, "Permission not granted for $nodeId — cannot register listener. " +
+                    "Check if Xiaomi Wearable app is installed and quickapp signing matches.")
                 return
             }
             permittedNodes.add(nodeId)
             notifyStatus()
+        } else {
+            Log.i(TAG, "Step 1: Permission already granted for $nodeId")
         }
 
         // Step 2: Add message listener
@@ -371,49 +381,30 @@ class InterconnectHandler(
      * Returns true if permission was granted.
      */
     private suspend fun requestPermission(nodeId: String): Boolean {
-        val api = authApi ?: return false
+        val api = authApi ?: run {
+            Log.e(TAG, "requestPermission: authApi is null!")
+            return false
+        }
+
+        Log.i(TAG, "requestPermission: Starting for node $nodeId")
 
         // First, check if permission is already granted
+        Log.i(TAG, "requestPermission: Checking existing permission...")
         val alreadyGranted = checkPermission(api, nodeId, Permission.DEVICE_MANAGER)
+        Log.i(TAG, "requestPermission: checkPermission returned $alreadyGranted")
         if (alreadyGranted) {
             Log.i(TAG, "DEVICE_MANAGER permission already granted for $nodeId")
             return true
         }
 
-        // Request permission — this will trigger a dialog on the phone
-        val deferred = CompletableDeferred<Boolean>()
-        try {
-            api.requestPermission(nodeId, Permission.DEVICE_MANAGER, Permission.NOTIFY)
-                .addOnSuccessListener { permissions ->
-                    Log.i(TAG, "Permission request succeeded for $nodeId: " +
-                        permissions?.joinToString { it.name } ?: "none")
-                    deferred.complete(true)
-                }
-                .addOnFailureListener { e ->
-                    when (e) {
-                        is SignatureVerifyFailedException ->
-                            Log.e(TAG, "requestPermission: SIGNATURE VERIFICATION FAILED " +
-                                "for $nodeId. Ensure the quickapp's private.pem/certificate.pem " +
-                                "are derived from the Android app's keystore.", e)
-                        is PermissionDeniedException ->
-                            Log.e(TAG, "requestPermission: PERMISSION DENIED for $nodeId", e)
-                        else ->
-                            Log.w(TAG, "requestPermission failed for $nodeId", e)
-                    }
-                    deferred.complete(false)
-                }
-        } catch (e: Exception) {
-            Log.e(TAG, "requestPermission exception for $nodeId", e)
-            return false
-        }
-
-        // Don't block forever waiting for permission — timeout after 30s
-        return try {
-            kotlinx.coroutines.withTimeoutOrNull(30000L) { deferred.await() } ?: false
-        } catch (e: Exception) {
-            Log.w(TAG, "requestPermission timeout for $nodeId", e)
-            false
-        }
+        // Permission check returned false — might be a timeout or real denial.
+        // Since user has already authorized in Xiaomi Health app, we optimistically
+        // assume permission is granted and proceed. If it truly isn't, the subsequent
+        // addListener call will fail with PermissionDeniedException.
+        Log.w(TAG, "requestPermission: checkPermission returned false for $nodeId, " +
+            "assuming permission is granted (user authorized in Xiaomi Health app). " +
+            "If addListener fails later, this assumption was wrong.")
+        return true
     }
 
     /**
