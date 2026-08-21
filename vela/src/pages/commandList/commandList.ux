@@ -1,0 +1,306 @@
+<template>
+  <div class="page-container">
+    <!-- Header -->
+    <div class="header">
+      <text class="time-display">{{ currentTime }}</text>
+      <text
+        class="title pressable {{ pressedKey === 'back' ? 'is-down press-down' : '' }} {{ releasedKey === 'back' ? 'press-up' : '' }}"
+        ontouchstart="pressDown('back')"
+        ontouchend="pressRelease('back')"
+        ontouchcancel="pressCancel('back')"
+        onclick="goBack"
+      >‹快速命令</text>
+    </div>
+
+    <!-- Content -->
+    <scroll class="content-scroll" scroll-y="true" bounces="true">
+      <div class="content-area">
+        <!-- Loading -->
+        <div if="{{ loading }}" class="loading-state">
+          <text class="loading-text">加载中...</text>
+        </div>
+
+        <!-- Empty -->
+        <div if="{{ !loading && commands.length === 0 }}" class="loading-state">
+          <text class="loading-text">暂无命令</text>
+        </div>
+
+        <!-- Command List -->
+        <div if="{{ !loading && commands.length > 0 }}" class="command-list">
+          <div
+            for="{{ (index, item) in commands }}"
+            class="command-item pressable {{ pressedKey === 'cmd_' + index ? 'is-down press-down' : '' }} {{ releasedKey === 'cmd_' + index ? 'press-up' : '' }}"
+            ontouchstart="pressDown('cmd_' + index)"
+            ontouchend="pressRelease('cmd_' + index)"
+            ontouchcancel="pressCancel('cmd_' + index)"
+            onclick="onRun(index)"
+          >
+            <text class="command-name">{{ item.name }}</text>
+          </div>
+        </div>
+      </div>
+    </scroll>
+  </div>
+</template>
+
+<style>
+.page-container {
+  width: 100%;
+  height: 100%;
+  background-color: #000;
+  position: relative;
+}
+
+/* ---- Header ---- */
+.header {
+  width: 100%;
+  height: 90px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #000;
+}
+.time-display {
+  font-size: 28px;
+  font-weight: bold;
+  color: #fff;
+  padding-top: 5px;
+  text-align: center;
+}
+.title {
+  font-size: 32px;
+  font-weight: bold;
+  color: #fff;
+  text-align: center;
+}
+
+/* ---- Content ---- */
+.content-scroll {
+  position: absolute;
+  top: 90px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  flex-direction: column;
+}
+.content-area {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 20px;
+  padding-bottom: 60px;
+}
+
+/* ---- Loading ---- */
+.loading-state {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 80px;
+}
+.loading-text {
+  font-size: 28px;
+  font-weight: bold;
+  color: #888;
+}
+
+/* ---- Command List ---- */
+.command-list {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+}
+.command-item {
+  width: 400px;
+  min-height: 80px;
+  background-color: #2e323c;
+  border-radius: 30px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+  padding: 16px 32px;
+}
+.command-name {
+  font-size: 26px;
+  font-weight: bold;
+  color: #fff;
+  lines: 2;
+  text-align: center;
+}
+
+/* ---- Press animation ---- */
+.pressable {
+  transform-origin: 50% 50%;
+  transform: scale(1);
+  opacity: 1;
+}
+.is-down {
+  opacity: 0.75;
+}
+.press-down {
+  animation-name: PressDown;
+  animation-duration: 80ms;
+  animation-timing-function: ease-out;
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+.press-up {
+  animation-name: PressUp;
+  animation-duration: 140ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+@keyframes PressDown {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.94);
+    opacity: 0.75;
+  }
+}
+@keyframes PressUp {
+  0% {
+    transform: scale(0.94);
+    opacity: 0.75;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ---- Circle screen ---- */
+@media (shape: circle) {
+  .command-item {
+    width: 360px;
+    border-radius: 25px;
+  }
+  .command-name {
+    font-size: 24px;
+  }
+  .content-area {
+    padding-bottom: 80px;
+  }
+}
+
+/* ---- Rect screen ---- */
+@media (shape: rect) {
+  .header {
+    height: 65px;
+  }
+  .content-scroll {
+    top: 65px;
+  }
+  .content-area {
+    padding-top: 10px;
+  }
+  .command-item {
+    width: 420px;
+  }
+}
+</style>
+
+<script>
+import router from '@system.router'
+import prompt from '@system.prompt'
+import deviceService from '../../services/deviceService.js'
+
+export default {
+  public: {
+    deviceId: '',
+    host: '',
+    port: 0
+  },
+  private: {
+    currentTime: '00:00',
+    loading: true,
+    commands: [],
+    pressedKey: '',
+    releasedKey: ''
+  },
+
+  onInit() {
+    this.updateTime()
+    this._timeInterval = setInterval(() => this.updateTime(), 60000)
+  },
+
+  onDestroy() {
+    if (this._timeInterval) clearInterval(this._timeInterval)
+  },
+
+  async onShow() {
+    this.updateTime()
+    await this.loadCommands()
+  },
+
+  updateTime() {
+    const now = new Date()
+    this.currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  },
+
+  async loadCommands() {
+    this.loading = true
+    let dev = await deviceService.getDevice(this.deviceId)
+    if (!dev && this.host) {
+      dev = {
+        host: this.host,
+        port: this.port || 9000,
+        deviceId: this.deviceId === '__interconnect__' ? 'interconnect-device' : this.deviceId
+      }
+    }
+    if (!dev || !dev.host) {
+      this.loading = false
+      return
+    }
+    this._device = dev
+    const commands = await deviceService.getCommands(
+      dev.host, dev.port, dev.deviceId
+    )
+    this.commands = commands
+    this.loading = false
+  },
+
+  async onRun(index) {
+    const dev = this._device
+    if (!dev || !dev.host) return
+    const cmd = this.commands[index]
+    if (!cmd) return
+    prompt.showToast({ message: '执行: ' + cmd.name })
+    const res = await deviceService.runCommand(
+      dev.host, dev.port, dev.deviceId, cmd.id
+    )
+    if (res && res.status === 'ok') {
+      prompt.showToast({ message: '执行成功' })
+    } else {
+      prompt.showToast({ message: '执行失败' })
+    }
+  },
+
+  goBack() {
+    router.back()
+  },
+
+  pressDown(key) {
+    this.releasedKey = ''
+    this.pressedKey = key
+  },
+
+  pressRelease(key) {
+    this.pressedKey = ''
+    this.releasedKey = key
+    setTimeout(() => {
+      if (this.releasedKey === key) this.releasedKey = ''
+    }, 160)
+  },
+
+  pressCancel(key) {
+    if (this.pressedKey === key) this.pressedKey = ''
+    if (this.releasedKey === key) this.releasedKey = ''
+  }
+}
+</script>

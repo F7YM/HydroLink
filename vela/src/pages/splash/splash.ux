@@ -1,0 +1,34 @@
+<template>
+  <div class="splash">
+    <image class="logo" src="/common/icon.png"></image>
+  </div>
+</template>
+
+<style>
+.splash {
+  width: 100%;
+  height: 100%;
+  background-color: #000;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.logo {
+  width: 144px;
+  height: 144px;
+}
+</style>
+
+<script>
+import router from '@system.router'
+import deviceService from '../../services/deviceService.js'
+
+export default {
+  onInit() {
+    (async () => {
+      await deviceService.readDevices()
+      router.replace({ uri: '/pages/home' })
+    })()
+  }
+}
+</script>

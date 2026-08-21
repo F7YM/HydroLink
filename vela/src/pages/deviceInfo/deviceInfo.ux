@@ -1,0 +1,813 @@
+<template>
+  <div class="page-container">
+    <!-- Header -->
+    <div class="header">
+      <text class="time-display">{{ currentTime }}</text>
+      <text
+        class="title pressable {{ pressedKey === 'back' ? 'is-down press-down' : '' }} {{ releasedKey === 'back' ? 'press-up' : '' }}"
+        ontouchstart="pressDown('back')"
+        ontouchend="pressRelease('back')"
+        ontouchcancel="pressCancel('back')"
+        onclick="goBack"
+      >‹{{ deviceName }}</text>
+    </div>
+
+    <!-- Content -->
+    <scroll class="content-area" scroll-y="true" bounces="true">
+      <!-- Loading -->
+      <div if="{{ loading }}" class="loading-state">
+        <text class="loading-text">加载中...</text>
+      </div>
+
+      <!-- Loaded -->
+      <div if="{{ !loading }}" class="card-wrapper">
+        <div class="info-card">
+          <!-- Left: device icon -->
+          <div class="card-icon-area">
+            <image class="card-device-icon" src="/common/icons/{{ device.deviceType }}.png"></image>
+          </div>
+          <!-- Right: OS + battery/IP -->
+          <div class="card-info-area">
+            <marquee
+              id="osMarquee"
+              class="os-text"
+              scrollamount="{{ 6 }}"
+              loop="{{ -1 }}"
+            >{{ osVersion }}</marquee>
+
+            <!-- Battery row -->
+            <div if="{{ hasBattery }}" class="sub-row">
+              <image class="battery-icon" src="/common/icons/{{ batteryIcon }}.png"></image>
+              <text class="sub-text">{{ batteryPercent }}%</text>
+            </div>
+            <!-- IP row (no battery) -->
+            <div if="{{ !hasBattery }}" class="sub-row">
+              <text class="sub-text">{{ device.host }}:{{ device.port }}</text>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Control Card -->
+        <div class="control-card">
+          <div
+            class="control-item pressable {{ pressedKey === 'lock' ? 'is-down press-down' : '' }} {{ releasedKey === 'lock' ? 'press-up' : '' }}"
+            ontouchstart="pressDown('lock')"
+            ontouchend="pressRelease('lock')"
+            ontouchcancel="pressCancel('lock')"
+            onclick="onLock"
+          >
+            <div class="control-circle">
+              <image class="control-icon" src="/common/icons/lock-custom.png"></image>
+            </div>
+            <text class="control-label">锁屏</text>
+          </div>
+
+          <div
+            class="control-item pressable {{ pressedKey === 'command' ? 'is-down press-down' : '' }} {{ releasedKey === 'command' ? 'press-up' : '' }}"
+            ontouchstart="pressDown('command')"
+            ontouchend="pressRelease('command')"
+            ontouchcancel="pressCancel('command')"
+            onclick="onQuickCommand"
+          >
+            <div class="control-circle">
+              <image class="control-icon" src="/common/icons/apple-keyboard-command-custom.png"></image>
+            </div>
+            <text class="control-label">快速命令</text>
+          </div>
+
+          <div
+            class="control-item pressable {{ pressedKey === 'perf' ? 'is-down press-down' : '' }} {{ releasedKey === 'perf' ? 'press-up' : '' }}"
+            ontouchstart="pressDown('perf')"
+            ontouchend="pressRelease('perf')"
+            ontouchcancel="pressCancel('perf')"
+            onclick="onPerfView"
+          >
+            <div class="control-circle">
+              <image class="control-icon" src="/common/icons/gauge-custom.png"></image>
+            </div>
+            <text class="control-label">性能</text>
+          </div>
+
+          <div
+            class="control-item pressable {{ pressedKey === 'term' ? 'is-down press-down' : '' }} {{ releasedKey === 'term' ? 'press-up' : '' }}"
+            ontouchstart="pressDown('term')"
+            ontouchend="pressRelease('term')"
+            ontouchcancel="pressCancel('term')"
+            onclick="onTerminal"
+          >
+            <div class="control-circle">
+              <text class="control-icon-text">>_</text>
+            </div>
+            <text class="control-label">终端</text>
+          </div>
+
+        </div>
+
+        <!-- Music Control Card -->
+        <div if="{{ hasMusic }}" class="music-card">
+          <div class="music-header">
+            <div class="music-icon-circle">
+              <image class="music-icon" src="/common/icons/music-circle-custom.png"></image>
+            </div>
+            <div class="music-text-area">
+              <text class="music-title">{{ musicTitle }}</text>
+              <text class="music-artist">{{ musicArtist }}</text>
+            </div>
+          </div>
+          <div class="music-controls">
+            <div
+              class="music-btn pressable {{ pressedKey === 'mprev' ? 'is-down press-down' : '' }} {{ releasedKey === 'mprev' ? 'press-up' : '' }}"
+              ontouchstart="pressDown('mprev')"
+              ontouchend="pressRelease('mprev')"
+              ontouchcancel="pressCancel('mprev')"
+              onclick="onMusicPrev"
+            >
+              <image class="music-btn-icon" src="/common/icons/skip-previous-custom.png"></image>
+            </div>
+
+            <div
+              class="music-btn-play pressable {{ pressedKey === 'mplay' ? 'is-down press-down' : '' }} {{ releasedKey === 'mplay' ? 'press-up' : '' }}"
+              ontouchstart="pressDown('mplay')"
+              ontouchend="pressRelease('mplay')"
+              ontouchcancel="pressCancel('mplay')"
+              onclick="onMusicPlayPause"
+            >
+              <image if="{{ musicPlaying }}" class="music-play-icon" src="/common/icons/pause-custom.png"></image>
+              <image if="{{ !musicPlaying }}" class="music-play-icon" src="/common/icons/play-custom.png"></image>
+            </div>
+
+            <div
+              class="music-btn pressable {{ pressedKey === 'mnext' ? 'is-down press-down' : '' }} {{ releasedKey === 'mnext' ? 'press-up' : '' }}"
+              ontouchstart="pressDown('mnext')"
+              ontouchend="pressRelease('mnext')"
+              ontouchcancel="pressCancel('mnext')"
+              onclick="onMusicNext"
+            >
+              <image class="music-btn-icon" src="/common/icons/skip-next-custom.png"></image>
+            </div>
+          </div>
+        </div>
+      </div>
+    </scroll>
+  </div>
+</template>
+
+<style>
+.page-container {
+  width: 100%;
+  height: 100%;
+  background-color: #000;
+  position: relative;
+}
+
+/* ---- Header ---- */
+.header {
+  width: 100%;
+  height: 90px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #000;
+}
+.time-display {
+  font-size: 28px;
+  font-weight: bold;
+  color: #fff;
+  padding-top: 5px;
+  text-align: center;
+}
+.title {
+  font-size: 32px;
+  font-weight: bold;
+  color: #fff;
+  text-align: center;
+  lines: 1;
+  text-overflow: ellipsis;
+  max-width: 360px;
+}
+
+/* ---- Content ---- */
+.content-area {
+  position: absolute;
+  top: 90px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+}
+.loading-state {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 80px;
+}
+.loading-text {
+  font-size: 28px;
+  font-weight: bold;
+  color: #888;
+}
+
+/* ---- Info Card ---- */
+.card-wrapper {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 20px;
+  padding-bottom: 40px;
+}
+.info-card {
+  width: 400px;
+  height: 160px;
+  background-color: #2e323c;
+  border-radius: 50px;
+  flex-direction: row;
+  align-items: center;
+  padding: 0 24px;
+}
+.card-icon-area {
+  width: 80px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.card-device-icon {
+  width: 56px;
+  height: 56px;
+}
+.card-info-area {
+  flex-grow: 1;
+  flex-direction: column;
+  justify-content: center;
+  margin-left: 16px;
+}
+.os-text {
+  font-size: 30px;
+  font-weight: bold;
+  color: #fff;
+  width: 260px;
+}
+.sub-row {
+  flex-direction: row;
+  align-items: center;
+  margin-top: 12px;
+}
+.battery-icon {
+  width: 28px;
+  height: 28px;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+.sub-text {
+  font-size: 24px;
+  font-weight: bold;
+  color: #888;
+  lines: 1;
+  text-overflow: ellipsis;
+}
+
+/* ---- Control Card ---- */
+.control-card {
+  width: 400px;
+  height: 140px;
+  margin-top: 16px;
+  background-color: #2e323c;
+  border-radius: 50px;
+  flex-direction: row;
+  justify-content: space-around;
+  align-items: center;
+  padding: 0 16px;
+}
+.control-item {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.control-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 32px;
+  background-color: #3a3f4a;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.control-icon {
+  width: 32px;
+  height: 32px;
+}
+.control-icon-text {
+  font-size: 24px;
+  font-weight: bold;
+  color: #fff;
+  font-family: monospace;
+}
+.control-label {
+  font-size: 20px;
+  font-weight: bold;
+  color: #888;
+  margin-top: 8px;
+}
+
+/* ---- Control item press: scale only, no opacity (prevents black flash) ---- */
+.control-item.is-down {
+  opacity: 1;
+}
+.control-item.press-down {
+  animation-name: ControlPressDown;
+}
+.control-item.press-up {
+  animation-name: ControlPressUp;
+}
+@keyframes ControlPressDown {
+  0% { transform: scale(1); }
+  100% { transform: scale(0.92); }
+}
+@keyframes ControlPressUp {
+  0% { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+
+/* ---- Music Card ---- */
+.music-card {
+  width: 400px;
+  margin-top: 16px;
+  background-color: #2e323c;
+  border-radius: 40px;
+  flex-direction: column;
+  padding: 20px 32px 24px 32px;
+}
+.music-header {
+  flex-direction: row;
+  align-items: center;
+}
+.music-icon-circle {
+  width: 56px;
+  height: 56px;
+  border-radius: 28px;
+  background-color: #3a3f4a;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+}
+.music-icon {
+  width: 32px;
+  height: 32px;
+}
+.music-text-area {
+  flex-direction: column;
+  margin-left: 16px;
+  flex-grow: 1;
+}
+.music-title {
+  font-size: 26px;
+  font-weight: bold;
+  color: #fff;
+  lines: 1;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+.music-artist {
+  font-size: 22px;
+  font-weight: bold;
+  color: #888;
+  margin-top: 4px;
+  lines: 1;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+.music-controls {
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  margin-top: 20px;
+}
+.music-btn {
+  width: 64px;
+  height: 64px;
+  border-radius: 32px;
+  background-color: #3a3f4a;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  margin: 0 20px;
+}
+.music-btn-play {
+  width: 76px;
+  height: 76px;
+  border-radius: 38px;
+  background-color: #bac3ff;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  margin: 0 20px;
+}
+.music-btn-icon {
+  width: 32px;
+  height: 32px;
+}
+.music-play-icon {
+  width: 38px;
+  height: 38px;
+}
+/* Music button press: scale only */
+.music-btn.is-down, .music-btn-play.is-down {
+  opacity: 1;
+}
+.music-btn.press-down, .music-btn-play.press-down {
+  animation-name: ControlPressDown;
+}
+.music-btn.press-up, .music-btn-play.press-up {
+  animation-name: ControlPressUp;
+}
+
+/* ---- Press animation ---- */
+.pressable {
+  transform-origin: 50% 50%;
+  transform: scale(1);
+  opacity: 1;
+}
+.is-down {
+  opacity: 0.75;
+}
+.press-down {
+  animation-name: PressDown;
+  animation-duration: 80ms;
+  animation-timing-function: ease-out;
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+.press-up {
+  animation-name: PressUp;
+  animation-duration: 140ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+@keyframes PressDown {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.94);
+    opacity: 0.75;
+  }
+}
+@keyframes PressUp {
+  0% {
+    transform: scale(0.94);
+    opacity: 0.75;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ---- Circle screen ---- */
+@media (shape: circle) {
+  .info-card {
+    width: 360px;
+    height: 150px;
+    border-radius: 45px;
+  }
+  .os-text {
+    width: 220px;
+  }
+  .card-device-icon {
+    width: 48px;
+    height: 48px;
+  }
+  .control-card {
+    width: 360px;
+    height: 130px;
+    border-radius: 45px;
+  }
+  .control-circle {
+    width: 52px;
+    height: 52px;
+    border-radius: 26px;
+  }
+  .control-icon {
+    width: 26px;
+    height: 26px;
+  }
+  .control-icon-text {
+    font-size: 18px;
+  }
+  .control-label {
+    font-size: 16px;
+  }
+  .music-card {
+    width: 360px;
+    border-radius: 35px;
+    padding: 16px 28px 20px 28px;
+  }
+  .music-icon-circle {
+    width: 48px;
+    height: 48px;
+    border-radius: 24px;
+  }
+  .music-icon {
+    width: 28px;
+    height: 28px;
+  }
+  .music-title {
+    font-size: 24px;
+    max-width: 220px;
+  }
+  .music-artist {
+    font-size: 20px;
+    max-width: 220px;
+  }
+  .music-btn {
+    width: 56px;
+    height: 56px;
+    border-radius: 28px;
+    margin: 0 16px;
+  }
+  .music-btn-play {
+    width: 68px;
+    height: 68px;
+    border-radius: 34px;
+    margin: 0 16px;
+  }
+  .music-btn-icon {
+    width: 28px;
+    height: 28px;
+  }
+  .music-play-icon {
+    width: 34px;
+    height: 34px;
+  }
+  .card-wrapper {
+    padding-bottom: 80px;
+  }
+}
+
+/* ---- Rect screen ---- */
+@media (shape: rect) {
+  .header {
+    height: 65px;
+  }
+  .content-area {
+    top: 65px;
+  }
+  .card-wrapper {
+    padding-top: 10px;
+  }
+  .info-card {
+    width: 420px;
+  }
+  .control-card {
+    width: 420px;
+  }
+  .music-card {
+    width: 420px;
+  }
+}
+</style>
+
+<script>
+import router from '@system.router'
+import prompt from '@system.prompt'
+import deviceService from '../../services/deviceService.js'
+
+function getBatteryIcon(percent, charging) {
+  if (charging) return 'battery-charging-custom'
+  if (percent >= 100) return 'battery-custom'
+  const tens = Math.floor(percent / 10) * 10
+  if (tens === 0) return 'battery-10-custom'
+  if (tens >= 90) return 'battery-90-custom'
+  return `battery-${tens}-custom`
+}
+
+export default {
+  public: {
+    deviceId: '',
+    icHost: '',
+    icPort: 0
+  },
+  private: {
+    device: {},
+    deviceName: '',
+    currentTime: '00:00',
+    loading: true,
+    osVersion: '',
+    hasBattery: false,
+    batteryPercent: 0,
+    batteryIcon: '',
+    hasMusic: false,
+    musicTitle: '',
+    musicArtist: '',
+    musicPlaying: false,
+    pressedKey: '',
+    releasedKey: ''
+  },
+
+  onInit() {
+    this.updateTime()
+    this._timeInterval = setInterval(() => this.updateTime(), 60000)
+  },
+
+  onDestroy() {
+    if (this._timeInterval) clearInterval(this._timeInterval)
+    this.stopMusicPoll()
+  },
+
+  async onShow() {
+    this.updateTime()
+    await this.loadDevice()
+    await this.fetchStatus()
+    this.fetchMusic()
+    this.startMusicPoll()
+  },
+
+  onHide() {
+    this.stopMusicPoll()
+  },
+
+  updateTime() {
+    const now = new Date()
+    this.currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  },
+
+  async loadDevice() {
+    if (this.deviceId === '__interconnect__' && this.icHost) {
+      this.device = {
+        id: '__interconnect__',
+        name: 'HydroStation',
+        host: this.icHost,
+        port: this.icPort || 9000,
+        deviceId: 'interconnect-device',
+        deviceType: 'cellphone',
+        viaInterconnect: true
+      }
+      this.deviceName = this.device.name
+      return
+    }
+    const dev = await deviceService.getDevice(this.deviceId)
+    if (dev) {
+      this.device = dev
+      this.deviceName = dev.name || '设备详情'
+    }
+  },
+
+  async fetchStatus() {
+    this.loading = true
+    const dev = this.device
+    if (!dev || !dev.host) {
+      this.loading = false
+      return
+    }
+    const sysInfo = await deviceService.getServerSystemInfo(
+      dev.host, dev.port, dev.deviceId
+    )
+    this.osVersion = sysInfo.version || '未知系统'
+    this.hasBattery = sysInfo.hasBattery
+    this.batteryPercent = sysInfo.batteryPercent
+    this.batteryIcon = getBatteryIcon(sysInfo.batteryPercent, sysInfo.batteryCharging)
+    this.loading = false
+    setTimeout(() => {
+      const el = this.$element('osMarquee')
+      if (el) el.start()
+    }, 100)
+  },
+
+  goBack() {
+    router.back()
+  },
+
+  async onLock() {
+    const dev = this.device
+    if (!dev || !dev.host || !dev.port) return
+    prompt.showToast({ message: '正在锁屏...' })
+    const res = await deviceService.sendCommand(
+      dev.host, dev.port, dev.deviceId, '/api/lock', 'POST'
+    )
+    if (res && res.code === 200 && res.data && res.data.status === 'ok') {
+      prompt.showToast({ message: '已锁屏' })
+    } else {
+      prompt.showToast({ message: '锁屏失败' })
+    }
+  },
+
+  onQuickCommand() {
+    router.push({
+      uri: '/pages/commandList',
+      params: {
+        deviceId: this.deviceId,
+        host: this.device.host || '',
+        port: this.device.port || 0
+      }
+    })
+  },
+
+  onPerfView() {
+    router.push({
+      uri: '/pages/perfView',
+      params: {
+        deviceId: this.deviceId,
+        host: this.device.host || '',
+        port: this.device.port || 0
+      }
+    })
+  },
+
+  onTerminal() {
+    router.push({
+      uri: '/pages/terminal',
+      params: {
+        deviceId: this.deviceId,
+        host: this.device.host || '',
+        port: this.device.port || 0
+      }
+    })
+  },
+
+  async fetchMusic() {
+    const dev = this.device
+    if (!dev || !dev.host) return
+    try {
+      const res = await deviceService.getMusicInfo(
+        dev.host, dev.port, dev.deviceId
+      )
+      if (res && res.has_media) {
+        this.hasMusic = true
+        this.musicTitle = res.title || '未知曲目'
+        this.musicArtist = res.artist || '未知艺术家'
+        this.musicPlaying = !!res.playing
+      } else {
+        this.hasMusic = false
+      }
+    } catch (e) {
+      // ignore
+    }
+  },
+
+  startMusicPoll() {
+    this.stopMusicPoll()
+    this._musicInterval = setInterval(() => {
+      this.fetchMusic()
+    }, 3000)
+  },
+
+  stopMusicPoll() {
+    if (this._musicInterval) {
+      clearInterval(this._musicInterval)
+      this._musicInterval = null
+    }
+  },
+
+  async onMusicPlayPause() {
+    const dev = this.device
+    if (!dev || !dev.host) return
+    const action = this.musicPlaying ? 'pause' : 'play'
+    this.musicPlaying = !this.musicPlaying
+    await deviceService.controlMusic(
+      dev.host, dev.port, dev.deviceId, action
+    )
+    setTimeout(() => this.fetchMusic(), 800)
+  },
+
+  async onMusicNext() {
+    const dev = this.device
+    if (!dev || !dev.host) return
+    await deviceService.controlMusic(
+      dev.host, dev.port, dev.deviceId, 'next'
+    )
+    setTimeout(() => this.fetchMusic(), 800)
+  },
+
+  async onMusicPrev() {
+    const dev = this.device
+    if (!dev || !dev.host) return
+    await deviceService.controlMusic(
+      dev.host, dev.port, dev.deviceId, 'previous'
+    )
+    setTimeout(() => this.fetchMusic(), 800)
+  },
+
+  pressDown(key) {
+    this.releasedKey = ''
+    this.pressedKey = key
+  },
+
+  pressRelease(key) {
+    this.pressedKey = ''
+    this.releasedKey = key
+    setTimeout(() => {
+      if (this.releasedKey === key) this.releasedKey = ''
+    }, 160)
+  },
+
+  pressCancel(key) {
+    if (this.pressedKey === key) this.pressedKey = ''
+    if (this.releasedKey === key) this.releasedKey = ''
+  }
+}
+</script>

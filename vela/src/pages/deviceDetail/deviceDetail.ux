@@ -1,0 +1,441 @@
+<template>
+  <div class="page-container">
+    <!-- Header -->
+    <div class="header">
+      <text class="time-display">{{ currentTime }}</text>
+      <text
+        class="title pressable {{ pressedKey === 'back' ? 'is-down press-down' : '' }} {{ releasedKey === 'back' ? 'press-up' : '' }}"
+        ontouchstart="pressDown('back')"
+        ontouchend="pressRelease('back')"
+        ontouchcancel="pressCancel('back')"
+        onclick="goBack"
+      >‹设备详情</text>
+    </div>
+
+    <!-- Form area -->
+    <div class="form-area">
+      <div class="form-list">
+        <!-- Device Name -->
+        <div
+          class="form-item pressable {{ pressedKey === 'name' ? 'is-down press-down' : '' }} {{ releasedKey === 'name' ? 'press-up' : '' }}"
+          ontouchstart="pressDown('name')"
+          ontouchend="pressRelease('name')"
+          ontouchcancel="pressCancel('name')"
+          onclick="onEditField('name', '设备名称')"
+        >
+          <text class="form-label">设备名称</text>
+          <text class="form-value">{{ device.name || '未设置' }}</text>
+        </div>
+
+        <!-- Device IP -->
+        <div
+          class="form-item pressable {{ pressedKey === 'ip' ? 'is-down press-down' : '' }} {{ releasedKey === 'ip' ? 'press-up' : '' }}"
+          ontouchstart="pressDown('ip')"
+          ontouchend="pressRelease('ip')"
+          ontouchcancel="pressCancel('ip')"
+          onclick="onEditField('ip', '设备IP')"
+        >
+          <text class="form-label">设备IP</text>
+          <text class="form-value">{{ device.host }}</text>
+        </div>
+
+        <!-- Device Port -->
+        <div
+          class="form-item pressable {{ pressedKey === 'port' ? 'is-down press-down' : '' }} {{ releasedKey === 'port' ? 'press-up' : '' }}"
+          ontouchstart="pressDown('port')"
+          ontouchend="pressRelease('port')"
+          ontouchcancel="pressCancel('port')"
+          onclick="onEditField('port', '端口')"
+        >
+          <text class="form-label">端口</text>
+          <text class="form-value">{{ device.port }}</text>
+        </div>
+
+        <!-- Device Type -->
+        <div
+          class="form-item pressable {{ pressedKey === 'type' ? 'is-down press-down' : '' }} {{ releasedKey === 'type' ? 'press-up' : '' }}"
+          ontouchstart="pressDown('type')"
+          ontouchend="pressRelease('type')"
+          ontouchcancel="pressCancel('type')"
+          onclick="onSelectType"
+        >
+          <text class="form-label">设备类型</text>
+          <div class="type-value-wrapper">
+            <image class="type-icon" src="/common/icons/{{ device.deviceType }}.png"></image>
+            <text class="form-value">{{ typeLabel }}</text>
+          </div>
+        </div>
+
+        <!-- Delete Device -->
+        <div
+          class="delete-button pressable {{ pressedKey === 'delete' ? 'is-down press-down' : '' }} {{ releasedKey === 'delete' ? 'press-up' : '' }}"
+          ontouchstart="pressDown('delete')"
+          ontouchend="pressRelease('delete')"
+          ontouchcancel="pressCancel('delete')"
+          onclick="onDeleteDevice"
+        >
+          <text class="delete-button-text">删除设备</text>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style>
+.page-container {
+  width: 100%;
+  height: 100%;
+  background-color: #000;
+  position: relative;
+}
+
+/* ---- Header ---- */
+.header {
+  width: 100%;
+  height: 90px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #000;
+}
+.time-display {
+  font-size: 28px;
+  font-weight: bold;
+  color: #fff;
+  padding-top: 5px;
+  text-align: center;
+}
+.title {
+  font-size: 32px;
+  font-weight: bold;
+  color: #fff;
+  text-align: center;
+}
+
+/* ---- Form ---- */
+.form-area {
+  position: absolute;
+  top: 90px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+}
+.form-list {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 20px;
+}
+.form-item {
+  width: 390px;
+  height: 94px;
+  margin: 5px 0;
+  padding: 0 24px;
+  background-color: #2e323c;
+  border-radius: 47px;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  border-width: 2px;
+  border-style: solid;
+  border-color: transparent;
+}
+.form-label {
+  font-size: 26px;
+  font-weight: bold;
+  color: rgba(255, 255, 255, 0.6);
+}
+.form-value {
+  font-size: 26px;
+  font-weight: bold;
+  color: #fff;
+  lines: 1;
+  text-overflow: ellipsis;
+  max-width: 200px;
+  text-align: right;
+}
+.type-value-wrapper {
+  flex-direction: row;
+  align-items: center;
+}
+.type-icon {
+  width: 32px;
+  height: 32px;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+.delete-button {
+  width: 300px;
+  height: 86px;
+  margin-top: 28px;
+  background-color: #4a2428;
+  border-radius: 43px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.delete-button-text {
+  font-size: 28px;
+  font-weight: bold;
+  color: #ffb4ab;
+}
+
+/* ---- Press animation ---- */
+.pressable {
+  transform-origin: 50% 50%;
+  transform: scale(1);
+  opacity: 1;
+}
+.is-down {
+  opacity: 0.75;
+}
+.press-down {
+  animation-name: PressDown;
+  animation-duration: 80ms;
+  animation-timing-function: ease-out;
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+.press-up {
+  animation-name: PressUp;
+  animation-duration: 140ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+@keyframes PressDown {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.94);
+    opacity: 0.75;
+  }
+}
+@keyframes PressUp {
+  0% {
+    transform: scale(0.94);
+    opacity: 0.75;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ---- Circle screen ---- */
+@media (shape: circle) {
+  .form-list {
+    padding-top: 5px;
+  }
+  .form-item {
+    width: 340px;
+    height: 70px;
+    border-radius: 35px;
+    margin: 3px 0;
+  }
+  .form-label {
+    font-size: 24px;
+  }
+  .form-value {
+    font-size: 24px;
+  }
+  .delete-button {
+    width: 280px;
+    height: 70px;
+    border-radius: 35px;
+    margin-top: 10px;
+  }
+  .delete-button-text {
+    font-size: 26px;
+  }
+}
+
+/* ---- Rect screen ---- */
+@media (shape: rect) {
+  .header {
+    height: 65px;
+  }
+  .form-area {
+    top: 65px;
+  }
+  .form-list {
+    padding-top: 10px;
+  }
+}
+</style>
+
+<script>
+import router from '@system.router'
+import prompt from '@system.prompt'
+import deviceService from '../../services/deviceService.js'
+
+const TYPE_LABELS = {
+  cellphone: '手机',
+  laptop: '笔记本',
+  desktop: '台式机'
+}
+
+export default {
+  public: {
+    deviceId: '',
+    icHost: '',
+    icPort: 0
+  },
+  private: {
+    device: {},
+    currentTime: '00:00',
+    typeLabel: '',
+    pressedKey: '',
+    releasedKey: ''
+  },
+
+  onInit() {
+    this.updateTime()
+    this._timeInterval = setInterval(() => this.updateTime(), 60000)
+  },
+
+  onDestroy() {
+    if (this._timeInterval) clearInterval(this._timeInterval)
+  },
+
+  async onShow() {
+    this.updateTime()
+    await this.loadDevice()
+
+    // Check for keyboard result (name or IP edit)
+    const appDef = this.$app && this.$app.$def
+    if (appDef && appDef.keyboardResult && !this._isInterconnect) {
+      const result = appDef.keyboardResult
+      appDef.keyboardResult = null
+      if (result.field === 'name') {
+        await deviceService.updateDevice(this.deviceId, { name: result.value })
+      } else if (result.field === 'ip') {
+        await deviceService.updateDevice(this.deviceId, { host: result.value.trim() })
+      } else if (result.field === 'port') {
+        const port = parseInt(result.value, 10)
+        if (isNaN(port) || port < 1 || port > 65535) {
+          prompt.showToast({ message: '端口无效' })
+        } else {
+          await deviceService.updateDevice(this.deviceId, { port })
+        }
+      }
+      await this.loadDevice()
+    } else if (appDef && appDef.keyboardResult) {
+      appDef.keyboardResult = null
+    }
+
+    // Check for type result
+    if (appDef && appDef.typeResult && !this._isInterconnect) {
+      const result = appDef.typeResult
+      appDef.typeResult = null
+      if (result.deviceType) {
+        await deviceService.updateDevice(this.deviceId, { deviceType: result.deviceType })
+        await this.loadDevice()
+      }
+    } else if (appDef && appDef.typeResult) {
+      appDef.typeResult = null
+    }
+  },
+
+  updateTime() {
+    const now = new Date()
+    this.currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  },
+
+  async loadDevice() {
+    if (this.deviceId === '__interconnect__' && this.icHost) {
+      this.device = {
+        id: '__interconnect__',
+        name: 'HydroStation',
+        host: this.icHost,
+        port: this.icPort || 9000,
+        deviceId: 'interconnect-device',
+        deviceType: 'cellphone',
+        viaInterconnect: true
+      }
+      this.typeLabel = '手机'
+      this._isInterconnect = true
+      return
+    }
+    this._isInterconnect = false
+    const dev = await deviceService.getDevice(this.deviceId)
+    if (dev) {
+      this.device = dev
+      this.typeLabel = TYPE_LABELS[dev.deviceType] || '未知'
+    }
+  },
+
+  goBack() {
+    router.back()
+  },
+
+  onEditField(field, label) {
+    if (this._isInterconnect) {
+      prompt.showToast({ message: 'Interconnect设备不可编辑' })
+      return
+    }
+    let currentValue = ''
+    if (field === 'name') {
+      currentValue = this.device.name || ''
+    } else if (field === 'ip') {
+      currentValue = this.device.host || ''
+    } else if (field === 'port') {
+      currentValue = String(this.device.port || '')
+    }
+    router.push({
+      uri: '/pages/keyboard',
+      params: {
+        field: field,
+        label: label,
+        value: currentValue
+      }
+    })
+  },
+
+  async onDeleteDevice() {
+    if (this._isInterconnect) {
+      prompt.showToast({ message: 'Interconnect设备不可删除' })
+      return
+    }
+    await deviceService.removeDevice(this.deviceId)
+    prompt.showToast({ message: '已删除设备' })
+    router.back()
+  },
+
+  onSelectType() {
+    if (this._isInterconnect) {
+      prompt.showToast({ message: 'Interconnect设备不可修改' })
+      return
+    }
+    router.push({
+      uri: '/pages/deviceType',
+      params: {
+        currentType: this.device.deviceType || 'desktop'
+      }
+    })
+  },
+
+  pressDown(key) {
+    this.releasedKey = ''
+    this.pressedKey = key
+  },
+
+  pressRelease(key) {
+    this.pressedKey = ''
+    this.releasedKey = key
+    setTimeout(() => {
+      if (this.releasedKey === key) this.releasedKey = ''
+    }, 160)
+  },
+
+  pressCancel(key) {
+    if (this.pressedKey === key) this.pressedKey = ''
+    if (this.releasedKey === key) this.releasedKey = ''
+  }
+}
+</script>

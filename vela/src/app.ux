@@ -1,0 +1,26 @@
+<script>
+import interconnectService from './services/interconnectService.js'
+
+export default {
+  devices: [],
+  keyboardResult: null,
+  keyboardConfig: null,
+  typeResult: null,
+  interconnect: null,
+  interconnectReady: false,
+
+  onCreate() {
+    // Initialize interconnect for auto-discovery
+    this.interconnect = interconnectService.init((ready) => {
+      this.interconnectReady = ready
+    })
+  },
+
+  onDestroy() {
+    if (this.interconnect) {
+      this.interconnect.destroy()
+      this.interconnect = null
+    }
+  }
+}
+</script>

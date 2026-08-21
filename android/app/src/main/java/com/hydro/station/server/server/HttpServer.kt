@@ -1,0 +1,709 @@
+package com.hydro.station.server.server
+
+import android.app.ActivityManager
+import android.content.Context
+import android.os.Build
+import android.os.StatFs
+import com.google.gson.Gson
+import com.google.gson.JsonObject
+import com.hydro.station.server.model.*
+import com.hydro.station.server.service.LockAccessibilityService
+import com.hydro.station.server.service.MusicController
+import com.hydro.station.server.util.DataManager
+import com.hydro.station.server.util.NetworkUtil
+import com.hydro.station.server.util.ShizukuManager
+import fi.iki.elonen.NanoHTTPD
+import java.io.BufferedReader
+import java.io.ByteArrayInputStream
+import java.io.File
+import java.io.FileInputStream
+import java.io.InputStreamReader
+import java.text.SimpleDateFormat
+import java.util.*
+
+class HydroHttpServer(
+    private val context: Context,
+    port: Int
+) : NanoHTTPD("0.0.0.0", port) {
+
+    private val gson = Gson()
+    private val dataManager = DataManager.get(context)
+    private val musicController = MusicController(context)
+    private val logBuffer = Collections.synchronizedList(mutableListOf<LogEntry>())
+    private val maxLogs = 100
+
+    companion object {
+        private const val API_LEVEL = 6
+        private const val VERSION = "1.0.0"
+    }
+
+    fun addLog(message: String, level: String = "info") {
+        val timestamp = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+        val entry = LogEntry("[$timestamp] $message", level)
+        logBuffer.add(entry)
+        if (logBuffer.size > maxLogs) logBuffer.removeAt(0)
+    }
+
+    fun getLogs(): List<LogEntry> = logBuffer.toList()
+
+    override fun serve(session: IHTTPSession): Response {
+        val uri = session.uri
+        val method = session.method
+        val headers = session.headers
+
+        // Handle CORS preflight (OPTIONS) requests
+        if (method == Method.OPTIONS) {
+            val corsResp = newFixedLengthResponse(Response.Status.OK, "text/plain", "")
+            addCorsHeaders(corsResp)
+            return corsResp
+        }
+
+        try {
+            // Parse body for POST
+            val bodyJson: JsonObject? = if (method == Method.POST) {
+                try {
+                    val files = HashMap<String, String>()
+                    session.parseBody(files)
+                    val jsonStr = files["postData"]
+                    jsonStr?.let {
+                        try { gson.fromJson(it, JsonObject::class.java) } catch (e: Exception) { null }
+                    }
+                } catch (e: Exception) {
+                    null
+                }
+            } else null
+
+            // Normalize URI: strip trailing slash (except root)
+            val cleanUri = if (uri.length > 1 && uri.endsWith("/")) uri.dropLast(1) else uri
+
+            val response = when {
+                // ---- Public endpoints (no auth) - support both /api/xxx and /xxx ----
+                // Ping
+                (cleanUri == "/api/ping" || cleanUri == "/ping") && method == Method.GET ->
+                    jsonResp(mapOf("status" to "ok"))
+
+                // Version
+                (cleanUri == "/api/version" || cleanUri == "/version") && method == Method.GET ->
+                    jsonResp(mapOf(
+                        "status" to "ok",
+                        "api_level" to API_LEVEL,
+                        "version" to VERSION
+                    ))
+
+                // PID
+                (cleanUri == "/api/pid" || cleanUri == "/pid") && method == Method.GET ->
+                    jsonResp(mapOf(
+                        "status" to "ok",
+                        "pid" to android.os.Process.myPid()
+                    ))
+
+                // ---- Pairing ----
+                (cleanUri == "/api/pair" || cleanUri == "/pair") && method == Method.POST ->
+                    handlePair(bodyJson)
+
+                cleanUri.startsWith("/api/check/") && method == Method.GET -> {
+                    val deviceId = cleanUri.removePrefix("/api/check/")
+                    handleCheckDevice(deviceId)
+                }
+                cleanUri.startsWith("/check/") && method == Method.GET -> {
+                    val deviceId = cleanUri.removePrefix("/check/")
+                    handleCheckDevice(deviceId)
+                }
+
+                (cleanUri == "/api/auth" || cleanUri == "/auth") && method == Method.GET ->
+                    handleAuth(headers)
+
+                (cleanUri == "/api/pending_pair" || cleanUri == "/pending_pair") && method == Method.GET ->
+                    handleGetPendingPairs()
+
+                (cleanUri == "/api/pair/respond" || cleanUri == "/pair/respond") && method == Method.POST ->
+                    handleRespondPair(bodyJson)
+
+                // ---- Trusted endpoints ----
+                (cleanUri == "/api/status" || cleanUri == "/status") && method == Method.GET ->
+                    withTrusted(headers) { handleStatus() }
+
+                (cleanUri == "/api/lock" || cleanUri == "/lock") && method == Method.POST ->
+                    withTrusted(headers) { handleLock() }
+
+                (cleanUri == "/api/performance" || cleanUri == "/performance") && method == Method.GET ->
+                    withTrusted(headers) { handlePerformance() }
+
+                // ---- Music ----
+                (cleanUri == "/api/music" || cleanUri == "/music") && method == Method.GET ->
+                    withTrusted(headers) { handleGetMusic() }
+
+                (cleanUri == "/api/music/control" || cleanUri == "/music/control") && method == Method.POST ->
+                    withTrusted(headers) { handleMusicControl(bodyJson) }
+
+                (cleanUri == "/api/commands" || cleanUri == "/commands") && method == Method.GET ->
+                    withTrusted(headers) { handleGetCommands() }
+
+                cleanUri.matches(Regex("/api/commands/\\d+/run")) && method == Method.POST -> {
+                    val cmdId = cleanUri.split("/")[3].toInt()
+                    withTrusted(headers) { handleRunCommand(cmdId) }
+                }
+                cleanUri.matches(Regex("/commands/\\d+/run")) && method == Method.POST -> {
+                    val cmdId = cleanUri.split("/")[2].toInt()
+                    withTrusted(headers) { handleRunCommand(cmdId) }
+                }
+
+                // ---- Terminal (arbitrary command execution) ----
+                (cleanUri == "/api/terminal" || cleanUri == "/terminal") && method == Method.POST ->
+                    withTrusted(headers) { handleTerminal(bodyJson) }
+
+                // ---- Root / health check ----
+                cleanUri == "/" || cleanUri == "" -> {
+                    jsonResp(mapOf("status" to "ok", "service" to "HydroStationServer", "version" to VERSION))
+                }
+
+                else -> jsonResp(mapOf("status" to "error", "message" to "Not found"), Response.Status.NOT_FOUND)
+            }
+
+            // Add CORS and other headers to every response
+            addCorsHeaders(response)
+            return response
+
+        } catch (e: Exception) {
+            addLog("服务器错误: ${e.message}", "error")
+            val errResp = jsonResp(mapOf("status" to "error", "message" to "Internal error"), Response.Status.INTERNAL_ERROR)
+            addCorsHeaders(errResp)
+            return errResp
+        }
+    }
+
+    /**
+     * Add CORS headers and connection management headers to a response.
+     */
+    private fun addCorsHeaders(response: Response) {
+        response.addHeader("Access-Control-Allow-Origin", "*")
+        response.addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE")
+        response.addHeader("Access-Control-Allow-Headers", "Content-Type, X-Device-ID, Authorization")
+        response.addHeader("Access-Control-Max-Age", "86400")
+        response.addHeader("Connection", "close")
+    }
+
+    // ---- Auth helper ----
+    private fun withTrusted(headers: Map<String, String>, block: () -> Response): Response {
+        // Check accept_all mode
+        val config = dataManager.loadConfig()
+        if (config.acceptAll) return block()
+
+        val deviceId = headers["x-device-id"] ?: ""
+        if (deviceId.isEmpty() || deviceId.length > 100) {
+            return jsonResp(mapOf("status" to "error", "message" to "Missing device ID"), Response.Status.UNAUTHORIZED)
+        }
+        if (!dataManager.isTrusted(deviceId)) {
+            return jsonResp(mapOf("status" to "error", "message" to "Device not trusted"), Response.Status.FORBIDDEN)
+        }
+        return block()
+    }
+
+    // ---- Internal request handler (for interconnect transport) ----
+
+    /**
+     * Handle an API request from the InterconnectHandler (UDP transport).
+     * Routes to the same handlers as serve() but returns a JsonElement
+     * instead of an HTTP Response.  Bypasses device-trust checks since
+     * interconnect already implies a trusted companion-app relationship.
+     */
+    fun handleInternalRequest(path: String, method: String, body: com.google.gson.JsonElement?): com.google.gson.JsonElement? {
+        val cleanPath = if (path.startsWith("/api")) path else if (path.startsWith("/")) "/api$path" else "/api/$path"
+        val bodyJson = if (body is JsonObject) body else null
+
+        return try {
+            when {
+                // Health check
+                cleanPath == "/api/ping" || cleanPath == "/ping" ->
+                    gson.toJsonTree(mapOf("status" to "ok", "api_level" to API_LEVEL, "version" to VERSION))
+
+                // System status
+                cleanPath == "/api/status" || cleanPath == "/status" ->
+                    gson.toJsonTree(buildStatusMap())
+
+                // Lock
+                cleanPath == "/api/lock" || cleanPath == "/lock" -> {
+                    val success = LockAccessibilityService.instance?.lockScreen() ?: false
+                    gson.toJsonTree(mapOf("status" to if (success) "ok" else "error"))
+                }
+
+                // Performance
+                cleanPath == "/api/performance" || cleanPath == "/performance" ->
+                    gson.toJsonTree(buildPerformanceMap())
+
+                // Music
+                cleanPath == "/api/music" || cleanPath == "/music" ->
+                    gson.toJsonTree(buildMusicMap())
+
+                cleanPath == "/api/music/control" || cleanPath == "/music/control" -> {
+                    val action = bodyJson?.get("action")?.asString ?: ""
+                    val success = musicController.control(action)
+                    gson.toJsonTree(mapOf("status" to if (success) "ok" else "error"))
+                }
+
+                // Commands
+                cleanPath == "/api/commands" || cleanPath == "/commands" ->
+                    gson.toJsonTree(mapOf("status" to "ok", "commands" to dataManager.loadCommands()))
+
+                cleanPath.matches(Regex("/api/commands/\\d+/run")) || cleanPath.matches(Regex("/commands/\\d+/run")) -> {
+                    val parts = cleanPath.split("/")
+                    val cmdId = parts[parts.indexOfLast { it.matches(Regex("\\d+")) }].toInt()
+                    val commands = dataManager.loadCommands()
+                    if (cmdId >= 0 && cmdId < commands.size) {
+                        val cmd = commands[cmdId]
+                        val (success, output, _) = ShizukuManager.executeCommandSync(cmd.command)
+                        gson.toJsonTree(mapOf("status" to if (success) "ok" else "error", "output" to output))
+                    } else {
+                        gson.toJsonTree(mapOf("status" to "error", "message" to "Invalid command ID"))
+                    }
+                }
+
+                // Terminal
+                cleanPath == "/api/terminal" || cleanPath == "/terminal" -> {
+                    val cmd = bodyJson?.get("command")?.asString?.trim() ?: ""
+                    if (cmd.isEmpty()) {
+                        gson.toJsonTree(mapOf("status" to "error", "message" to "Empty command"))
+                    } else {
+                        val config = dataManager.loadConfig()
+                        if (config.useShizuku && ShizukuManager.isReady()) {
+                            val (success, output, returnCode) = ShizukuManager.executeCommandSync(cmd)
+                            gson.toJsonTree(mapOf("status" to if (success) "ok" else "error", "returncode" to returnCode, "output" to output.take(5000)))
+                        } else {
+                            val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", cmd))
+                            val output = BufferedReader(InputStreamReader(process.inputStream)).readText() +
+                                    BufferedReader(InputStreamReader(process.errorStream)).readText()
+                            process.waitFor()
+                            gson.toJsonTree(mapOf("status" to "ok", "returncode" to process.exitValue(), "output" to output.take(5000)))
+                        }
+                    }
+                }
+
+                else -> null
+            }
+        } catch (e: Exception) {
+            gson.toJsonTree(mapOf("status" to "error", "message" to (e.message ?: "Internal error")))
+        }
+    }
+
+    /** Build the status response map (shared between HTTP and interconnect). */
+    private fun buildStatusMap(): Map<String, Any> {
+        return mapOf(
+            "status" to "running",
+            "trusted_count" to dataManager.loadTrustedDevices().size,
+            "system" to getSystemInfo(),
+            "battery" to getBatteryInfo()
+        )
+    }
+
+    /** Build the performance response map. */
+    private fun buildPerformanceMap(): Map<String, Any?> {
+        return try {
+            val cpuUsage = getCpuUsage()
+            val memInfo = getMemoryInfo()
+            mapOf(
+                "status" to "ok",
+                "cpu" to cpuUsage,
+                "mem_percent" to memInfo.first,
+                "mem_used" to memInfo.second,
+                "mem_total" to memInfo.third,
+                "temp" to null
+            )
+        } catch (e: Exception) {
+            mapOf("status" to "error", "message" to (e.message ?: "Unknown error"))
+        }
+    }
+
+    /** Build the music info map. */
+    private fun buildMusicMap(): Map<String, Any> {
+        val info = musicController.getActiveMediaInfo()
+        return if (info != null) {
+            mapOf("status" to "ok", "has_media" to true, "title" to info.title, "artist" to info.artist, "playing" to info.playing)
+        } else {
+            mapOf("status" to "ok", "has_media" to false, "title" to "", "artist" to "", "playing" to false)
+        }
+    }
+
+    // ---- Pairing handlers ----
+    private fun handlePair(body: JsonObject?): Response {
+        if (body == null) {
+            return jsonResp(mapOf("status" to "error", "message" to "Invalid JSON"), Response.Status.BAD_REQUEST)
+        }
+
+        val deviceId = body.get("device_id")?.asString?.trim() ?: ""
+        val deviceName = body.get("device_name")?.asString?.trim()?.take(50) ?: "Unknown"
+
+        if (deviceId.isEmpty() || deviceId.length > 100) {
+            return jsonResp(mapOf("status" to "error", "message" to "Invalid device_id"), Response.Status.BAD_REQUEST)
+        }
+
+        // Check if rejected
+        if (dataManager.isRejected(deviceId)) {
+            return jsonResp(mapOf("status" to "rejected", "message" to "Device was rejected"))
+        }
+
+        // Check if already trusted
+        if (dataManager.isTrusted(deviceId)) {
+            addLog("设备 ${deviceId.take(8)}... 已信任", "success")
+            val config = dataManager.loadConfig()
+            return jsonResp(mapOf(
+                "status" to "trusted",
+                "message" to "Device already trusted",
+                "encryption_key" to config.encryptionKey
+            ))
+        }
+
+        // Accept all mode
+        val config = dataManager.loadConfig()
+        if (config.acceptAll) {
+            dataManager.addTrustedDevice(deviceId, deviceName)
+            addLog("自动信任设备: ${deviceId.take(8)}... ($deviceName)", "success")
+            return jsonResp(mapOf(
+                "status" to "trusted",
+                "message" to "Auto accepted",
+                "encryption_key" to config.encryptionKey
+            ))
+        }
+
+        // Pending
+        addLog("配对请求: ${deviceId.take(8)}...", "warning")
+        dataManager.addPendingPair(deviceId, deviceName)
+        return jsonResp(mapOf("status" to "pending", "message" to "Waiting for user confirmation"))
+    }
+
+    private fun handleCheckDevice(deviceId: String): Response {
+        if (deviceId.isEmpty() || deviceId.length > 100) {
+            return jsonResp(mapOf("status" to "error"), Response.Status.BAD_REQUEST)
+        }
+
+        if (dataManager.isRejected(deviceId)) {
+            return jsonResp(mapOf("status" to "rejected"))
+        }
+
+        if (dataManager.isTrusted(deviceId)) {
+            val config = dataManager.loadConfig()
+            return jsonResp(mapOf(
+                "status" to "trusted",
+                "encryption_key" to config.encryptionKey
+            ))
+        }
+
+        return jsonResp(mapOf("status" to "pending"))
+    }
+
+    private fun handleAuth(headers: Map<String, String>): Response {
+        val deviceId = headers["x-device-id"] ?: ""
+        if (deviceId.isEmpty() || deviceId.length > 100) {
+            return jsonResp(mapOf("status" to "error", "message" to "Missing device ID"), Response.Status.BAD_REQUEST)
+        }
+        return jsonResp(mapOf(
+            "status" to if (dataManager.isTrusted(deviceId)) "authorized" else "unauthorized"
+        ))
+    }
+
+    private fun handleGetPendingPairs(): Response {
+        val pairs = dataManager.loadPendingPairs()
+        return jsonResp(mapOf("status" to "ok", "pairs" to pairs))
+    }
+
+    private fun handleRespondPair(body: JsonObject?): Response {
+        if (body == null) {
+            return jsonResp(mapOf("status" to "error", "message" to "Invalid JSON"), Response.Status.BAD_REQUEST)
+        }
+
+        val deviceId = body.get("device_id")?.asString?.trim() ?: ""
+        val action = body.get("action")?.asString?.trim() ?: ""
+        val deviceName = body.get("device_name")?.asString?.trim()?.take(50) ?: "Unknown"
+
+        if (deviceId.isEmpty() || action !in listOf("accept", "reject")) {
+            return jsonResp(mapOf("status" to "error", "message" to "Invalid params"), Response.Status.BAD_REQUEST)
+        }
+
+        dataManager.removePendingPair(deviceId)
+
+        if (action == "accept") {
+            dataManager.addTrustedDevice(deviceId, deviceName)
+            addLog("已信任设备: ${deviceId.take(8)}...", "success")
+        } else {
+            dataManager.addRejected(deviceId)
+            addLog("拒绝设备: ${deviceId.take(8)}...", "error")
+        }
+
+        return jsonResp(mapOf("status" to "ok"))
+    }
+
+    // ---- Status ----
+    private fun handleStatus(): Response {
+        val trustedCount = dataManager.loadTrustedDevices().size
+        return jsonResp(mapOf(
+            "status" to "running",
+            "trusted_count" to trustedCount,
+            "system" to getSystemInfo(),
+            "battery" to getBatteryInfo()
+        ))
+    }
+
+    // ---- Lock ----
+    private fun handleLock(): Response {
+        val service = LockAccessibilityService.instance
+        if (service == null) {
+            addLog("锁屏失败: 无障碍服务未启用", "error")
+            return jsonResp(mapOf("status" to "error", "message" to "Accessibility service not enabled"), Response.Status.INTERNAL_ERROR)
+        }
+
+        val success = service.lockScreen()
+        if (success) {
+            addLog("设备已锁屏", "success")
+            return jsonResp(mapOf("status" to "ok", "message" to "Screen locked"))
+        } else {
+            addLog("锁屏失败", "error")
+            return jsonResp(mapOf("status" to "error", "message" to "Lock failed"), Response.Status.INTERNAL_ERROR)
+        }
+    }
+
+    // ---- Performance ----
+    private fun handlePerformance(): Response {
+        try {
+            val cpuUsage = getCpuUsage()
+            val memInfo = getMemoryInfo()
+            return jsonResp(mapOf(
+                "status" to "ok",
+                "cpu" to cpuUsage,
+                "mem_percent" to memInfo.first,
+                "mem_used" to memInfo.second,
+                "mem_total" to memInfo.third,
+                "temp" to null
+            ))
+        } catch (e: Exception) {
+            return jsonResp(mapOf("status" to "error", "message" to "Failed to get performance"), Response.Status.INTERNAL_ERROR)
+        }
+    }
+
+    // ---- Music ----
+    private fun handleGetMusic(): Response {
+        val info = musicController.getActiveMediaInfo()
+        return if (info != null) {
+            jsonResp(mapOf(
+                "status" to "ok",
+                "has_media" to true,
+                "title" to info.title,
+                "artist" to info.artist,
+                "playing" to info.playing
+            ))
+        } else {
+            jsonResp(mapOf(
+                "status" to "ok",
+                "has_media" to false,
+                "title" to "",
+                "artist" to "",
+                "playing" to false
+            ))
+        }
+    }
+
+    private fun handleMusicControl(body: JsonObject?): Response {
+        if (body == null) {
+            return jsonResp(mapOf("status" to "error", "message" to "Invalid JSON"), Response.Status.BAD_REQUEST)
+        }
+        val action = body.get("action")?.asString?.trim() ?: ""
+        if (action !in listOf("play", "pause", "playpause", "next", "previous")) {
+            return jsonResp(mapOf("status" to "error", "message" to "Invalid action"), Response.Status.BAD_REQUEST)
+        }
+        val success = musicController.control(action)
+        return if (success) {
+            jsonResp(mapOf("status" to "ok"))
+        } else {
+            jsonResp(mapOf("status" to "error", "message" to "No active media session"), Response.Status.INTERNAL_ERROR)
+        }
+    }
+
+    // ---- Commands ----
+    private fun handleGetCommands(): Response {
+        val commands = dataManager.loadCommands()
+        val result = commands.mapIndexed { i, cmd ->
+            mapOf(
+                "id" to i,
+                "name" to cmd.name.take(50),
+                "command" to cmd.command.take(200)
+            )
+        }
+        return jsonResp(mapOf("status" to "ok", "commands" to result))
+    }
+
+    private fun handleRunCommand(cmdId: Int): Response {
+        val commands = dataManager.loadCommands()
+        if (cmdId < 0 || cmdId >= commands.size) {
+            return jsonResp(mapOf("status" to "error", "message" to "Invalid command ID"), Response.Status.BAD_REQUEST)
+        }
+
+        val cmd = commands[cmdId]
+        val cmdStr = cmd.command.trim()
+        if (cmdStr.isEmpty()) {
+            return jsonResp(mapOf("status" to "error", "message" to "Empty command"), Response.Status.BAD_REQUEST)
+        }
+
+        val config = dataManager.loadConfig()
+
+        // Use Shizuku if enabled and ready
+        if (config.useShizuku) {
+            if (!ShizukuManager.isReady()) {
+                addLog("Shizuku 未就绪，命令执行失败", "error")
+                return jsonResp(mapOf("status" to "error", "message" to "Shizuku not ready"), Response.Status.INTERNAL_ERROR)
+            }
+
+            addLog("执行命令(Shizuku): ${cmd.name}", "warning")
+            val (success, output, returnCode) = ShizukuManager.executeCommandSync(cmdStr)
+            if (success) {
+                addLog("命令完成: 返回码 $returnCode", "success")
+                return jsonResp(mapOf(
+                    "status" to "ok",
+                    "returncode" to returnCode,
+                    "output" to output.take(1000)
+                ))
+            } else {
+                addLog("命令失败: $output", "error")
+                return jsonResp(mapOf("status" to "error", "message" to "Command failed: $output"), Response.Status.INTERNAL_ERROR)
+            }
+        }
+
+        // Fallback: direct execution (app user privileges)
+        try {
+            addLog("执行命令: ${cmd.name}", "warning")
+            val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", cmdStr))
+            val output = BufferedReader(InputStreamReader(process.inputStream)).readText() +
+                    BufferedReader(InputStreamReader(process.errorStream)).readText()
+            process.waitFor()
+            val returnCode = process.exitValue()
+            addLog("命令完成: 返回码 $returnCode", "success")
+            return jsonResp(mapOf(
+                "status" to "ok",
+                "returncode" to returnCode,
+                "output" to output.take(1000)
+            ))
+        } catch (e: Exception) {
+            addLog("命令失败", "error")
+            return jsonResp(mapOf("status" to "error", "message" to "Command failed"), Response.Status.INTERNAL_ERROR)
+        }
+    }
+
+    // ---- Terminal ----
+    private fun handleTerminal(body: JsonObject?): Response {
+        if (body == null) {
+            return jsonResp(mapOf("status" to "error", "message" to "Invalid JSON"), Response.Status.BAD_REQUEST)
+        }
+
+        val cmdStr = body.get("command")?.asString?.trim() ?: ""
+        if (cmdStr.isEmpty()) {
+            return jsonResp(mapOf("status" to "error", "message" to "Empty command"), Response.Status.BAD_REQUEST)
+        }
+
+        // Limit command length for safety
+        if (cmdStr.length > 5000) {
+            return jsonResp(mapOf("status" to "error", "message" to "Command too long"), Response.Status.BAD_REQUEST)
+        }
+
+        val config = dataManager.loadConfig()
+
+        // Use Shizuku if enabled and ready
+        if (config.useShizuku) {
+            if (!ShizukuManager.isReady()) {
+                addLog("终端: Shizuku 未就绪", "error")
+                return jsonResp(mapOf("status" to "error", "message" to "Shizuku not ready"), Response.Status.INTERNAL_ERROR)
+            }
+
+            addLog("终端执行(Shizuku): ${cmdStr.take(50)}", "warning")
+            val (success, output, returnCode) = ShizukuManager.executeCommandSync(cmdStr)
+            if (success) {
+                return jsonResp(mapOf(
+                    "status" to "ok",
+                    "returncode" to returnCode,
+                    "output" to output.take(5000)
+                ))
+            } else {
+                addLog("终端执行失败: $output", "error")
+                return jsonResp(mapOf("status" to "error", "message" to "Command failed: $output"), Response.Status.INTERNAL_ERROR)
+            }
+        }
+
+        // Fallback: direct execution (app user privileges)
+        try {
+            addLog("终端执行: ${cmdStr.take(50)}", "warning")
+            val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", cmdStr))
+            val output = BufferedReader(InputStreamReader(process.inputStream)).readText() +
+                    BufferedReader(InputStreamReader(process.errorStream)).readText()
+            process.waitFor()
+            val returnCode = process.exitValue()
+            addLog("终端完成: 返回码 $returnCode", "success")
+            return jsonResp(mapOf(
+                "status" to "ok",
+                "returncode" to returnCode,
+                "output" to output.take(5000)
+            ))
+        } catch (e: Exception) {
+            addLog("终端执行失败", "error")
+            return jsonResp(mapOf("status" to "error", "message" to "Command failed: ${e.message}"), Response.Status.INTERNAL_ERROR)
+        }
+    }
+
+    // ---- System info helpers ----
+    private fun getSystemInfo(): SystemInfo {
+        val hostname = try {
+            Build.MODEL ?: "Android Device"
+        } catch (e: Exception) {
+            "Android Device"
+        }
+        val version = "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})"
+        return SystemInfo(hostname, version)
+    }
+
+    private fun getBatteryInfo(): BatteryInfo {
+        try {
+            val bm = context.getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager
+            val percent = bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
+            val charging = bm.isCharging
+            return BatteryInfo(true, percent, charging)
+        } catch (e: Exception) {
+            return BatteryInfo(true, 0, false)
+        }
+    }
+
+    private fun getCpuUsage(): Float {
+        return try {
+            val runtime = Runtime.getRuntime()
+            val process = runtime.exec("top -n 1")
+            val reader = BufferedReader(InputStreamReader(process.inputStream))
+            var line: String?
+            while (reader.readLine().also { line = it } != null) {
+                if (line!!.contains("CPU:")) {
+                    val match = Regex("(\\d+)%").find(line!!)
+                    if (match != null) {
+                        return match.groupValues[1].toFloat()
+                    }
+                }
+            }
+            0f
+        } catch (e: Exception) {
+            0f
+        }
+    }
+
+    private fun getMemoryInfo(): Triple<Float, Long, Long> {
+        try {
+            val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val memInfo = ActivityManager.MemoryInfo()
+            am.getMemoryInfo(memInfo)
+            val totalMB = memInfo.totalMem / (1024 * 1024)
+            val usedMB = (memInfo.totalMem - memInfo.availMem) / (1024 * 1024)
+            val percent = (usedMB.toFloat() / totalMB.toFloat()) * 100
+            return Triple(percent, usedMB, totalMB)
+        } catch (e: Exception) {
+            return Triple(0f, 0L, 0L)
+        }
+    }
+
+    // ---- JSON response helper ----
+    private fun jsonResp(data: Any, status: Response.Status = Response.Status.OK): Response {
+        val json = gson.toJson(data)
+        val response = newFixedLengthResponse(status, "application/json; charset=utf-8", json)
+        return response
+    }
+}

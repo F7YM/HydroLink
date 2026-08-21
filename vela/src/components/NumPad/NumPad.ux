@@ -1,0 +1,236 @@
+<template>
+  <div class="numpad">
+    <div class="np-row">
+      <div class="np-key pressable {{ pressed === '1' ? 'is-down press-down' : '' }} {{ released === '1' ? 'press-up' : '' }}"
+        ontouchstart="npPress('1')" ontouchend="npRelease('1')" ontouchcancel="npCancel('1')"
+        onclick="onKey('1')">
+        <text class="np-text">1</text>
+      </div>
+      <div class="np-key pressable {{ pressed === '2' ? 'is-down press-down' : '' }} {{ released === '2' ? 'press-up' : '' }}"
+        ontouchstart="npPress('2')" ontouchend="npRelease('2')" ontouchcancel="npCancel('2')"
+        onclick="onKey('2')">
+        <text class="np-text">2</text>
+      </div>
+      <div class="np-key pressable {{ pressed === '3' ? 'is-down press-down' : '' }} {{ released === '3' ? 'press-up' : '' }}"
+        ontouchstart="npPress('3')" ontouchend="npRelease('3')" ontouchcancel="npCancel('3')"
+        onclick="onKey('3')">
+        <text class="np-text">3</text>
+      </div>
+    </div>
+    <div class="np-row">
+      <div class="np-key pressable {{ pressed === '4' ? 'is-down press-down' : '' }} {{ released === '4' ? 'press-up' : '' }}"
+        ontouchstart="npPress('4')" ontouchend="npRelease('4')" ontouchcancel="npCancel('4')"
+        onclick="onKey('4')">
+        <text class="np-text">4</text>
+      </div>
+      <div class="np-key pressable {{ pressed === '5' ? 'is-down press-down' : '' }} {{ released === '5' ? 'press-up' : '' }}"
+        ontouchstart="npPress('5')" ontouchend="npRelease('5')" ontouchcancel="npCancel('5')"
+        onclick="onKey('5')">
+        <text class="np-text">5</text>
+      </div>
+      <div class="np-key pressable {{ pressed === '6' ? 'is-down press-down' : '' }} {{ released === '6' ? 'press-up' : '' }}"
+        ontouchstart="npPress('6')" ontouchend="npRelease('6')" ontouchcancel="npCancel('6')"
+        onclick="onKey('6')">
+        <text class="np-text">6</text>
+      </div>
+    </div>
+    <div class="np-row">
+      <div class="np-key pressable {{ pressed === '7' ? 'is-down press-down' : '' }} {{ released === '7' ? 'press-up' : '' }}"
+        ontouchstart="npPress('7')" ontouchend="npRelease('7')" ontouchcancel="npCancel('7')"
+        onclick="onKey('7')">
+        <text class="np-text">7</text>
+      </div>
+      <div class="np-key pressable {{ pressed === '8' ? 'is-down press-down' : '' }} {{ released === '8' ? 'press-up' : '' }}"
+        ontouchstart="npPress('8')" ontouchend="npRelease('8')" ontouchcancel="npCancel('8')"
+        onclick="onKey('8')">
+        <text class="np-text">8</text>
+      </div>
+      <div class="np-key pressable {{ pressed === '9' ? 'is-down press-down' : '' }} {{ released === '9' ? 'press-up' : '' }}"
+        ontouchstart="npPress('9')" ontouchend="npRelease('9')" ontouchcancel="npCancel('9')"
+        onclick="onKey('9')">
+        <text class="np-text">9</text>
+      </div>
+    </div>
+    <div class="np-row">
+      <div class="np-key pressable {{ pressed === '.' ? 'is-down press-down' : '' }} {{ released === '.' ? 'press-up' : '' }}"
+        ontouchstart="npPress('.')" ontouchend="npRelease('.')" ontouchcancel="npCancel('.')"
+        onclick="onKey('.')">
+        <text class="np-text">.</text>
+      </div>
+      <div class="np-key pressable {{ pressed === '0' ? 'is-down press-down' : '' }} {{ released === '0' ? 'press-up' : '' }}"
+        ontouchstart="npPress('0')" ontouchend="npRelease('0')" ontouchcancel="npCancel('0')"
+        onclick="onKey('0')">
+        <text class="np-text">0</text>
+      </div>
+      <div class="np-key np-del pressable {{ pressed === 'del' ? 'is-down press-down' : '' }} {{ released === 'del' ? 'press-up' : '' }}"
+        ontouchstart="npPress('del')" ontouchend="npRelease('del')" ontouchcancel="npCancel('del')"
+        onclick="onDel">
+        <image class="np-del-icon" src="/common/icons/backspace.png"></image>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style>
+.numpad {
+  width: 100%;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #000;
+}
+.np-row {
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  margin: 6px 0;
+}
+.np-key {
+  width: 88px;
+  height: 88px;
+  margin: 0 8px;
+  background-color: #2e323c;
+  border-radius: 50%;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  transform-origin: 50% 50%;
+  transform: scale(1);
+  opacity: 1;
+}
+.np-text {
+  font-size: 30px;
+  font-weight: bold;
+  color: #fff;
+}
+.np-del-icon {
+  width: 30px;
+  height: 30px;
+}
+.np-del {
+  background-color: #3a3f4a;
+}
+
+/* ---- 按压动画 ---- */
+.pressable {
+  transform-origin: 50% 50%;
+  transform: scale(1);
+  opacity: 1;
+}
+.is-down {
+  opacity: 0.75;
+}
+.press-down {
+  animation-name: PressDown;
+  animation-duration: 80ms;
+  animation-timing-function: ease-out;
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+.press-up {
+  animation-name: PressUp;
+  animation-duration: 140ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+@keyframes PressDown {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.75;
+  }
+}
+@keyframes PressUp {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.75;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ---- 圆屏适配：收窄宽度，留出安全区 ---- */
+@media (shape: circle) {
+  .np-key {
+    width: 66px;
+    height: 66px;
+    margin: 0 4px;
+  }
+  .np-text {
+    font-size: 24px;
+  }
+  .np-del-icon {
+    width: 22px;
+    height: 22px;
+  }
+  .np-row {
+    margin: 3px 0;
+  }
+}
+</style>
+
+<script>
+export default {
+  data: {
+    pressed: '',
+    released: '',
+    zeroTouchTime: 0,
+    longPressTriggered: false
+  },
+
+  onKey(key) {
+    // 长按触发的后续click跳过，避免多输入一个0
+    if (this.longPressTriggered) {
+      this.longPressTriggered = false
+      return
+    }
+    this.$emit('complete', { content: key })
+  },
+
+  onDel() {
+    this.$emit('delete', {})
+  },
+
+  npPress(key) {
+    this.released = ''
+    this.pressed = key
+    this.longPressTriggered = false
+    // 数字0：记录按下时间戳
+    if (key === '0') {
+      this.zeroTouchTime = Date.now()
+    }
+  },
+
+  npRelease(key) {
+    // 数字0：检查是否长按（>=500ms）
+    if (key === '0' && this.zeroTouchTime > 0) {
+      var duration = Date.now() - this.zeroTouchTime
+      this.zeroTouchTime = 0
+      if (duration >= 500) {
+        this.longPressTriggered = true
+        this.pressed = ''
+        this.released = ''
+        this.$emit('switchkeyboard', {})
+        return
+      }
+    }
+    this.pressed = ''
+    this.released = key
+    setTimeout(() => {
+      if (this.released === key) this.released = ''
+    }, 160)
+  },
+
+  npCancel(key) {
+    if (key === '0') this.zeroTouchTime = 0
+    if (this.pressed === key) this.pressed = ''
+    if (this.released === key) this.released = ''
+  }
+}
+</script>

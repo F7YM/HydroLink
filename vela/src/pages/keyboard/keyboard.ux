@@ -1,0 +1,323 @@
+<import
+    name="input-method"
+    src="../../components/InputMethod/InputMethod.ux"
+></import>
+
+<import
+    name="numpad"
+    src="../../components/NumPad/NumPad.ux"
+></import>
+
+<template>
+  <div class="page-container">
+    <!-- Header: identical to pair.ux -->
+    <div class="header">
+      <text
+        class="title pressable {{ pressedKey === 'back' ? 'is-down press-down' : '' }} {{ releasedKey === 'back' ? 'press-up' : '' }}"
+        ontouchstart="pressDown('back')"
+        ontouchend="pressRelease('back')"
+        ontouchcancel="pressCancel('back')"
+        @click="goBack"
+      >‹{{ label }}</text>
+    </div>
+
+    <!-- 预览和确认行 -->
+    <div class="input-row">
+      <div class="preview-box">
+        <text class="preview-text">{{ textValue || ' ' }}</text>
+        <text class="cursor">_</text>
+      </div>
+      <div
+        class="confirm-button pressable {{ pressedKey === 'confirm' ? 'is-down press-down' : '' }} {{ releasedKey === 'confirm' ? 'press-up' : '' }}"
+        ontouchstart="pressDown('confirm')"
+        ontouchend="pressRelease('confirm')"
+        ontouchcancel="pressCancel('confirm')"
+        @click="onConfirm"
+      >
+        <text class="confirm-button-text">确认</text>
+      </div>
+    </div>
+
+    <!-- 键盘区域 -->
+    <div class="keyboard-area">
+      <!-- 九宫格数字键盘 -->
+      <div class="numpad-wrapper">
+        <numpad if="{{ keyboardMode === 'numpad' }}"
+          @complete="onComplete"
+          @delete="onDelete"
+          @switchkeyboard="onSwitchToQwerty"
+        ></numpad>
+      </div>
+
+      <!-- 全键盘输入法 -->
+      <input-method if="{{ keyboardMode === 'qwerty' }}"
+        hide="{{ hide }}"
+        keyboardtype="{{ keyboardtype }}"
+        maxlength="20"
+        vibratemode="{{ vibratemode }}"
+        screentype="{{ screentype }}"
+        @delete="onDelete"
+        @complete="onComplete"
+      ></input-method>
+    </div>
+  </div>
+</template>
+
+<style>
+.page-container {
+  width: 100%;
+  height: 100%;
+  background-color: #000;
+  position: relative;
+}
+
+/* ---- Header: identical to pair.ux ---- */
+.header {
+  width: 100%;
+  height: 90px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #000;
+}
+.title {
+  font-size: 32px;
+  font-weight: bold;
+  color: #fff;
+  text-align: center;
+}
+
+/* ---- Preview + Confirm in one row ---- */
+.input-row {
+  position: absolute;
+  top: 90px;
+  left: 0;
+  right: 0;
+  height: 60px;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  padding: 0 30px;
+}
+.preview-box {
+  width: 280px;
+  height: 60px;
+  padding: 0 20px;
+  background-color: #2e323c;
+  border-radius: 30px;
+  border-width: 2px;
+  border-style: solid;
+  border-color: #bac3ff;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+}
+.preview-text {
+  font-size: 28px;
+  font-weight: bold;
+  color: #fff;
+  lines: 1;
+  text-overflow: ellipsis;
+  max-width: 200px;
+  text-align: center;
+}
+.cursor {
+  font-size: 28px;
+  color: #bac3ff;
+  font-weight: bold;
+}
+.confirm-button {
+  width: 100px;
+  height: 60px;
+  margin-left: 10px;
+  border-radius: 30px;
+  background-color: #bac3ff;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.confirm-button-text {
+  font-size: 28px;
+  font-weight: bold;
+  color: #000;
+}
+
+/* ---- 按压动画 ---- */
+.pressable {
+  transform-origin: 50% 50%;
+  transform: scale(1);
+  opacity: 1;
+}
+.is-down {
+  opacity: 0.75;
+}
+.press-down {
+  animation-name: PressDown;
+  animation-duration: 80ms;
+  animation-timing-function: ease-out;
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+.press-up {
+  animation-name: PressUp;
+  animation-duration: 140ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+@keyframes PressDown {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.94);
+    opacity: 0.75;
+  }
+}
+@keyframes PressUp {
+  0% {
+    transform: scale(0.94);
+    opacity: 0.75;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ---- 键盘固定在底部 ---- */
+.keyboard-area {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  overflow: visible;
+}
+.numpad-wrapper {
+  width: 100%;
+}
+
+/* ---- Circle screen ---- */
+@media (shape: circle) {
+  .preview-box {
+    width: 240px;
+  }
+  .confirm-button {
+    width: 90px;
+  }
+  .numpad-wrapper {
+    margin-bottom: 30px;
+  }
+}
+
+/* ---- Rect screen ---- */
+@media (shape: rect) {
+  .header {
+    height: 65px;
+  }
+  .input-row {
+    top: 65px;
+  }
+  .preview-box {
+    width: 320px;
+  }
+}
+</style>
+
+<script>
+import router from '@system.router'
+import device from '@system.device'
+
+export default {
+  public: {
+    field: '',
+    label: '',
+    value: ''
+  },
+  private: {
+    fieldName: '',
+    keyboardtype: 'QWERTY',
+    vibratemode: 'short',
+    screentype: 'rect',
+    textValue: '',
+    hide: false,
+    pressedKey: '',
+    releasedKey: '',
+    keyboardMode: 'qwerty'
+  },
+
+  onInit() {
+    this.label = this.label || '输入'
+    this.fieldName = this.field || ''
+    this.textValue = this.value || ''
+
+    // 根据字段决定键盘模式
+    if (this.fieldName === 'serverPort' || this.fieldName === 'port') {
+      // 端口：纯九宫格
+      this.keyboardMode = 'numpad'
+    } else if (this.fieldName === 'serverIp' || this.fieldName === 'ip') {
+      // IP：默认九宫格，长按0可切换全键盘
+      this.keyboardMode = 'numpad'
+    } else {
+      // 设备名称等：全键盘
+      this.keyboardMode = 'qwerty'
+    }
+
+    device.getInfo({
+      success: (data) => {
+        if (data.screenShape) this.screentype = data.screenShape
+      },
+      fail: () => {}
+    })
+  },
+
+  // 长按数字0：单向切换到全键盘
+  onSwitchToQwerty() {
+    this.keyboardMode = 'qwerty'
+  },
+
+  goBack() {
+    router.back()
+  },
+
+  onComplete(evt) {
+    this.textValue += evt.detail.content
+  },
+
+  onDelete() {
+    this.textValue = this.textValue.slice(0, -1)
+  },
+
+  onConfirm() {
+    if (!this.$app || !this.$app.$def) {
+      console.error('[keyboard] app global data is not available')
+      return
+    }
+    this.$app.$def.keyboardResult = {
+      field: this.fieldName,
+      value: this.textValue
+    }
+    router.back()
+  },
+
+  pressDown(key) {
+    this.releasedKey = ''
+    this.pressedKey = key
+  },
+
+  pressRelease(key) {
+    this.pressedKey = ''
+    this.releasedKey = key
+    setTimeout(() => {
+      if (this.releasedKey === key) this.releasedKey = ''
+    }, 160)
+  },
+
+  pressCancel(key) {
+    if (this.pressedKey === key) this.pressedKey = ''
+    if (this.releasedKey === key) this.releasedKey = ''
+  }
+}
+</script>

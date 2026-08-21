@@ -1,0 +1,366 @@
+<template>
+  <div class="page-container">
+    <!-- Header -->
+    <div class="header">
+      <text
+        class="title pressable {{ pressedKey === 'back' ? 'is-down press-down' : '' }} {{ releasedKey === 'back' ? 'press-up' : '' }}"
+        ontouchstart="pressDown('back')"
+        ontouchend="pressRelease('back')"
+        ontouchcancel="pressCancel('back')"
+        onclick="goBack"
+      >‹配对新设备</text>
+    </div>
+
+    <!-- Form area -->
+    <div class="form-area">
+      <div class="form-list">
+        <!-- Server IP -->
+        <div
+          class="form-item pressable {{ pressedKey === 'serverIp' ? 'is-down press-down' : '' }} {{ releasedKey === 'serverIp' ? 'press-up' : '' }}"
+          ontouchstart="pressDown('serverIp')"
+          ontouchend="pressRelease('serverIp')"
+          ontouchcancel="pressCancel('serverIp')"
+          onclick="() => onFieldClick('serverIp', '服务器IP')"
+        >
+          <text class="form-label">服务器IP</text>
+          <text class="form-value">{{ serverIp || '点击输入' }}</text>
+        </div>
+
+        <!-- Port -->
+        <div
+          class="form-item pressable {{ pressedKey === 'serverPort' ? 'is-down press-down' : '' }} {{ releasedKey === 'serverPort' ? 'press-up' : '' }}"
+          ontouchstart="pressDown('serverPort')"
+          ontouchend="pressRelease('serverPort')"
+          ontouchcancel="pressCancel('serverPort')"
+          onclick="() => onFieldClick('serverPort', '端口')"
+        >
+          <text class="form-label">端口</text>
+          <text class="form-value">{{ serverPort || '点击输入' }}</text>
+        </div>
+
+        <!-- Device Name -->
+        <div
+          class="form-item pressable {{ pressedKey === 'deviceName' ? 'is-down press-down' : '' }} {{ releasedKey === 'deviceName' ? 'press-up' : '' }}"
+          ontouchstart="pressDown('deviceName')"
+          ontouchend="pressRelease('deviceName')"
+          ontouchcancel="pressCancel('deviceName')"
+          onclick="() => onFieldClick('deviceName', '设备名称')"
+        >
+          <text class="form-label">设备名称</text>
+          <text class="form-value">{{ deviceName || '点击输入' }}</text>
+        </div>
+      </div>
+
+      <!-- Pair button -->
+      <div class="button-wrapper">
+        <div
+          class="pair-button {{ isPairing ? 'pair-button-disabled' : '' }} pressable {{ pressedKey === 'pairButton' ? 'is-down press-down' : '' }} {{ releasedKey === 'pairButton' ? 'press-up' : '' }}"
+          ontouchstart="pressDown('pairButton')"
+          ontouchend="pressRelease('pairButton')"
+          ontouchcancel="pressCancel('pairButton')"
+          onclick="onPair"
+        >
+          <text class="pair-button-text">{{ pairButtonText }}</text>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style>
+.page-container {
+  width: 100%;
+  height: 100%;
+  background-color: #000;
+  position: relative;
+}
+
+/* ---- Header ---- */
+.header {
+  width: 100%;
+  height: 90px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #000;
+}
+.title {
+  font-size: 32px;
+  font-weight: bold;
+  color: #fff;
+  text-align: center;
+}
+
+/* ---- Form ---- */
+.form-area {
+  position: absolute;
+  top: 90px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+}
+.form-list {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 20px;
+}
+.form-item {
+  width: 390px;
+  height: 94px;
+  margin: 5px 0;
+  padding: 0 24px;
+  background-color: #2e323c;
+  border-radius: 47px;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  border-width: 2px;
+  border-style: solid;
+  border-color: transparent;
+}
+.form-label {
+  font-size: 26px;
+  font-weight: bold;
+  color: rgba(255, 255, 255, 0.6);
+}
+.form-value {
+  font-size: 26px;
+  font-weight: bold;
+  color: #fff;
+  lines: 1;
+  text-overflow: ellipsis;
+  max-width: 220px;
+  text-align: right;
+}
+
+/* ---- Button ---- */
+.button-wrapper {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 30px;
+  padding-bottom: 80px;
+}
+.pair-button {
+  width: 300px;
+  height: 90px;
+  border-radius: 45px;
+  background-color: #bac3ff;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+}
+.pair-button-disabled {
+  background-color: rgba(186, 195, 255, 0.4);
+}
+.pair-button-text {
+  font-size: 28px;
+  font-weight: bold;
+  color: #000;
+}
+.pressable {
+  transform-origin: 50% 50%;
+  transform: scale(1);
+  opacity: 1;
+}
+.is-down {
+  opacity: 0.75;
+}
+.press-down {
+  animation-name: PressDown;
+  animation-duration: 80ms;
+  animation-timing-function: ease-out;
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+.press-up {
+  animation-name: PressUp;
+  animation-duration: 140ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+@keyframes PressDown {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.94);
+    opacity: 0.75;
+  }
+}
+@keyframes PressUp {
+  0% {
+    transform: scale(0.94);
+    opacity: 0.75;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ---- Circle screen adaptation ---- */
+@media (shape: circle) {
+  .form-list {
+    padding-top: 30px;
+  }
+  .form-item {
+    width: 360px;
+    height: 92px;
+    border-radius: 46px;
+  }
+  .pair-button {
+    width: 280px;
+    height: 80px;
+    border-radius: 40px;
+  }
+  .button-wrapper {
+    padding-bottom: 120px;
+  }
+}
+
+/* ---- Rect screen adaptation ---- */
+@media (shape: rect) {
+  .header {
+    height: 65px;
+  }
+  .form-area {
+    top: 65px;
+  }
+  .form-list {
+    padding-top: 10px;
+  }
+  .button-wrapper {
+    padding-bottom: 20px;
+  }
+}
+</style>
+
+<script>
+import router from '@system.router'
+import prompt from '@system.prompt'
+import deviceService from '../../services/deviceService.js'
+
+export default {
+  private: {
+    serverIp: '',
+    serverPort: '9000',
+    deviceName: '',
+    isPairing: false,
+    statusText: '',
+    pairButtonText: '开始配对',
+    pressedKey: '',
+    releasedKey: ''
+  },
+
+  onShow() {
+    // 从 app.ux 导出的全局对象读取键盘结果
+    const appDef = this.$app && this.$app.$def
+    const result = appDef ? appDef.keyboardResult : null
+    if (result) {
+      if (result.field === 'serverIp') {
+        this.serverIp = result.value
+      } else if (result.field === 'serverPort') {
+        this.serverPort = result.value
+      } else if (result.field === 'deviceName') {
+        this.deviceName = result.value
+      }
+      appDef.keyboardResult = null
+    }
+  },
+
+  goBack() {
+    if (this.isPairing) return
+    router.back()
+  },
+
+  onFieldClick(fieldName, label) {
+    if (this.isPairing) return
+    let currentValue = ''
+    if (fieldName === 'serverIp') currentValue = this.serverIp
+    else if (fieldName === 'serverPort') currentValue = this.serverPort
+    else if (fieldName === 'deviceName') currentValue = this.deviceName
+
+    // Pass config via router params
+    router.push({
+      uri: '/pages/keyboard',
+      params: {
+        field: fieldName,
+        label: label,
+        value: currentValue
+      }
+    })
+  },
+
+  async onPair() {
+    if (this.isPairing) return
+
+    if (!this.serverIp) {
+      prompt.showToast({ message: '请输入服务器IP' })
+      return
+    }
+    if (!this.serverPort) {
+      prompt.showToast({ message: '请输入端口' })
+      return
+    }
+
+    const port = parseInt(this.serverPort, 10)
+    if (isNaN(port) || port < 1 || port > 65535) {
+      prompt.showToast({ message: '端口无效' })
+      return
+    }
+
+    this.isPairing = true
+    this.statusText = ''
+    this.pairButtonText = '正在连接服务器...'
+
+    const result = await deviceService.pairDevice(
+      this.serverIp,
+      port,
+      this.deviceName.trim(),
+      (msg) => {
+        this.statusText = msg
+        this.pairButtonText = msg || '配对中...'
+      }
+    )
+
+    this.isPairing = false
+    this.pairButtonText = '开始配对'
+
+    if (result.success) {
+      prompt.showToast({ message: '配对成功' })
+      setTimeout(() => {
+        router.back()
+      }, 1000)
+    } else {
+      this.statusText = result.message
+      prompt.showToast({ message: result.message })
+    }
+  },
+
+  pressDown(key) {
+    this.releasedKey = ''
+    this.pressedKey = key
+  },
+
+  pressRelease(key) {
+    this.pressedKey = ''
+    this.releasedKey = key
+    setTimeout(() => {
+      if (this.releasedKey === key) this.releasedKey = ''
+    }, 160)
+  },
+
+  pressCancel(key) {
+    if (this.pressedKey === key) this.pressedKey = ''
+    if (this.releasedKey === key) this.releasedKey = ''
+  }
+}
+</script>

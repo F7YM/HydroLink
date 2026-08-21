@@ -1,0 +1,628 @@
+<template>
+  <div class="page-container">
+    <!-- Header -->
+    <div class="header">
+      <text class="time-display">{{ currentTime }}</text>
+      <text
+        class="title pressable {{ pressedKey === 'back' ? 'is-down press-down' : '' }} {{ releasedKey === 'back' ? 'press-up' : '' }}"
+        ontouchstart="pressDown('back')"
+        ontouchend="pressRelease('back')"
+        ontouchcancel="pressCancel('back')"
+        onclick="goBack"
+      >‹性能视图</text>
+    </div>
+
+    <!-- Content -->
+    <scroll class="content-scroll" scroll-y="true" bounces="true">
+      <div class="content-area">
+        <!-- Loading -->
+        <div if="{{ loading }}" class="loading-state">
+          <text class="loading-text">加载中...</text>
+        </div>
+
+        <!-- Loaded -->
+        <div if="{{ !loading }}" class="loaded-content">
+          <!-- Gauge Card: CPU + Memory arc rings -->
+          <div class="gauge-card">
+            <!-- CPU Ring -->
+            <div class="gauge-item">
+              <div class="ring-wrapper">
+                <progress
+                  class="ring-bg"
+                  percent="{{ 100 }}"
+                  type="arc"
+                ></progress>
+                <progress
+                  class="ring-cpu"
+                  percent="{{ cpuPercent }}"
+                  type="arc"
+                ></progress>
+                <div class="ring-center">
+                  <text class="ring-value">{{ cpuDisplay }}</text>
+                  <text class="ring-unit">%</text>
+                </div>
+              </div>
+              <text class="gauge-label">CPU</text>
+            </div>
+
+            <!-- Divider -->
+            <div class="gauge-divider"></div>
+
+            <!-- Memory Ring -->
+            <div class="gauge-item">
+              <div class="ring-wrapper">
+                <progress
+                  class="ring-bg"
+                  percent="{{ 100 }}"
+                  type="arc"
+                ></progress>
+                <progress
+                  class="ring-mem"
+                  percent="{{ memPercent }}"
+                  type="arc"
+                ></progress>
+                <div class="ring-center">
+                  <text class="ring-value">{{ memDisplay }}</text>
+                  <text class="ring-unit">%</text>
+                </div>
+              </div>
+              <text class="gauge-label">内存</text>
+            </div>
+          </div>
+
+          <!-- Detail Card: Memory info -->
+          <div class="detail-card">
+            <div class="detail-row">
+              <text class="detail-label">已用内存</text>
+              <text class="detail-value">{{ memUsedDisplay }}</text>
+            </div>
+            <div class="detail-separator"></div>
+            <div class="detail-row">
+              <text class="detail-label">总内存</text>
+              <text class="detail-value">{{ memTotalDisplay }}</text>
+            </div>
+            <div class="detail-separator"></div>
+            <div class="detail-row">
+              <text class="detail-label">可用内存</text>
+              <text class="detail-value">{{ memAvailDisplay }}</text>
+            </div>
+          </div>
+
+          <!-- Bar Card: Horizontal progress bars -->
+          <div class="bar-card">
+            <!-- CPU Bar -->
+            <div class="bar-section">
+              <div class="bar-header">
+                <text class="bar-title">CPU 使用率</text>
+                <text class="bar-percent">{{ cpuDisplay }}%</text>
+              </div>
+              <progress
+                class="bar-horizontal bar-cpu"
+                percent="{{ cpuPercent }}"
+              ></progress>
+            </div>
+
+            <!-- Memory Bar -->
+            <div class="bar-section">
+              <div class="bar-header">
+                <text class="bar-title">内存使用率</text>
+                <text class="bar-percent">{{ memDisplay }}%</text>
+              </div>
+              <progress
+                class="bar-horizontal bar-mem"
+                percent="{{ memPercent }}"
+              ></progress>
+            </div>
+          </div>
+
+          <!-- Temp Card (if available) -->
+          <div if="{{ hasTemp }}" class="detail-card">
+            <div class="detail-row">
+              <text class="detail-label">温度</text>
+              <text class="detail-value">{{ tempDisplay }}</text>
+            </div>
+          </div>
+        </div>
+      </div>
+    </scroll>
+  </div>
+</template>
+
+<style>
+.page-container {
+  width: 100%;
+  height: 100%;
+  background-color: #000;
+  position: relative;
+}
+
+/* ---- Header ---- */
+.header {
+  width: 100%;
+  height: 90px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #000;
+}
+.time-display {
+  font-size: 28px;
+  font-weight: bold;
+  color: #fff;
+  padding-top: 5px;
+  text-align: center;
+}
+.title {
+  font-size: 32px;
+  font-weight: bold;
+  color: #fff;
+  text-align: center;
+}
+
+/* ---- Content ---- */
+.content-scroll {
+  position: absolute;
+  top: 90px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  flex-direction: column;
+}
+.content-area {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 20px;
+  padding-bottom: 40px;
+}
+
+/* ---- Loaded content wrapper ---- */
+.loaded-content {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ---- Loading ---- */
+.loading-state {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 80px;
+}
+.loading-text {
+  font-size: 28px;
+  font-weight: bold;
+  color: #888;
+}
+
+/* ---- Gauge Card ---- */
+.gauge-card {
+  width: 400px;
+  height: 200px;
+  background-color: #2e323c;
+  border-radius: 50px;
+  flex-direction: row;
+  justify-content: space-around;
+  align-items: center;
+  padding: 0 20px;
+}
+.gauge-item {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.ring-wrapper {
+  width: 120px;
+  height: 120px;
+  position: relative;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+/* Arc progress background ring (gray, full circle) */
+.ring-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 120px;
+  height: 120px;
+  stroke-width: 10px;
+  color: #3a3f4a;
+  layer-color: #3a3f4a;
+  start-angle: 240deg;
+  total-angle: 240deg;
+}
+/* CPU arc ring (theme color) */
+.ring-cpu {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 120px;
+  height: 120px;
+  stroke-width: 10px;
+  color: #bac3ff;
+  layer-color: #3a3f4a;
+  start-angle: 240deg;
+  total-angle: 240deg;
+}
+/* Memory arc ring (theme color) */
+.ring-mem {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 120px;
+  height: 120px;
+  stroke-width: 10px;
+  color: #bac3ff;
+  layer-color: #3a3f4a;
+  start-angle: 240deg;
+  total-angle: 240deg;
+}
+.ring-center {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.ring-value {
+  font-size: 30px;
+  font-weight: bold;
+  color: #fff;
+}
+.ring-unit {
+  font-size: 18px;
+  font-weight: bold;
+  color: #888;
+  margin-top: 2px;
+}
+.gauge-label {
+  font-size: 22px;
+  font-weight: bold;
+  color: #888;
+  margin-top: 12px;
+}
+.gauge-divider {
+  width: 2px;
+  height: 80px;
+  background-color: #3a3f4a;
+}
+
+/* ---- Detail Card ---- */
+.detail-card {
+  width: 400px;
+  margin-top: 16px;
+  background-color: #2e323c;
+  border-radius: 40px;
+  flex-direction: column;
+  padding: 8px 32px;
+}
+.detail-row {
+  height: 72px;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+.detail-label {
+  font-size: 26px;
+  font-weight: bold;
+  color: rgba(255, 255, 255, 0.6);
+}
+.detail-value {
+  font-size: 26px;
+  font-weight: bold;
+  color: #fff;
+}
+.detail-separator {
+  width: 100%;
+  height: 1px;
+  background-color: #3a3f4a;
+}
+
+/* ---- Bar Card ---- */
+.bar-card {
+  width: 400px;
+  margin-top: 16px;
+  background-color: #2e323c;
+  border-radius: 40px;
+  flex-direction: column;
+  padding: 24px 32px;
+}
+.bar-section {
+  flex-direction: column;
+}
+.bar-header {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.bar-title {
+  font-size: 24px;
+  font-weight: bold;
+  color: rgba(255, 255, 255, 0.6);
+}
+.bar-percent {
+  font-size: 24px;
+  font-weight: bold;
+  color: #fff;
+}
+.bar-horizontal {
+  width: 100%;
+  stroke-width: 10px;
+  layer-color: #3a3f4a;
+}
+.bar-cpu {
+  color: #bac3ff;
+}
+.bar-mem {
+  color: #bac3ff;
+  margin-top: 24px;
+}
+
+/* ---- Press animation ---- */
+.pressable {
+  transform-origin: 50% 50%;
+  transform: scale(1);
+  opacity: 1;
+}
+.is-down {
+  opacity: 0.75;
+}
+.press-down {
+  animation-name: PressDown;
+  animation-duration: 80ms;
+  animation-timing-function: ease-out;
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+.press-up {
+  animation-name: PressUp;
+  animation-duration: 140ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+@keyframes PressDown {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.94);
+    opacity: 0.75;
+  }
+}
+@keyframes PressUp {
+  0% {
+    transform: scale(0.94);
+    opacity: 0.75;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ---- Circle screen ---- */
+@media (shape: circle) {
+  .gauge-card {
+    width: 360px;
+    height: 180px;
+    border-radius: 45px;
+  }
+  .ring-wrapper {
+    width: 100px;
+    height: 100px;
+  }
+  .ring-bg, .ring-cpu, .ring-mem {
+    width: 100px;
+    height: 100px;
+  }
+  .ring-value {
+    font-size: 26px;
+  }
+  .detail-card {
+    width: 360px;
+    border-radius: 35px;
+  }
+  .bar-card {
+    width: 360px;
+    border-radius: 35px;
+  }
+  .gauge-divider {
+    height: 64px;
+  }
+  .content-area {
+    padding-bottom: 80px;
+  }
+}
+
+/* ---- Rect screen ---- */
+@media (shape: rect) {
+  .header {
+    height: 65px;
+  }
+  .content-scroll {
+    top: 65px;
+  }
+  .content-area {
+    padding-top: 10px;
+  }
+  .gauge-card {
+    width: 420px;
+  }
+  .detail-card {
+    width: 420px;
+  }
+  .bar-card {
+    width: 420px;
+  }
+}
+</style>
+
+<script>
+import router from '@system.router'
+import deviceService from '../../services/deviceService.js'
+
+const REFRESH_INTERVAL = 2000
+const MAX_ERRORS = 3
+
+export default {
+  public: {
+    deviceId: '',
+    host: '',
+    port: 0
+  },
+  private: {
+    currentTime: '00:00',
+    loading: true,
+    cpuPercent: 0,
+    cpuDisplay: '0',
+    memPercent: 0,
+    memDisplay: '0',
+    memUsedDisplay: '--',
+    memTotalDisplay: '--',
+    memAvailDisplay: '--',
+    hasTemp: false,
+    tempDisplay: '--',
+    pressedKey: '',
+    releasedKey: '',
+    _errorCount: 0
+  },
+
+  onInit() {
+    this.updateTime()
+    this._timeInterval = setInterval(() => this.updateTime(), 60000)
+  },
+
+  onDestroy() {
+    if (this._timeInterval) clearInterval(this._timeInterval)
+    this.stopRefresh()
+  },
+
+  async onShow() {
+    this.updateTime()
+    await this.loadDevice()
+    await this.fetchPerf()
+    this.startRefresh()
+  },
+
+  onHide() {
+    this.stopRefresh()
+  },
+
+  updateTime() {
+    const now = new Date()
+    this.currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  },
+
+  async loadDevice() {
+    const dev = await deviceService.getDevice(this.deviceId)
+    if (dev) {
+      this._device = dev
+    } else if (this.host) {
+      this._device = {
+        host: this.host,
+        port: this.port || 9000,
+        deviceId: this.deviceId === '__interconnect__' ? 'interconnect-device' : this.deviceId
+      }
+    }
+  },
+
+  async fetchPerf() {
+    const dev = this._device
+    if (!dev || !dev.host) {
+      this.loading = false
+      return
+    }
+    try {
+      const perf = await deviceService.getPerformance(
+        dev.host, dev.port, dev.deviceId
+      )
+      if (perf && perf.status === 'ok') {
+        this._errorCount = 0
+        const cpu = Math.round(perf.cpu || 0)
+        const memPct = Math.round(perf.mem_percent || 0)
+        this.cpuPercent = cpu
+        this.cpuDisplay = String(cpu)
+        this.memPercent = memPct
+        this.memDisplay = String(memPct)
+
+        if (perf.mem_used != null && perf.mem_total != null) {
+          this.memUsedDisplay = this.formatMem(perf.mem_used)
+          this.memTotalDisplay = this.formatMem(perf.mem_total)
+          const avail = perf.mem_total - perf.mem_used
+          this.memAvailDisplay = this.formatMem(avail > 0 ? avail : 0)
+        }
+
+        if (perf.temp != null && perf.temp !== 0) {
+          this.hasTemp = true
+          this.tempDisplay = Math.round(perf.temp) + '°C'
+        } else {
+          this.hasTemp = false
+        }
+
+        this.loading = false
+      } else {
+        this.handleFetchError()
+      }
+    } catch (e) {
+      this.handleFetchError()
+    }
+  },
+
+  handleFetchError() {
+    this._errorCount++
+    if (this._errorCount >= MAX_ERRORS) {
+      this.stopRefresh()
+      if (this.loading) this.loading = false
+    } else if (this.loading) {
+      this.loading = false
+    }
+  },
+
+  formatMem(mb) {
+    if (mb >= 1024) {
+      return (mb / 1024).toFixed(1) + ' GB'
+    }
+    return Math.round(mb) + ' MB'
+  },
+
+  startRefresh() {
+    this.stopRefresh()
+    this._refreshInterval = setInterval(() => {
+      this.fetchPerf()
+    }, REFRESH_INTERVAL)
+  },
+
+  stopRefresh() {
+    if (this._refreshInterval) {
+      clearInterval(this._refreshInterval)
+      this._refreshInterval = null
+    }
+  },
+
+  goBack() {
+    router.back()
+  },
+
+  pressDown(key) {
+    this.releasedKey = ''
+    this.pressedKey = key
+  },
+
+  pressRelease(key) {
+    this.pressedKey = ''
+    this.releasedKey = key
+    setTimeout(() => {
+      if (this.releasedKey === key) this.releasedKey = ''
+    }, 160)
+  },
+
+  pressCancel(key) {
+    if (this.pressedKey === key) this.pressedKey = ''
+    if (this.releasedKey === key) this.releasedKey = ''
+  }
+}
+</script>

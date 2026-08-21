@@ -1,0 +1,533 @@
+<template>
+  <div class="page-container">
+    <div class="header">
+      <text class="time-display">{{ currentTime }}</text>
+      <text class="title">HydroStation</text>
+    </div>
+
+    <scroll
+      id="deviceScroll"
+      class="scroll-wrapper"
+      scroll-y="true"
+      bounces="true"
+    >
+      <!-- Interconnect discovered device -->
+      <div if="{{ icDevice }}" class="list-content">
+        <div
+          class="device-item pressable ic-device {{ pressedKey === 'ic_device' ? 'is-down press-down' : '' }} {{ releasedKey === 'ic_device' ? 'press-up' : '' }}"
+          ontouchstart="onIcTouchStart"
+          ontouchend="onIcTouchEnd"
+          ontouchcancel="onIcTouchCancel"
+        >
+          <image class="device-icon" src="/common/icons/cellphone.png"></image>
+          <div class="device-info">
+            <text class="device-name">{{ icDevice.name }}</text>
+            <text class="device-ip">Interconnect</text>
+          </div>
+          <div class="ic-badge">
+            <text class="ic-badge-text">IC</text>
+          </div>
+        </div>
+      </div>
+
+      <!-- Manual devices -->
+      <div if="{{ devices.length > 0 }}" class="list-content">
+        <div
+          for="{{ (index, item) in devices }}"
+          class="device-item pressable {{ !item.reachable ? 'device-offline' : '' }} {{ pressedKey === 'device_' + index ? 'is-down press-down' : '' }} {{ releasedKey === 'device_' + index ? 'press-up' : '' }}"
+          ontouchstart="onDeviceTouchStart(index)"
+          ontouchend="onDeviceTouchEnd(index)"
+          ontouchcancel="onDeviceTouchCancel(index)"
+        >
+          <image class="device-icon" src="/common/icons/{{ item.deviceType }}.png"></image>
+          <div class="device-info">
+            <text class="device-name">{{ item.name }}</text>
+            <text class="device-ip">{{ item.host }}:{{ item.port }}</text>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty state -->
+      <div if="{{ devices.length === 0 && !icDevice }}" class="empty-state">
+        <text class="empty-text">暂无设备</text>
+        <text class="empty-hint">点击下方+添加设备</text>
+      </div>
+    </scroll>
+
+    <div class="fab-wrapper">
+      <div
+        class="fab pressable {{ pressedKey === 'addDevice' ? 'is-down press-down' : '' }} {{ releasedKey === 'addDevice' ? 'press-up' : '' }}"
+        ontouchstart="pressDown('addDevice')"
+        ontouchend="pressRelease('addDevice')"
+        ontouchcancel="pressCancel('addDevice')"
+        onclick="onAddDevice"
+      >
+        <image class="fab-icon" src="/common/icons/plus.png"></image>
+      </div>
+
+    </div>
+  </div>
+</template>
+
+<style>
+.page-container {
+  width: 100%;
+  height: 100%;
+  background-color: #000;
+  position: relative;
+}
+.header {
+  width: 100%;
+  height: 90px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #000;
+}
+.time-display {
+  font-size: 28px;
+  font-weight: bold;
+  color: #fff;
+  padding-top: 5px;
+  text-align: center;
+}
+.title {
+  font-size: 32px;
+  font-weight: bold;
+  color: #fff;
+  text-align: center;
+}
+.scroll-wrapper {
+  position: absolute;
+  top: 90px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+}
+.empty-state {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-top: 100px;
+}
+.empty-text {
+  font-size: 26px;
+  color: #888;
+  text-align: center;
+  font-weight: bold;
+}
+.empty-hint {
+  font-size: 20px;
+  color: #555;
+  text-align: center;
+  margin-top: 12px;
+}
+.list-content {
+  flex-direction: column;
+  padding-bottom: 20px;
+  width: 100%;
+  align-items: center;
+}
+.device-item {
+  width: 400px;
+  height: 120px;
+  margin: 5px;
+  padding: 0 20px;
+  background-color: #2e323c;
+  border-radius: 60px;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+}
+.device-offline {
+  opacity: 0.35;
+}
+.ic-device {
+  background-color: #1e3a5f;
+  border-width: 2px;
+  border-style: solid;
+  border-color: #4a90d9;
+}
+.device-icon {
+  width: 48px;
+  height: 48px;
+  margin-right: 16px;
+  flex-shrink: 0;
+}
+.device-info {
+  flex-grow: 1;
+  flex-direction: column;
+  justify-content: center;
+}
+.device-name {
+  font-size: 26px;
+  font-weight: bold;
+  color: #fff;
+  lines: 1;
+  text-overflow: ellipsis;
+}
+.device-ip {
+  font-size: 22px;
+  font-weight: bold;
+  color: #888;
+  lines: 1;
+  text-overflow: ellipsis;
+  margin-top: 4px;
+}
+.ic-badge {
+  width: 48px;
+  height: 48px;
+  border-radius: 24px;
+  background-color: #4a90d9;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+}
+.ic-badge-text {
+  font-size: 18px;
+  font-weight: bold;
+  color: #fff;
+}
+.fab-wrapper {
+  position: absolute;
+  bottom: 30px;
+  left: 0;
+  right: 0;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+}
+.fab {
+  width: 80px;
+  height: 80px;
+  border-radius: 40px;
+  background-color: #bac3ff;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  margin: 0 8px;
+}
+.fab-icon {
+  width: 36px;
+  height: 36px;
+}
+.pressable {
+  transform-origin: 50% 50%;
+  transform: scale(1);
+  opacity: 1;
+}
+.is-down {
+  opacity: 0.75;
+}
+.press-down {
+  animation-name: PressDown;
+  animation-duration: 80ms;
+  animation-timing-function: ease-out;
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+.press-up {
+  animation-name: PressUp;
+  animation-duration: 140ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+@keyframes PressDown {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.94); opacity: 0.75; }
+}
+@keyframes PressUp {
+  0% { transform: scale(0.94); opacity: 0.75; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@media (shape: circle) {
+  .scroll-wrapper {
+    padding-left: 30px;
+    padding-right: 30px;
+  }
+  .list-content {
+    padding-bottom: 140px;
+  }
+  .fab-wrapper {
+    bottom: 40px;
+  }
+}
+</style>
+
+<script>
+import router from '@system.router'
+import prompt from '@system.prompt'
+import deviceService from '../../services/deviceService.js'
+import interconnectService from '../../services/interconnectService.js'
+
+const PING_INTERVAL = 2000
+const PING_TIMEOUT = 3000
+const IC_DISCOVER_TIMEOUT = 12000
+const IC_RETRY_INTERVAL = 5000
+
+export default {
+  private: {
+    devices: [],
+    currentTime: '00:00',
+    pressedKey: '',
+    releasedKey: '',
+    _longPressTriggered: false,
+    icDevice: null
+  },
+
+  onInit() {
+    this.updateTime()
+    this._timeInterval = setInterval(() => this.updateTime(), 60000)
+  },
+
+  onDestroy() {
+    if (this._timeInterval) clearInterval(this._timeInterval)
+    this.stopPing()
+    this.stopIcRetry()
+  },
+
+  onShow() {
+    this.updateTime()
+    this.loadDevices()
+    this.tryInterconnectDiscover()
+  },
+
+  onHide() {
+    this.stopPing()
+    this.stopIcRetry()
+  },
+
+  updateTime() {
+    const now = new Date()
+    this.currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  },
+
+  async loadDevices() {
+    const devices = await deviceService.readDevices()
+    for (let i = 0; i < devices.length; i++) {
+      if (!devices[i].deviceType) {
+        devices[i].deviceType = 'desktop'
+      }
+      devices[i].reachable = true
+    }
+    this.devices = devices
+    this.startPing()
+  },
+
+  /**
+   * Try to auto-discover the server via interconnect.
+   * Runs silently in the background; retries periodically until found.
+   */
+  tryInterconnectDiscover() {
+    if (!interconnectService.isAvailable()) {
+      this.icDevice = null
+      return
+    }
+    // Already found - no need to search
+    if (this.icDevice) return
+
+    interconnectService.discoverServer()
+      .then((info) => {
+        if (info && info.host) {
+          this.icDevice = {
+            name: 'HydroStation',
+            host: info.host,
+            port: info.port || 9000,
+            viaInterconnect: true
+          }
+        } else {
+          this.scheduleIcRetry()
+        }
+      })
+      .catch(() => {
+        this.scheduleIcRetry()
+      })
+
+    // Timeout fallback for this attempt
+    if (this._icTimer) clearTimeout(this._icTimer)
+    this._icTimer = setTimeout(() => {
+      this.scheduleIcRetry()
+    }, IC_DISCOVER_TIMEOUT)
+  },
+
+  /**
+   * Schedule a retry for interconnect discovery after IC_RETRY_INTERVAL.
+   */
+  scheduleIcRetry() {
+    // Don't retry if we already found the device
+    if (this.icDevice) return
+    // Don't schedule duplicate retries
+    if (this._icRetryTimer) return
+    this._icRetryTimer = setTimeout(() => {
+      this._icRetryTimer = null
+      this.tryInterconnectDiscover()
+    }, IC_RETRY_INTERVAL)
+  },
+
+  /**
+   * Stop the interconnect retry timer.
+   */
+  stopIcRetry() {
+    if (this._icTimer) {
+      clearTimeout(this._icTimer)
+      this._icTimer = null
+    }
+    if (this._icRetryTimer) {
+      clearTimeout(this._icRetryTimer)
+      this._icRetryTimer = null
+    }
+  },
+
+  startPing() {
+    this.stopPing()
+    this.pingAll()
+    this._pingInterval = setInterval(() => this.pingAll(), PING_INTERVAL)
+  },
+
+  stopPing() {
+    if (this._pingInterval) {
+      clearInterval(this._pingInterval)
+      this._pingInterval = null
+    }
+  },
+
+  async pingAll() {
+    const devices = this.devices
+    if (!devices || devices.length === 0) return
+    const results = await Promise.all(
+      devices.map(d => deviceService.pingWithTimeout(d.host, d.port, PING_TIMEOUT))
+    )
+    let changed = false
+    for (let i = 0; i < devices.length; i++) {
+      if (devices[i].reachable !== results[i]) {
+        devices[i].reachable = results[i]
+        changed = true
+      }
+    }
+    if (changed) {
+      this.devices = [...devices]
+    }
+  },
+
+  onAddDevice() {
+    router.push({ uri: '/pages/pair' })
+  },
+
+  /* ---- Interconnect device handlers ---- */
+  onIcTouchStart() {
+    this.pressDown('ic_device')
+    this._longPressTriggered = false
+    this._longPressTimer = setTimeout(() => {
+      this._longPressTriggered = true
+      this.pressedKey = ''
+      this.openIcDevice('deviceDetail')
+    }, 600)
+  },
+
+  onIcTouchEnd() {
+    if (this._longPressTimer) {
+      clearTimeout(this._longPressTimer)
+      this._longPressTimer = null
+    }
+    if (this._longPressTriggered) {
+      this._longPressTriggered = false
+      return
+    }
+    this.pressRelease('ic_device')
+    this.openIcDevice('deviceInfo')
+  },
+
+  onIcTouchCancel() {
+    if (this._longPressTimer) {
+      clearTimeout(this._longPressTimer)
+      this._longPressTimer = null
+    }
+    this._longPressTriggered = false
+    this.pressCancel('ic_device')
+  },
+
+  openIcDevice(page) {
+    if (!this.icDevice) return
+    router.push({
+      uri: '/pages/' + page,
+      params: {
+        deviceId: '__interconnect__',
+        icHost: this.icDevice.host,
+        icPort: this.icDevice.port
+      }
+    })
+  },
+
+  /* ---- Manual device handlers ---- */
+  onDeviceTouchStart(index) {
+    this.pressDown('device_' + index)
+    this._longPressTriggered = false
+    this._longPressTimer = setTimeout(() => {
+      this._longPressTriggered = true
+      this.pressedKey = ''
+      this.openDevice(index, 'deviceDetail')
+    }, 600)
+  },
+
+  onDeviceTouchEnd(index) {
+    if (this._longPressTimer) {
+      clearTimeout(this._longPressTimer)
+      this._longPressTimer = null
+    }
+    if (this._longPressTriggered) {
+      this._longPressTriggered = false
+      return
+    }
+    this.pressRelease('device_' + index)
+    this.openDevice(index, 'deviceInfo')
+  },
+
+  openDevice(index, page) {
+    const device = this.devices[index]
+    if (!device) return
+    const deviceKey = device.id || (device.host + ':' + device.port)
+    if (page === 'deviceDetail' || device.reachable) {
+      router.push({
+        uri: '/pages/' + page,
+        params: { deviceId: deviceKey }
+      })
+    } else {
+      prompt.showToast({ message: '无法访问' })
+    }
+  },
+
+  onDeviceTouchCancel(index) {
+    if (this._longPressTimer) {
+      clearTimeout(this._longPressTimer)
+      this._longPressTimer = null
+    }
+    this._longPressTriggered = false
+    this.pressCancel('device_' + index)
+  },
+
+  pressDown(key) {
+    this.releasedKey = ''
+    this.pressedKey = key
+  },
+
+  pressRelease(key) {
+    this.pressedKey = ''
+    this.releasedKey = key
+    setTimeout(() => {
+      if (this.releasedKey === key) this.releasedKey = ''
+    }, 160)
+  },
+
+  pressCancel(key) {
+    if (this.pressedKey === key) this.pressedKey = ''
+    if (this.releasedKey === key) this.releasedKey = ''
+  }
+}
+</script>
