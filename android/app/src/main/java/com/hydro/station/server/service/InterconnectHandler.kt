@@ -2,6 +2,7 @@ package com.hydro.station.server.service
 
 import android.content.Context
 import android.os.Build
+import android.provider.Settings
 import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.JsonElement
@@ -515,7 +516,7 @@ class InterconnectHandler(
                     addProperty("type", "server_info")
                     addProperty("host", "localhost")
                     addProperty("port", httpPort)
-                    addProperty("name", Build.MODEL ?: "Android")
+                    addProperty("name", getAndroidDeviceName())
                 }
                 sendMessage(nodeId, response.toString())
                 Log.i(TAG, "Replied to discover from $nodeId")
@@ -645,6 +646,24 @@ class InterconnectHandler(
     }
 
     /**
+     * User-facing Android device name (the name shown in Android Settings),
+     * falling back to the hardware model.
+     */
+    private fun getAndroidDeviceName(): String {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
+                val name = Settings.Global.getString(context.contentResolver, Settings.Global.DEVICE_NAME)
+                if (!name.isNullOrBlank()) name
+                else Build.MODEL ?: "Android"
+            } else {
+                Build.MODEL ?: "Android"
+            }
+        } catch (e: Exception) {
+            Build.MODEL ?: "Android"
+        }
+    }
+
+    /**
      * Proactively send our server info to the watch so it can add this phone
      * to its device list — even if the watch never sends a discover message.
      */
@@ -653,7 +672,7 @@ class InterconnectHandler(
             addProperty("type", "server_info")
             addProperty("host", "localhost")
             addProperty("port", httpPort)
-            addProperty("name", Build.MODEL ?: "Android")
+            addProperty("name", getAndroidDeviceName())
         }
         lastServerInfoPushed[nodeId] = System.currentTimeMillis()
         Log.i(TAG, "Pushing server_info to $nodeId")
