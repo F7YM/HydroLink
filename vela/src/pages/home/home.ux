@@ -134,14 +134,14 @@
 }
 .list-content {
   flex-direction: column;
-  padding-bottom: 20px;
+  padding-bottom: 8px;
   width: 100%;
   align-items: center;
 }
 .device-item {
   width: 400px;
   height: 120px;
-  margin: 5px;
+  margin: 2px 0;
   padding: 0 20px;
   background-color: #2e323c;
   border-radius: 60px;

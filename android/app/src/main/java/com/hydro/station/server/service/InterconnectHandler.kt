@@ -549,7 +549,12 @@ class InterconnectHandler(
                 val url = json.get("url")?.asString ?: ""
                 val method = json.get("method")?.asString ?: "GET"
                 val body: JsonElement? = json.get("body")?.takeIf { !it.isJsonNull }
-                val headers = json.getAsJsonObject("headers")
+                // NOTE: getAsJsonObject() throws on JsonNull — always guard with
+                // isJsonObject before reading the headers field (the watch sends
+                // "headers": null when there are no headers).
+                val headers: JsonObject? = json.get("headers")
+                    ?.takeIf { it.isJsonObject }
+                    ?.asJsonObject
                 scope.launch {
                     val data = proxyHttpRequest(url, method, body, headers)
                     val response = JsonObject().apply {
