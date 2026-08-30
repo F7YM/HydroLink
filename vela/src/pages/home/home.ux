@@ -286,7 +286,7 @@ export default {
       if (info && info.host) {
         console.log('[home] server_info handler: ' + JSON.stringify(info))
         this.icDevice = {
-          name: 'HydroStation',
+          name: info.name || 'HydroStation',
           host: info.host,
           port: info.port || 9000,
           viaInterconnect: true
@@ -333,7 +333,7 @@ export default {
       .then((info) => {
         if (info && info.host) {
           this.icDevice = {
-            name: 'HydroStation',
+            name: info.name || 'HydroStation',
             host: info.host,
             port: info.port || 9000,
             viaInterconnect: true
@@ -417,35 +417,18 @@ export default {
   },
 
   /* ---- Interconnect device handlers ---- */
+  // Long-press editing is disabled for the interconnect card — tapping opens
+  // deviceInfo. Long-press is treated the same as tap (no edit menu).
   onIcTouchStart() {
     this.pressDown('ic_device')
-    this.longPressTriggered = false
-    this._longPressTimer = setTimeout(() => {
-      this.longPressTriggered = true
-      this.pressedKey = ''
-      this.openIcDevice('deviceDetail')
-    }, 600)
   },
 
   onIcTouchEnd() {
-    if (this._longPressTimer) {
-      clearTimeout(this._longPressTimer)
-      this._longPressTimer = null
-    }
-    if (this.longPressTriggered) {
-      this.longPressTriggered = false
-      return
-    }
     this.pressRelease('ic_device')
     this.openIcDevice('deviceInfo')
   },
 
   onIcTouchCancel() {
-    if (this._longPressTimer) {
-      clearTimeout(this._longPressTimer)
-      this._longPressTimer = null
-    }
-    this.longPressTriggered = false
     this.pressCancel('ic_device')
   },
 

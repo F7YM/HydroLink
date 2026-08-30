@@ -1,6 +1,7 @@
 package com.hydro.station.server.service
 
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.JsonElement
@@ -514,6 +515,7 @@ class InterconnectHandler(
                     addProperty("type", "server_info")
                     addProperty("host", "localhost")
                     addProperty("port", httpPort)
+                    addProperty("name", Build.MODEL ?: "Android")
                 }
                 sendMessage(nodeId, response.toString())
                 Log.i(TAG, "Replied to discover from $nodeId")
@@ -588,6 +590,7 @@ class InterconnectHandler(
             addProperty("type", "server_info")
             addProperty("host", "localhost")
             addProperty("port", httpPort)
+            addProperty("name", Build.MODEL ?: "Android")
         }
         lastServerInfoPushed[nodeId] = System.currentTimeMillis()
         Log.i(TAG, "Pushing server_info to $nodeId")
