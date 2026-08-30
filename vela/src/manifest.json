@@ -15,7 +15,7 @@
     { "name": "system.vibrator" },
     { "name": "system.interconnect" },
     { "name": "system.audio" },
-    { "name": "system.volume" }
+    { "name": "system.app"}
   ],
   "permissions": [
     { "name": "hapjs.permission.DEVICE_INFO" }
