@@ -93,7 +93,7 @@
   margin-bottom: 12px;
   padding: 0 24px;
   background-color: #2e323c;
-  border-radius: 24px;
+  border-radius: 75px;
   flex-direction: row;
   justify-content: flex-start;
   align-items: center;
@@ -186,6 +186,7 @@
   .app-card {
     width: 380px;
     height: 140px;
+    border-radius: 70px;
   }
   .form-item {
     width: 380px;
