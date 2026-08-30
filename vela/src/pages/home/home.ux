@@ -61,7 +61,17 @@
       >
         <image class="fab-icon" src="/common/icons/plus.png"></image>
       </div>
+    </div>
 
+    <!-- Settings button (bottom-right) -->
+    <div
+      class="settings-btn pressable {{ pressedKey === 'settings' ? 'is-down press-down' : '' }} {{ releasedKey === 'settings' ? 'press-up' : '' }}"
+      ontouchstart="pressDown('settings')"
+      ontouchend="pressRelease('settings')"
+      ontouchcancel="pressCancel('settings')"
+      onclick="onOpenSettings"
+    >
+      <image class="settings-btn-icon" src="/common/icons/cog-custom.png"></image>
     </div>
   </div>
 </template>
@@ -195,6 +205,22 @@
   width: 36px;
   height: 36px;
 }
+.settings-btn {
+  position: absolute;
+  bottom: 30px;
+  right: 20px;
+  width: 64px;
+  height: 64px;
+  border-radius: 32px;
+  background-color: #2e323c;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.settings-btn-icon {
+  width: 36px;
+  height: 36px;
+}
 .pressable {
   transform-origin: 50% 50%;
   transform: scale(1);
@@ -236,6 +262,10 @@
   }
   .fab-wrapper {
     bottom: 40px;
+  }
+  .settings-btn {
+    bottom: 40px;
+    right: 26px;
   }
 }
 </style>
@@ -414,6 +444,10 @@ export default {
 
   onAddDevice() {
     router.push({ uri: '/pages/pair' })
+  },
+
+  onOpenSettings() {
+    router.push({ uri: '/pages/settings' })
   },
 
   /* ---- Interconnect device handlers ---- */

@@ -540,6 +540,26 @@ class InterconnectHandler(
                 }
             }
 
+            // "使用interconnect代理http": the watch asks the phone to perform an
+            // HTTP request on its behalf (bypasses the watch's @system.fetch).
+            // The phone fetches the target URL and returns {code, data}.
+            "proxy_http" -> {
+                val id = json.get("id")?.asString ?: ""
+                val url = json.get("url")?.asString ?: ""
+                val method = json.get("method")?.asString ?: "GET"
+                val body: JsonElement? = json.get("body")?.takeIf { !it.isJsonNull }
+                val headers = json.getAsJsonObject("headers")
+                scope.launch {
+                    val data = proxyHttpRequest(url, method, body, headers)
+                    val response = JsonObject().apply {
+                        addProperty("type", "api_response")
+                        addProperty("id", id)
+                        add("data", data)
+                    }
+                    sendMessage(nodeId, response.toString())
+                }
+            }
+
             else -> Log.w(TAG, "Unknown message type '$type' from $nodeId")
         }
     }
@@ -556,6 +576,49 @@ class InterconnectHandler(
         } catch (e: Exception) {
             Log.e(TAG, "routeApiRequest error for $path", e)
             gson.toJsonTree(mapOf("status" to "error", "message" to (e.message ?: "Internal error")))
+        }
+    }
+
+    /**
+     * Perform an HTTP request on the watch's behalf ("use interconnect to proxy
+     * http"). Fetches the target URL and returns { code, data } where code is the
+     * HTTP status and data is the parsed JSON body (or {"raw": ...} if not JSON).
+     */
+    private fun proxyHttpRequest(url: String, method: String, body: JsonElement?, headers: JsonObject?): JsonElement {
+        if (url.isBlank()) {
+            return gson.toJsonTree(mapOf("code" to 0, "data" to null, "error" to "empty url"))
+        }
+        var conn: java.net.HttpURLConnection? = null
+        try {
+            conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+            conn.requestMethod = method.uppercase()
+            conn.connectTimeout = 8000
+            conn.readTimeout = 15000
+            conn.setRequestProperty("Content-Type", "application/json")
+            headers?.entrySet()?.forEach { (k, v) ->
+                if (k.isNotEmpty() && !v.isJsonNull) conn.setRequestProperty(k, v.asString)
+            }
+            if (body != null) {
+                conn.doOutput = true
+                conn.outputStream.use { it.write(gson.toJson(body).toByteArray(Charsets.UTF_8)) }
+            }
+            val code = conn.responseCode
+            val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+            val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
+            val parsed: JsonElement = try {
+                if (text.isBlank()) JsonObject() else gson.fromJson(text, JsonElement::class.java)
+            } catch (e: Exception) {
+                gson.toJsonTree(mapOf("raw" to text))
+            }
+            return JsonObject().apply {
+                addProperty("code", code)
+                add("data", parsed)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "proxyHttp failed: $url", e)
+            return gson.toJsonTree(mapOf("code" to 0, "data" to null, "error" to (e.message ?: "proxy error")))
+        } finally {
+            conn?.disconnect()
         }
     }
 

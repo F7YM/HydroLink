@@ -2,6 +2,7 @@ import file from '@system.file'
 import fetch from '@system.fetch'
 import device from '@system.device'
 import interconnectService from './interconnectService.js'
+import settingsService from './settingsService.js'
 
 const DEVICES_FILE = 'internal://files/devices.json'
 const DEVICE_ID_FILE = 'internal://files/device_id.json'
@@ -68,7 +69,9 @@ function isInterconnect(host) {
 /**
  * Unified API request that supports both HTTP and interconnect transport.
  * For interconnect devices (host='localhost'), routes through interconnectService.
- * For HTTP devices, uses standard fetch.
+ * For HTTP devices, uses standard fetch — unless "使用interconnect代理http" is
+ * enabled, in which case the phone performs the HTTP request on our behalf
+ * (bypasses @system.fetch, which some devices do not support).
  *
  * @returns {Promise<{code: number, data: object}>}
  */
@@ -81,10 +84,23 @@ async function apiRequest(host, port, path, method, data, headers) {
       console.error('[deviceService] interconnect request failed: ' + path, e)
       return { code: 0, data: null }
     }
-  } else {
-    const url = getBaseUrl(host, port) + path
-    return doFetch(url, method, data, headers)
   }
+
+  // HTTP device — proxy through interconnect when enabled
+  const useProxy = await settingsService.getProxyHttp()
+  if (useProxy) {
+    try {
+      const url = getBaseUrl(host, port) + path
+      const response = await interconnectService.sendProxyHttp(url, method || 'GET', data, headers)
+      return { code: (response && response.code) || 0, data: response && response.data }
+    } catch (e) {
+      console.error('[deviceService] proxy request failed: ' + path, e)
+      return { code: 0, data: null }
+    }
+  }
+
+  const url = getBaseUrl(host, port) + path
+  return doFetch(url, method, data, headers)
 }
 
 function generateDeviceUid() {

@@ -370,6 +370,53 @@ const _service = {
     })
   },
 
+  /**
+   * Ask the phone to perform an HTTP request on the watch's behalf
+   * ("use interconnect to proxy http"). The phone fetches `url` and returns
+   * { code, data } where code is the HTTP status and data is the parsed JSON.
+   * @param {string} url    full URL, e.g. "http://192.168.1.10:9000/api/ping"
+   * @param {string} method GET|POST
+   * @param {object} body   request body (optional)
+   * @param {object} headers request headers (optional)
+   * @returns {Promise<{code: number, data: object}>}
+   */
+  sendProxyHttp(url, method, body, headers) {
+    return new Promise((resolve, reject) => {
+      if (!this._available) {
+        reject(new Error('interconnect not available'))
+        return
+      }
+      if (!this._ready) {
+        reject(new Error('interconnect not ready'))
+        return
+      }
+      const id = genId()
+      const entry = { resolve, reject, timer: null }
+      _pending[id] = entry
+      entry.timer = setTimeout(() => {
+        if (_pending[id]) {
+          delete _pending[id]
+          reject(new Error('proxy request timeout: ' + url))
+        }
+      }, API_TIMEOUT)
+
+      this._rawSend({
+        type: 'proxy_http',
+        id: id,
+        url: url,
+        method: method || 'GET',
+        body: body || null,
+        headers: headers || null
+      }).catch((e) => {
+        if (_pending[id]) {
+          if (_pending[id].timer) clearTimeout(_pending[id].timer)
+          delete _pending[id]
+          reject(e)
+        }
+      })
+    })
+  },
+
   /** Returns true when interconnect is connected and usable. */
   isReady() {
     return this._available && this._ready

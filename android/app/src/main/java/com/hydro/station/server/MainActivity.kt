@@ -71,6 +71,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvNoCommands: TextView
     private lateinit var rvCommands: RecyclerView
 
+    // Guards the server switch against programmatic sync (refreshData)
+    private var syncingServerSwitch = false
+
     // Adapters
     private val deviceAdapter = DeviceAdapter { device -> deleteDevice(device) }
     private val pairRequestAdapter = PairRequestAdapter(
@@ -93,6 +96,10 @@ class MainActivity : AppCompatActivity() {
         initViews()
         setupBottomNav()
         setupListeners()
+        // Auto-start the server service by default when entering the app.
+        if (ServerService.instance == null) {
+            ServerService.start(this, port)
+        }
         refreshData()
     }
 
@@ -189,6 +196,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         switchServer.setOnCheckedChangeListener { _, isChecked ->
+            if (syncingServerSwitch) return@setOnCheckedChangeListener
             if (isChecked) {
                 ServerService.start(this, port)
                 tvServerStatus.text = getString(R.string.server_running)
@@ -216,9 +224,9 @@ class MainActivity : AppCompatActivity() {
     private fun refreshData() {
         // Server status
         val isRunning = ServerService.instance != null
-        if (switchServer.isChecked != isRunning) {
-            switchServer.isChecked = isRunning
-        }
+        syncingServerSwitch = true
+        switchServer.isChecked = isRunning
+        syncingServerSwitch = false
         tvServerStatus.text = if (isRunning) getString(R.string.server_running) else getString(R.string.server_stopped)
 
         // Accessibility status

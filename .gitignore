@@ -6,6 +6,10 @@ android/local.properties
 *.apk
 *.aab
 
+# Local writable gradle home used when /home/float/.gradle is read-only
+.gradle-home/
+.xdgdata/
+
 # Vela build artifacts
 vela/build/
 vela/dist/
