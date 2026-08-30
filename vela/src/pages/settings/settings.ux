@@ -2,6 +2,7 @@
   <div class="page-container">
     <!-- Header -->
     <div class="header">
+      <text class="time-display">{{ currentTime }}</text>
       <text
         class="title pressable {{ pressedKey === 'back' ? 'is-down press-down' : '' }} {{ releasedKey === 'back' ? 'press-up' : '' }}"
         ontouchstart="pressDown('back')"
@@ -45,6 +46,13 @@
   justify-content: center;
   align-items: center;
   background-color: #000;
+}
+.time-display {
+  font-size: 28px;
+  font-weight: bold;
+  color: #fff;
+  padding-top: 5px;
+  text-align: center;
 }
 .title {
   font-size: 32px;
@@ -166,9 +174,24 @@ import settingsService from '../../services/settingsService.js'
 
 export default {
   private: {
+    currentTime: '00:00',
     proxyHttp: false,
     pressedKey: '',
     releasedKey: ''
+  },
+
+  onInit() {
+    this.updateTime()
+    this._timeInterval = setInterval(() => this.updateTime(), 60000)
+  },
+
+  onDestroy() {
+    if (this._timeInterval) clearInterval(this._timeInterval)
+  },
+
+  updateTime() {
+    const now = new Date()
+    this.currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
   },
 
   onShow() {
