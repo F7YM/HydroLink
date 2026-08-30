@@ -105,6 +105,7 @@ export default {
 
   onInit() {
     this._svcInfoCount = 0
+    interconnectService.ensureInit()
     // Live-update every second so status reflects the shared instance.
     this._timer = setInterval(() => this.refresh(), 1000)
     // Register a handler on the same shared service to observe pushes.

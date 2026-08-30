@@ -285,6 +285,9 @@ export default {
   onInit() {
     this.updateTime()
     this._timeInterval = setInterval(() => this.updateTime(), 60000)
+    // Make sure this page's interconnectService instance has a connection
+    // (no-op if the app entry already initialized the shared singleton).
+    interconnectService.ensureInit()
   },
 
   onDestroy() {

@@ -31,7 +31,7 @@ function genId() {
   return 'r' + Date.now().toString(36) + '_' + _reqId
 }
 
-export default {
+const _service = {
   _connect: null,
   _available: true,
   _ready: false,
@@ -52,6 +52,18 @@ export default {
 
     this._setupConnection()
     return this
+  },
+
+  /**
+   * Ensure a connection exists on THIS instance. If the app entry already
+   * initialized a shared instance (global singleton), _connect is set and this
+   * is a no-op. If this bundle copy is isolated, it connects via the system
+   * interconnect.instance() (a system singleton), so the active page receives
+   * server_info and its handlers fire.
+   */
+  ensureInit() {
+    if (this._connect || !this._available) return this
+    return this.init()
   },
 
   /**
@@ -394,3 +406,27 @@ export default {
     this._serverInfo = null
   }
 }
+
+// The QuickApp build emits the app entry bundle and each page bundle as separate
+// module scopes, so a plain module singleton would be duplicated (one copy per
+// bundle). The connection created by app.ux's init() would live on the app-bundle
+// copy, while the pages' copies would never connect — which is exactly why the
+// home/debug pages report no connection even though the phone pushes server_info.
+//
+// Store ONE service instance on the shared JS global so every bundle copy
+// resolves to the same object (same _connect, callbacks, _serverInfo, _pending).
+const _GLOBAL_KEY = '__hydro_core_interconnect'
+
+function _resolveSharedInstance() {
+  let existing = null
+  try {
+    if (typeof globalThis !== 'undefined') existing = globalThis[_GLOBAL_KEY]
+  } catch (e) {}
+  if (existing) return existing
+  if (typeof globalThis !== 'undefined') {
+    try { globalThis[_GLOBAL_KEY] = _service } catch (e) {}
+  }
+  return _service
+}
+
+export default _resolveSharedInstance()
