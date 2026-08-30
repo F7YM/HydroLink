@@ -56,9 +56,6 @@
       },
       "pages/terminal": {
         "component": "terminal"
-      },
-      "pages/debug": {
-        "component": "debug"
       }
     }
   }

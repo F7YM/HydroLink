@@ -2,7 +2,7 @@
   <div class="page-container">
     <div class="header">
       <text class="time-display">{{ currentTime }}</text>
-      <text class="title" onclick="onOpenDebug">HydroStation</text>
+      <text class="title">HydroStation</text>
     </div>
 
     <scroll
@@ -23,9 +23,6 @@
           <div class="device-info">
             <text class="device-name">{{ icDevice.name }}</text>
             <text class="device-ip">Interconnect</text>
-          </div>
-          <div class="ic-badge">
-            <text class="ic-badge-text">IC</text>
           </div>
         </div>
       </div>
@@ -73,7 +70,7 @@
 .page-container {
   width: 100%;
   height: 100%;
-  background-color: #000;
+  background-color: #121318;
   position: relative;
 }
 .header {
@@ -82,19 +79,19 @@
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  background-color: #000;
+  background-color: #121318;
 }
 .time-display {
   font-size: 28px;
   font-weight: bold;
-  color: #fff;
+  color: #e4e2e9;
   padding-top: 5px;
   text-align: center;
 }
 .title {
   font-size: 32px;
   font-weight: bold;
-  color: #fff;
+  color: #e4e2e9;
   text-align: center;
 }
 .scroll-wrapper {
@@ -116,13 +113,13 @@
 }
 .empty-text {
   font-size: 26px;
-  color: #888;
+  color: #c7c5d0;
   text-align: center;
   font-weight: bold;
 }
 .empty-hint {
   font-size: 20px;
-  color: #555;
+  color: #90909a;
   text-align: center;
   margin-top: 12px;
 }
@@ -137,7 +134,7 @@
   height: 120px;
   margin: 5px;
   padding: 0 20px;
-  background-color: #2e323c;
+  background-color: #272830;
   border-radius: 60px;
   flex-direction: row;
   justify-content: flex-start;
@@ -147,10 +144,13 @@
   opacity: 0.35;
 }
 .ic-device {
-  background-color: #1e3a5f;
-  border-width: 2px;
-  border-style: solid;
-  border-color: #4a90d9;
+  background-color: #273e9a;
+}
+.ic-device .device-name {
+  color: #dee0ff;
+}
+.ic-device .device-ip {
+  color: #c7c5d0;
 }
 .device-icon {
   width: 48px;
@@ -166,32 +166,17 @@
 .device-name {
   font-size: 26px;
   font-weight: bold;
-  color: #fff;
+  color: #e4e2e9;
   lines: 1;
   text-overflow: ellipsis;
 }
 .device-ip {
   font-size: 22px;
   font-weight: bold;
-  color: #888;
+  color: #c7c5d0;
   lines: 1;
   text-overflow: ellipsis;
   margin-top: 4px;
-}
-.ic-badge {
-  width: 48px;
-  height: 48px;
-  border-radius: 24px;
-  background-color: #4a90d9;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  flex-shrink: 0;
-}
-.ic-badge-text {
-  font-size: 18px;
-  font-weight: bold;
-  color: #fff;
 }
 .fab-wrapper {
   position: absolute;
@@ -312,17 +297,8 @@ export default {
           port: info.port || 9000,
           viaInterconnect: true
         }
-        this._dbg('IC recv ' + info.host + ':' + (info.port || 9000))
       }
     })
-  },
-
-  // One-shot toast helper to avoid spamming (server_info pushes every 5s).
-  _dbg(msg) {
-    const key = 'dbg_' + msg
-    if (this[key]) return
-    this[key] = true
-    try { prompt.showToast({ message: msg, duration: 1500 }) } catch (e) {}
   },
 
   onHide() {
@@ -368,14 +344,11 @@ export default {
             port: info.port || 9000,
             viaInterconnect: true
           }
-          this._dbg('IC discover ' + info.host + ':' + (info.port || 9000))
         } else {
-          this._dbg('IC discover empty')
           this.scheduleIcRetry()
         }
       })
       .catch(() => {
-        this._dbg('IC discover fail')
         this.scheduleIcRetry()
       })
 
@@ -447,10 +420,6 @@ export default {
 
   onAddDevice() {
     router.push({ uri: '/pages/pair' })
-  },
-
-  onOpenDebug() {
-    router.push({ uri: '/pages/debug' })
   },
 
   /* ---- Interconnect device handlers ---- */
