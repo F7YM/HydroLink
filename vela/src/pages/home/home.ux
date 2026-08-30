@@ -70,7 +70,7 @@
 .page-container {
   width: 100%;
   height: 100%;
-  background-color: #121318;
+  background-color: #000;
   position: relative;
 }
 .header {
@@ -79,19 +79,19 @@
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  background-color: #121318;
+  background-color: #000;
 }
 .time-display {
   font-size: 28px;
   font-weight: bold;
-  color: #e4e2e9;
+  color: #fff;
   padding-top: 5px;
   text-align: center;
 }
 .title {
   font-size: 32px;
   font-weight: bold;
-  color: #e4e2e9;
+  color: #fff;
   text-align: center;
 }
 .scroll-wrapper {
@@ -113,13 +113,13 @@
 }
 .empty-text {
   font-size: 26px;
-  color: #c7c5d0;
+  color: #888;
   text-align: center;
   font-weight: bold;
 }
 .empty-hint {
   font-size: 20px;
-  color: #90909a;
+  color: #555;
   text-align: center;
   margin-top: 12px;
 }
@@ -134,7 +134,7 @@
   height: 120px;
   margin: 5px;
   padding: 0 20px;
-  background-color: #272830;
+  background-color: #2e323c;
   border-radius: 60px;
   flex-direction: row;
   justify-content: flex-start;
@@ -144,13 +144,7 @@
   opacity: 0.35;
 }
 .ic-device {
-  background-color: #273e9a;
-}
-.ic-device .device-name {
-  color: #dee0ff;
-}
-.ic-device .device-ip {
-  color: #c7c5d0;
+  background-color: #1e3a5f;
 }
 .device-icon {
   width: 48px;
@@ -166,14 +160,14 @@
 .device-name {
   font-size: 26px;
   font-weight: bold;
-  color: #e4e2e9;
+  color: #fff;
   lines: 1;
   text-overflow: ellipsis;
 }
 .device-ip {
   font-size: 22px;
   font-weight: bold;
-  color: #c7c5d0;
+  color: #888;
   lines: 1;
   text-overflow: ellipsis;
   margin-top: 4px;
