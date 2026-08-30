@@ -99,6 +99,33 @@ export default {
     this._connect = connect
     console.log('[interconnect] connection instance obtained')
 
+    // Diagnose the app-to-app connection (Vela interconnect.diagnosis):
+    //   0  = OK 链接成功
+    //   204 = CONNECT_TIMEOUT 连接超时
+    //   1001 = APP_UNINSTALLED 对端(手机)应用未安装
+    //   1000 = OTHERS 其他链接错误
+    // Logs the result so the connection status is visible without extra UI.
+    try {
+      connect.diagnosis({
+        timeout: 10000,
+        success: (res) => {
+          console.log('[interconnect] diagnosis: status=' + (res && res.status))
+          if (res && res.status === 0) {
+            console.log('[interconnect] diagnosis OK: companion app connected')
+          } else if (res && res.status === 1001) {
+            console.error('[interconnect] diagnosis: companion app NOT INSTALLED on phone')
+          } else {
+            console.warn('[interconnect] diagnosis non-OK status=' + (res && res.status))
+          }
+        },
+        fail: (data, code) => {
+          console.warn('[interconnect] diagnosis fail: code=' + code + ' data=' + (data && data.data))
+        }
+      })
+    } catch (e) {
+      console.warn('[interconnect] diagnosis error', e)
+    }
+
     // Check ready state once (like the demo)
     try {
       connect.getReadyState({

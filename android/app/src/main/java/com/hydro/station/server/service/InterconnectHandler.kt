@@ -407,9 +407,10 @@ class InterconnectHandler(
     }
 
     /**
-     * Request DEVICE_MANAGER permission for a node.
+     * Ensure DEVICE_MANAGER permission is granted for a node.
      * Per docs: "第一次调用授权会默认授予Permission.DEVICE_MANAGER和Permission.Notify权限"
-     * Returns true if permission was granted.
+     * (the first call to requestPermission auto-grants DEVICE_MANAGER and NOTIFY).
+     * Returns true if permission is granted.
      */
     private suspend fun requestPermission(nodeId: String): Boolean {
         val api = authApi ?: run {
@@ -428,14 +429,45 @@ class InterconnectHandler(
             return true
         }
 
-        // Permission check returned false — might be a timeout or real denial.
-        // Since user has already authorized in Xiaomi Health app, we optimistically
-        // assume permission is granted and proceed. If it truly isn't, the subsequent
-        // addListener call will fail with PermissionDeniedException.
-        Log.w(TAG, "requestPermission: checkPermission returned false for $nodeId, " +
-            "assuming permission is granted (user authorized in Xiaomi Health app). " +
-            "If addListener fails later, this assumption was wrong.")
-        return true
+        // Permission is not granted yet — actually request it. Per the XMS SDK docs,
+        // the first call to requestPermission() auto-grants DEVICE_MANAGER and NOTIFY,
+        // so we must call it (NOT just assume it is granted, otherwise the subsequent
+        // MessageApi.addListener() will fail with PermissionDeniedException and the
+        // phone will never receive messages / push server_info).
+        Log.i(TAG, "requestPermission: checkPermission returned false for $nodeId, " +
+            "calling authApi.requestPermission(DEVICE_MANAGER, NOTIFY)")
+        val granted = requestPermissionNow(api, nodeId)
+        Log.i(TAG, "requestPermission: requestPermission() returned granted=$granted for $nodeId")
+        return granted
+    }
+
+    /**
+     * Actually invoke AuthApi.requestPermission(nodeId, DEVICE_MANAGER, NOTIFY) and wait
+     * for the outcome. The SDK grants DEVICE_MANAGER + NOTIFY automatically on the first
+     * call. Returns true only if the request succeeded.
+     */
+    private suspend fun requestPermissionNow(api: AuthApi, nodeId: String): Boolean {
+        val deferred = CompletableDeferred<Boolean>()
+        try {
+            api.requestPermission(nodeId, Permission.DEVICE_MANAGER, Permission.NOTIFY)
+                .addOnSuccessListener { grantedPermissions ->
+                    Log.i(TAG, "requestPermission granted: " +
+                        (grantedPermissions?.map { it.name } ?: "empty"))
+                    deferred.complete(true)
+                }
+                .addOnFailureListener { e ->
+                    Log.w(TAG, "requestPermission failed for $nodeId", e)
+                    deferred.complete(false)
+                }
+        } catch (e: Exception) {
+            Log.w(TAG, "requestPermission threw for $nodeId", e)
+            return false
+        }
+        return try {
+            kotlinx.coroutines.withTimeoutOrNull(15000L) { deferred.await() } ?: false
+        } catch (e: Exception) {
+            false
+        }
     }
 
     /**
