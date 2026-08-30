@@ -309,8 +309,17 @@ export default {
           port: info.port || 9000,
           viaInterconnect: true
         }
+        this._dbg('IC recv ' + info.host + ':' + (info.port || 9000))
       }
     })
+  },
+
+  // One-shot toast helper to avoid spamming (server_info pushes every 5s).
+  _dbg(msg) {
+    const key = 'dbg_' + msg
+    if (this[key]) return
+    this[key] = true
+    try { prompt.showToast({ message: msg, duration: 1500 }) } catch (e) {}
   },
 
   onHide() {
@@ -356,11 +365,14 @@ export default {
             port: info.port || 9000,
             viaInterconnect: true
           }
+          this._dbg('IC discover ' + info.host + ':' + (info.port || 9000))
         } else {
+          this._dbg('IC discover empty')
           this.scheduleIcRetry()
         }
       })
       .catch(() => {
+        this._dbg('IC discover fail')
         this.scheduleIcRetry()
       })
 
