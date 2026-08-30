@@ -49,6 +49,9 @@
         <text class="empty-text">暂无设备</text>
         <text class="empty-hint">点击下方+添加设备</text>
       </div>
+
+      <!-- Bottom clearance for the FAB row (keeps card spacing tight) -->
+      <div class="list-bottom-space"></div>
     </scroll>
 
     <div class="fab-wrapper">
@@ -134,9 +137,13 @@
 }
 .list-content {
   flex-direction: column;
-  padding-bottom: 8px;
   width: 100%;
   align-items: center;
+}
+.list-bottom-space {
+  width: 100%;
+  height: 40px;
+  flex-shrink: 0;
 }
 .device-item {
   width: 400px;
@@ -240,8 +247,8 @@
     padding-left: 30px;
     padding-right: 30px;
   }
-  .list-content {
-    padding-bottom: 140px;
+  .list-bottom-space {
+    height: 150px;
   }
   .fab-wrapper {
     bottom: 40px;
