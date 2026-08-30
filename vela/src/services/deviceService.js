@@ -69,9 +69,11 @@ function isInterconnect(host) {
 /**
  * Unified API request that supports both HTTP and interconnect transport.
  * For interconnect devices (host='localhost'), routes through interconnectService.
- * For HTTP devices, uses standard fetch — unless "使用interconnect代理http" is
- * enabled, in which case the phone performs the HTTP request on our behalf
- * (bypasses @system.fetch, which some devices do not support).
+ * For HTTP devices:
+ *  - by default, when interconnect is connected to the phone, the request is
+ *    proxied through interconnect (the phone performs the HTTP request);
+ *  - when there is no interconnect connection, or the "强制使用 fetch" setting
+ *    is enabled, the watch uses @system.fetch directly.
  *
  * @returns {Promise<{code: number, data: object}>}
  */
@@ -86,9 +88,9 @@ async function apiRequest(host, port, path, method, data, headers) {
     }
   }
 
-  // HTTP device — proxy through interconnect when enabled
-  const useProxy = await settingsService.getProxyHttp()
-  if (useProxy) {
+  // HTTP device — proxy through interconnect when connected (unless forced fetch)
+  const forceFetch = await settingsService.getForceFetch()
+  if (!forceFetch && interconnectService.isReady()) {
     try {
       const url = getBaseUrl(host, port) + path
       const response = await interconnectService.sendProxyHttp(url, method || 'GET', data, headers)

@@ -8,7 +8,7 @@
 import file from '@system.file'
 
 const SETTINGS_FILE = 'internal://files/settings.json'
-const DEFAULTS = { proxyHttp: false }
+const DEFAULTS = { forceFetch: false }
 
 function readText(uri) {
   return new Promise((resolve, reject) => {
@@ -43,17 +43,17 @@ async function getSettings() {
 }
 
 export default {
-  /** Returns true when all HTTP requests should be proxied through interconnect. */
-  async getProxyHttp() {
+  /** Returns true when HTTP requests must use @system.fetch directly (no proxy). */
+  async getForceFetch() {
     const s = await getSettings()
-    return !!s.proxyHttp
+    return !!s.forceFetch
   },
 
-  /** Persist the proxy-http setting. */
-  async setProxyHttp(value) {
+  /** Persist the force-fetch setting. */
+  async setForceFetch(value) {
     const s = await getSettings()
-    s.proxyHttp = !!value
+    s.forceFetch = !!value
     await writeText(SETTINGS_FILE, JSON.stringify(s))
-    return s.proxyHttp
+    return s.forceFetch
   }
 }

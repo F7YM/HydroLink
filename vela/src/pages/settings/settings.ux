@@ -15,16 +15,25 @@
     <!-- Settings list -->
     <div class="form-area">
       <div class="form-list">
-        <!-- 使用interconnect代理http -->
+        <!-- App info card -->
+        <div class="app-card">
+          <image class="app-icon" src="/common/icon.png"></image>
+          <div class="app-info">
+            <text class="app-name">HydroStation</text>
+            <text class="app-version">v{{ appVersion }}</text>
+            <text class="app-author">By Float-11</text>
+          </div>
+        </div>
+
+        <!-- 强制使用 fetch -->
         <div class="form-item">
-          <text class="form-label">使用interconnect代理http</text>
+          <text class="form-label">强制使用 fetch</text>
           <switch
             class="switch"
-            checked="{{ proxyHttp }}"
-            @change="onProxyHttpChange"
+            checked="{{ forceFetch }}"
+            @change="onForceFetchChange"
           ></switch>
         </div>
-        <text class="form-desc">开启后由手机代发所有HTTP请求（包括配对），绕过手表的fetch。</text>
       </div>
     </div>
   </div>
@@ -78,6 +87,43 @@
   align-items: center;
   padding-top: 20px;
 }
+.app-card {
+  width: 420px;
+  height: 150px;
+  margin-bottom: 12px;
+  padding: 0 24px;
+  background-color: #2e323c;
+  border-radius: 24px;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+}
+.app-icon {
+  width: 72px;
+  height: 72px;
+  margin-right: 20px;
+  flex-shrink: 0;
+}
+.app-info {
+  flex-grow: 1;
+  flex-direction: column;
+  justify-content: center;
+}
+.app-name {
+  font-size: 28px;
+  font-weight: bold;
+  color: #fff;
+}
+.app-version {
+  font-size: 20px;
+  color: #888;
+  margin-top: 4px;
+}
+.app-author {
+  font-size: 18px;
+  color: #888;
+  margin-top: 2px;
+}
 .form-item {
   width: 420px;
   height: 96px;
@@ -96,13 +142,6 @@
   lines: 2;
   flex-grow: 1;
   margin-right: 16px;
-}
-.form-desc {
-  width: 420px;
-  font-size: 18px;
-  color: #888;
-  margin-top: 8px;
-  padding: 0 8px;
 }
 .switch {
   flex-shrink: 0;
@@ -144,13 +183,14 @@
   .form-list {
     padding-top: 30px;
   }
+  .app-card {
+    width: 380px;
+    height: 140px;
+  }
   .form-item {
     width: 380px;
     height: 92px;
     border-radius: 46px;
-  }
-  .form-desc {
-    width: 380px;
   }
 }
 
@@ -170,12 +210,14 @@
 
 <script>
 import router from '@system.router'
+import app from '@system.app'
 import settingsService from '../../services/settingsService.js'
 
 export default {
   private: {
     currentTime: '00:00',
-    proxyHttp: false,
+    appVersion: '1.0.0',
+    forceFetch: false,
     pressedKey: '',
     releasedKey: ''
   },
@@ -183,6 +225,10 @@ export default {
   onInit() {
     this.updateTime()
     this._timeInterval = setInterval(() => this.updateTime(), 60000)
+    try {
+      const info = app.getInfo()
+      if (info && info.versionName) this.appVersion = info.versionName
+    } catch (e) {}
   },
 
   onDestroy() {
@@ -200,17 +246,17 @@ export default {
 
   async loadSettings() {
     try {
-      this.proxyHttp = await settingsService.getProxyHttp()
+      this.forceFetch = await settingsService.getForceFetch()
     } catch (e) {
       console.warn('[settings] load failed', e)
     }
   },
 
-  async onProxyHttpChange(e) {
+  async onForceFetchChange(e) {
     const value = e && e.checked
-    this.proxyHttp = !!value
+    this.forceFetch = !!value
     try {
-      await settingsService.setProxyHttp(this.proxyHttp)
+      await settingsService.setForceFetch(this.forceFetch)
     } catch (err) {
       console.warn('[settings] save failed', err)
     }
