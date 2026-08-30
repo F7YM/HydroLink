@@ -2,7 +2,7 @@
   <div class="page-container">
     <div class="header">
       <text class="time-display">{{ currentTime }}</text>
-      <text class="title">HydroStation</text>
+      <text class="title" onclick="onOpenDebug">HydroStation</text>
     </div>
 
     <scroll
@@ -444,6 +444,10 @@ export default {
 
   onAddDevice() {
     router.push({ uri: '/pages/pair' })
+  },
+
+  onOpenDebug() {
+    router.push({ uri: '/pages/debug' })
   },
 
   /* ---- Interconnect device handlers ---- */

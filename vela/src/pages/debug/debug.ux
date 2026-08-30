@@ -1,0 +1,168 @@
+<template>
+  <div class="page">
+    <div class="header">
+      <text class="title">Debug · interconnect</text>
+    </div>
+
+    <scroll class="scroll" scroll-y="true" bounces="true">
+      <text class="line">available: {{ available }}</text>
+      <text class="line">ready: {{ ready }}</text>
+      <text class="line">hasConnection: {{ hasConnection }}</text>
+      <text class="line">serverInfo: {{ serverInfo }}</text>
+      <text class="line">server_info 收到次数: {{ serverInfoCount }}</text>
+      <text class="line">pendingDiscover: {{ pendingDiscover }}</text>
+      <text class="line">devices 数量: {{ devicesCount }}</text>
+      <text class="line">lastAction: {{ lastAction }}</text>
+    </scroll>
+
+    <div class="btn-row">
+      <div class="btn pressable" onclick="onRefresh">
+        <text class="btn-text">刷新</text>
+      </div>
+      <div class="btn pressable" onclick="onDiscover">
+        <text class="btn-text">discover</text>
+      </div>
+      <div class="btn pressable" onclick="onBack">
+        <text class="btn-text">返回</text>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style>
+.page {
+  width: 100%;
+  height: 100%;
+  background-color: #000;
+  flex-direction: column;
+}
+.header {
+  width: 100%;
+  height: 70px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #1e3a5f;
+}
+.title {
+  font-size: 26px;
+  font-weight: bold;
+  color: #fff;
+  text-align: center;
+}
+.scroll {
+  flex: 1;
+  width: 100%;
+  flex-direction: column;
+  padding: 10px 16px;
+}
+.line {
+  font-size: 20px;
+  color: #d0ffd0;
+  margin-bottom: 6px;
+}
+.btn-row {
+  width: 100%;
+  height: 84px;
+  flex-direction: row;
+  justify-content: space-around;
+  align-items: center;
+}
+.btn {
+  width: 130px;
+  height: 60px;
+  background-color: #2e323c;
+  border-radius: 30px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.btn-text {
+  font-size: 22px;
+  color: #fff;
+}
+.pressable {
+  opacity: 1;
+}
+</style>
+
+<script>
+import router from '@system.router'
+import interconnectService from '../../services/interconnectService.js'
+import deviceService from '../../services/deviceService.js'
+
+export default {
+  private: {
+    available: '-',
+    ready: '-',
+    hasConnection: '-',
+    serverInfo: '-',
+    serverInfoCount: 0,
+    pendingDiscover: '-',
+    devicesCount: 0,
+    lastAction: 'init'
+  },
+
+  onInit() {
+    this._svcInfoCount = 0
+    // Live-update every second so status reflects the shared instance.
+    this._timer = setInterval(() => this.refresh(), 1000)
+    // Register a handler on the same shared service to observe pushes.
+    this._prevOnServerInfo = interconnectService._onServerInfo
+    interconnectService.setServerInfoHandler((info) => {
+      this._svcInfoCount += 1
+      this.serverInfoCount = this._svcInfoCount
+      this.serverInfo = info ? (info.host + ':' + (info.port || 9000)) : '-'
+    })
+  },
+
+  onShow() {
+    this.refresh()
+  },
+
+  onDestroy() {
+    if (this._timer) clearInterval(this._timer)
+    // Restore the previous handler (home page) if any.
+    if (this._prevOnServerInfo) {
+      interconnectService.setServerInfoHandler(this._prevOnServerInfo)
+    }
+  },
+
+  onBack() {
+    router.back()
+  },
+
+  onRefresh() {
+    this.refresh()
+    this.lastAction = 'refreshed ' + new Date().toLocaleTimeString()
+  },
+
+  onDiscover() {
+    this.lastAction = 'discover()...'
+    interconnectService.discoverServer()
+      .then((info) => {
+        this.lastAction = 'OK ' + (info ? (info.host + ':' + (info.port || 9000)) : 'null')
+        this.serverInfo = info ? (info.host + ':' + (info.port || 9000)) : '-'
+      })
+      .catch((e) => {
+        this.lastAction = 'FAIL ' + (e && e.message ? e.message : String(e))
+      })
+  },
+
+  async refresh() {
+    try {
+      const st = interconnectService.getState()
+      this.available = String(st.available)
+      this.ready = String(st.ready)
+      this.hasConnection = String(st.hasConnection)
+      this.serverInfo = st.serverInfo
+      this.pendingDiscover = String(st.pendingDiscover)
+      this.serverInfoCount = this._svcInfoCount || 0
+      const devices = await deviceService.readDevices()
+      this.devicesCount = devices ? devices.length : 0
+    } catch (e) {
+      this.lastAction = 'refresh err: ' + (e && e.message ? e.message : e)
+    }
+  }
+}
+</script>

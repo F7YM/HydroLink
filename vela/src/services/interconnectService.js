@@ -368,6 +368,17 @@ export default {
     return this._available
   },
 
+  /** Snapshot of current interconnect state (for a debug page). */
+  getState() {
+    return {
+      available: this._available,
+      ready: this._ready,
+      hasConnection: !!this._connect,
+      serverInfo: this._serverInfo ? JSON.stringify(this._serverInfo) : 'null',
+      pendingDiscover: this._discoverResolvers.length
+    }
+  },
+
   /** Release resources. Rejects any pending requests. */
   destroy() {
     this._onStatusChange = null
