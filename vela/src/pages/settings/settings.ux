@@ -218,6 +218,12 @@
     align-items: center;
     padding: 0 24px;
   }
+  .title {
+    margin-left: 8px;
+  }
+  .time-display {
+    margin-right: 8px;
+  }
   .form-area {
     top: 65px;
   }
