@@ -1,5 +1,16 @@
 {
+  "name": "HydroStation",
+  "version": "1.0.0",
+  "description": "HydroStation for VelaOS",
+  "scripts": {
+    "build": "aiot build",
+    "server": "aiot server",
+    "release": "aiot release --drop-console=true --enable-protobuf --enable-jsc --complete-feature"
+  },
   "devDependencies": {
     "aiot-toolkit": "^2.0.5"
+  },
+  "dependencies": {
+    "@aiot-toolkit/jsc": "^1.0.8"
   }
 }
