@@ -192,6 +192,16 @@
 @media (shape: rect) {
   .header {
     height: 65px;
+    flex-direction: row-reverse;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 48px;
+  }
+  .title {
+    margin-left: 12px;
+  }
+  .time-display {
+    margin-right: 12px;
   }
   .content-scroll {
     top: 65px;

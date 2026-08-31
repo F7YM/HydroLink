@@ -241,13 +241,13 @@
     flex-direction: row-reverse;
     justify-content: space-between;
     align-items: center;
-    padding: 0 36px;
+    padding: 0 48px;
   }
   .title {
-    margin-left: 8px;
+    margin-left: 12px;
   }
   .time-display {
-    margin-right: 8px;
+    margin-right: 12px;
   }
   .form-area {
     top: 65px;
