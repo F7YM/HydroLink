@@ -45,12 +45,6 @@
             android:exported="false"
             android:theme="@style/Theme.HydroStationServer" />
 
-        <activity
-            android:name=".TerminalActivity"
-            android:exported="false"
-            android:theme="@style/Theme.HydroStationServer"
-            android:windowSoftInputMode="adjustResize" />
-
         <service
             android:name=".service.ServerService"
             android:exported="false"

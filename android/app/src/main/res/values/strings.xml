@@ -42,5 +42,4 @@
     <string name="interconnect_connecting">连接中...</string>
     <string name="interconnect_connected">已连接</string>
     <string name="interconnect_no_watch">未发现手表</string>
-    <string name="terminal">终端</string>
 </resources>

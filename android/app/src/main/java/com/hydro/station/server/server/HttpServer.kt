@@ -148,10 +148,6 @@ class HydroHttpServer(
                     withTrusted(headers) { handleRunCommand(cmdId) }
                 }
 
-                // ---- Terminal (arbitrary command execution) ----
-                (cleanUri == "/api/terminal" || cleanUri == "/terminal") && method == Method.POST ->
-                    withTrusted(headers) { handleTerminal(bodyJson) }
-
                 // ---- Root / health check ----
                 cleanUri == "/" || cleanUri == "" -> {
                     jsonResp(mapOf("status" to "ok", "service" to "HydroStationServer", "version" to VERSION))
@@ -255,26 +251,6 @@ class HydroHttpServer(
                         gson.toJsonTree(mapOf("status" to if (success) "ok" else "error", "output" to output))
                     } else {
                         gson.toJsonTree(mapOf("status" to "error", "message" to "Invalid command ID"))
-                    }
-                }
-
-                // Terminal
-                cleanPath == "/api/terminal" || cleanPath == "/terminal" -> {
-                    val cmd = bodyJson?.get("command")?.asString?.trim() ?: ""
-                    if (cmd.isEmpty()) {
-                        gson.toJsonTree(mapOf("status" to "error", "message" to "Empty command"))
-                    } else {
-                        val config = dataManager.loadConfig()
-                        if (config.useShizuku && ShizukuManager.isReady()) {
-                            val (success, output, returnCode) = ShizukuManager.executeCommandSync(cmd)
-                            gson.toJsonTree(mapOf("status" to if (success) "ok" else "error", "returncode" to returnCode, "output" to output.take(5000)))
-                        } else {
-                            val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", cmd))
-                            val output = BufferedReader(InputStreamReader(process.inputStream)).readText() +
-                                    BufferedReader(InputStreamReader(process.errorStream)).readText()
-                            process.waitFor()
-                            gson.toJsonTree(mapOf("status" to "ok", "returncode" to process.exitValue(), "output" to output.take(5000)))
-                        }
                     }
                 }
 
@@ -582,65 +558,6 @@ class HydroHttpServer(
         } catch (e: Exception) {
             addLog("命令失败", "error")
             return jsonResp(mapOf("status" to "error", "message" to "Command failed"), Response.Status.INTERNAL_ERROR)
-        }
-    }
-
-    // ---- Terminal ----
-    private fun handleTerminal(body: JsonObject?): Response {
-        if (body == null) {
-            return jsonResp(mapOf("status" to "error", "message" to "Invalid JSON"), Response.Status.BAD_REQUEST)
-        }
-
-        val cmdStr = body.get("command")?.asString?.trim() ?: ""
-        if (cmdStr.isEmpty()) {
-            return jsonResp(mapOf("status" to "error", "message" to "Empty command"), Response.Status.BAD_REQUEST)
-        }
-
-        // Limit command length for safety
-        if (cmdStr.length > 5000) {
-            return jsonResp(mapOf("status" to "error", "message" to "Command too long"), Response.Status.BAD_REQUEST)
-        }
-
-        val config = dataManager.loadConfig()
-
-        // Use Shizuku if enabled and ready
-        if (config.useShizuku) {
-            if (!ShizukuManager.isReady()) {
-                addLog("终端: Shizuku 未就绪", "error")
-                return jsonResp(mapOf("status" to "error", "message" to "Shizuku not ready"), Response.Status.INTERNAL_ERROR)
-            }
-
-            addLog("终端执行(Shizuku): ${cmdStr.take(50)}", "warning")
-            val (success, output, returnCode) = ShizukuManager.executeCommandSync(cmdStr)
-            if (success) {
-                return jsonResp(mapOf(
-                    "status" to "ok",
-                    "returncode" to returnCode,
-                    "output" to output.take(5000)
-                ))
-            } else {
-                addLog("终端执行失败: $output", "error")
-                return jsonResp(mapOf("status" to "error", "message" to "Command failed: $output"), Response.Status.INTERNAL_ERROR)
-            }
-        }
-
-        // Fallback: direct execution (app user privileges)
-        try {
-            addLog("终端执行: ${cmdStr.take(50)}", "warning")
-            val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", cmdStr))
-            val output = BufferedReader(InputStreamReader(process.inputStream)).readText() +
-                    BufferedReader(InputStreamReader(process.errorStream)).readText()
-            process.waitFor()
-            val returnCode = process.exitValue()
-            addLog("终端完成: 返回码 $returnCode", "success")
-            return jsonResp(mapOf(
-                "status" to "ok",
-                "returncode" to returnCode,
-                "output" to output.take(5000)
-            ))
-        } catch (e: Exception) {
-            addLog("终端执行失败", "error")
-            return jsonResp(mapOf("status" to "error", "message" to "Command failed: ${e.message}"), Response.Status.INTERNAL_ERROR)
         }
     }
 

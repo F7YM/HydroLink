@@ -54,9 +54,6 @@
       "pages/commandList": {
         "component": "commandList"
       },
-      "pages/terminal": {
-        "component": "terminal"
-      },
       "pages/settings": {
         "component": "settings"
       },

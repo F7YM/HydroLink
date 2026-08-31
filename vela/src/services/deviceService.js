@@ -431,15 +431,5 @@ export default {
       console.error('[deviceService] controlMusic failed', e)
       return { status: 'error', message: '网络请求失败' }
     }
-  },
-
-  async sendTerminalCommand(host, port, deviceId, command) {
-    try {
-      const res = await apiRequest(host, port, '/api/terminal', 'POST', { command }, { 'X-Device-ID': deviceId })
-      return res.data
-    } catch (e) {
-      console.error('[deviceService] sendTerminalCommand failed', e)
-      return { status: 'error', message: '网络请求失败' }
-    }
   }
 }
