@@ -47,7 +47,6 @@
       <!-- Empty state -->
       <div if="{{ devices.length === 0 && !icDevice }}" class="empty-state">
         <text class="empty-text">暂无设备</text>
-        <text class="empty-hint">点击下方+添加设备</text>
       </div>
 
       <!-- Bottom clearance for the FAB row (keeps card spacing tight) -->
@@ -128,12 +127,6 @@
   color: #888;
   text-align: center;
   font-weight: bold;
-}
-.empty-hint {
-  font-size: 20px;
-  color: #555;
-  text-align: center;
-  margin-top: 12px;
 }
 .list-content {
   flex-direction: column;
