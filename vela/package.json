@@ -3,8 +3,10 @@
   "version": "1.0.0",
   "description": "HydroStation for VelaOS",
   "scripts": {
+    "prebuild": "node scripts/update-buildinfo.js",
     "build": "aiot build",
     "server": "aiot server",
+    "prerelease": "node scripts/update-buildinfo.js",
     "release": "aiot release --drop-console=true --enable-protobuf --enable-jsc --complete-feature"
   },
   "devDependencies": {
