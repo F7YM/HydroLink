@@ -16,13 +16,20 @@
     <div class="form-area">
       <div class="form-list">
         <!-- App info card -->
-        <div class="app-card">
+        <div
+          class="app-card pressable {{ pressedKey === 'about' ? 'is-down press-down' : '' }} {{ releasedKey === 'about' ? 'press-up' : '' }}"
+          ontouchstart="pressDown('about')"
+          ontouchend="pressRelease('about')"
+          ontouchcancel="pressCancel('about')"
+          onclick="onOpenVersion"
+        >
           <image class="app-icon" src="/common/icon.png"></image>
           <div class="app-info">
             <text class="app-name">HydroStation</text>
-            <text class="app-version">v{{ appVersion }}</text>
-            <text class="app-author">By Float-11</text>
+            <text class="app-version">v{{ appVersion }} · By Float-11</text>
+            <text class="app-group">交流群：1053432339</text>
           </div>
+          <text class="app-chevron">›</text>
         </div>
 
         <!-- 强制使用 fetch -->
@@ -91,9 +98,9 @@
   width: 420px;
   height: 150px;
   margin-bottom: 12px;
-  padding: 0 24px;
+  padding: 0 20px;
   background-color: #2e323c;
-  border-radius: 75px;
+  border-radius: 24px;
   flex-direction: row;
   justify-content: flex-start;
   align-items: center;
@@ -119,10 +126,17 @@
   color: #888;
   margin-top: 4px;
 }
-.app-author {
+.app-group {
   font-size: 18px;
   color: #888;
   margin-top: 2px;
+}
+.app-chevron {
+  font-size: 32px;
+  font-weight: bold;
+  color: #888;
+  flex-shrink: 0;
+  margin-left: 8px;
 }
 .form-item {
   width: 420px;
@@ -186,7 +200,7 @@
   .app-card {
     width: 380px;
     height: 140px;
-    border-radius: 70px;
+    border-radius: 22px;
   }
   .form-item {
     width: 380px;
@@ -265,6 +279,10 @@ export default {
 
   goBack() {
     router.back()
+  },
+
+  onOpenVersion() {
+    router.push({ uri: '/pages/version' })
   },
 
   pressDown(key) {

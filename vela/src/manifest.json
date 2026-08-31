@@ -59,6 +59,9 @@
       },
       "pages/settings": {
         "component": "settings"
+      },
+      "pages/version": {
+        "component": "version"
       }
     }
   }
