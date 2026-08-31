@@ -48,7 +48,7 @@
           onclick="() => onFieldClick('deviceName', '设备名称')"
         >
           <text class="form-label">设备名称</text>
-          <text class="form-value">{{ deviceName || '点击输入' }}</text>
+          <text class="form-value">{{ deviceName || '自动获取' }}</text>
         </div>
       </div>
 
@@ -133,12 +133,12 @@
 .form-label {
   font-size: 26px;
   font-weight: bold;
-  color: rgba(255, 255, 255, 0.6);
+  color: #fff;
 }
 .form-value {
   font-size: 26px;
   font-weight: bold;
-  color: #fff;
+  color: rgba(255, 255, 255, 0.6);
   lines: 1;
   text-overflow: ellipsis;
   max-width: 220px;

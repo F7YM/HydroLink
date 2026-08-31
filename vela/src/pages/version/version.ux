@@ -94,12 +94,12 @@
 .info-label {
   font-size: 24px;
   font-weight: bold;
-  color: rgba(255, 255, 255, 0.6);
+  color: #fff;
 }
 .info-value {
   font-size: 24px;
   font-weight: bold;
-  color: #fff;
+  color: rgba(255, 255, 255, 0.6);
   lines: 1;
   text-overflow: ellipsis;
 }
