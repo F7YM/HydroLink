@@ -141,7 +141,7 @@
 .device-item {
   width: 400px;
   height: 120px;
-  margin: 2px 0;
+  margin: 8px 0;
   padding: 0 20px;
   background-color: #2e323c;
   border-radius: 60px;
