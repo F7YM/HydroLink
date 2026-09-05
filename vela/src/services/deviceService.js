@@ -276,12 +276,13 @@ export default {
     const deviceId = await this.getDeviceId()
     const status = (msg) => { if (onStatus) onStatus(msg) }
 
-    // Empty name -> auto-fill with this watch's brand/model so the server
-    // shows a real device name instead of "Unknown".
-    deviceName = (deviceName || '').trim()
-    if (!deviceName) {
-      deviceName = await getWatchName()
-    }
+    // Two distinct names here:
+    //   watchName -> sent as device_name, i.e. THIS watch's name on the server
+    //                (auto-filled from device.getInfo when the user left it empty)
+    //   deviceName (user alias, may be empty) -> local saved entry name, which
+    //                falls back to the SERVER's hostname. Never mixed up.
+    const manualName = (deviceName || '').trim()
+    const watchName = manualName || (await getWatchName())
 
     status('正在连接服务器...')
     const reachable = await this.ping(host, port)
@@ -290,10 +291,9 @@ export default {
     }
 
     status('正在发送配对请求...')
-    const pairRes = await this.requestPair(host, port, deviceId, deviceName)
+    const pairRes = await this.requestPair(host, port, deviceId, watchName)
     if (pairRes.status === 'trusted') {
       const sysInfo = await this.getServerSystemInfo(host, port, deviceId)
-      const manualName = (deviceName || '').trim()
       const resolvedName = manualName || sysInfo.hostname || host
       const device = {
         id: generateDeviceUid(),
@@ -326,7 +326,6 @@ export default {
         const checkRes = await this.checkPairStatus(host, port, deviceId)
         if (checkRes.status === 'trusted') {
           const sysInfo = await this.getServerSystemInfo(host, port, deviceId)
-          const manualName = (deviceName || '').trim()
           const resolvedName = manualName || sysInfo.hostname || host
           const device = {
             id: generateDeviceUid(),
