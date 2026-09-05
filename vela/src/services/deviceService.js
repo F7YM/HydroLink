@@ -455,5 +455,20 @@ export default {
       console.error('[deviceService] controlMusic failed', e)
       return { status: 'error', message: '网络请求失败' }
     }
+  },
+
+  /**
+   * HydroKit request: call /api/hydro/{...} on the server and return the raw
+   * parsed body (the View JSON), routing over whatever transport the device
+   * uses (interconnect / proxy / direct fetch).
+   */
+  async hydro(host, port, path, method, body) {
+    try {
+      const res = await apiRequest(host, port, path, method || 'POST', body)
+      return res.data
+    } catch (e) {
+      console.error('[deviceService] hydro request failed: ' + path, e)
+      return null
+    }
   }
 }

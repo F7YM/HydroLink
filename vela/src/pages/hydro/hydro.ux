@@ -1,0 +1,244 @@
+<template>
+  <div class="page">
+    <!-- 返回 -->
+    <text class="back" onclick="goBack">‹</text>
+
+    <!-- 加载 / 错误 -->
+    <div class="center" if="{{ loading && !errorText }}">
+      <image class="spin" src="/common/icons/progress-activity.png"></image>
+    </div>
+    <div class="center" if="{{ errorText }}">
+      <text class="err">{{ errorText }}</text>
+      <text class="hint">点击 ‹ 返回</text>
+    </div>
+
+    <!-- 组件树叶子列表 -->
+    <scroll class="hscroll" scroll-y="true" show="{{ !loading && !errorText }}">
+      <div class="content" style="{{ contentStyle }}">
+        <div for="{{ (i, item) in ui }}" class="row">
+          <text if="{{ item.isText }}" style="{{ item.s }}" onclick="doTap(item.tap)">{{ item.v }}</text>
+          <div if="{{ item.isBtn }}" class="btn" style="{{ item.s }}" onclick="doTap(item.tap)">
+            <text class="btn-text">{{ item.label }}</text>
+          </div>
+          <switch if="{{ item.isSw }}" style="{{ item.s }}" checked="{{ item.chk }}" @change="doSwitch(item)"></switch>
+          <text if="{{ item.isOther }}" style="{{ item.s }}">[{{ item.t }}]</text>
+        </div>
+      </div>
+    </scroll>
+  </div>
+</template>
+
+<style>
+.page {
+  width: 100%;
+  height: 100%;
+  background-color: #000;
+  position: relative;
+}
+.back {
+  position: absolute;
+  top: 10px;
+  left: 16px;
+  font-size: 42px;
+  color: rgba(255, 255, 255, 0.85);
+  z-index: 10;
+}
+.hscroll {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+.content {
+  width: 100%;
+  flex-direction: column;
+  padding: 20px;
+}
+.row {
+  width: 100%;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+}
+.btn {
+  background-color: #bac3ff;
+  border-radius: 40px;
+  padding: 8px 24px;
+  align-items: center;
+  justify-content: center;
+}
+.btn-text {
+  color: #00237c;
+  font-size: 24px;
+  font-weight: bold;
+}
+.center {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 40%;
+  flex-direction: column;
+  align-items: center;
+}
+.spin {
+  width: 56px;
+  height: 56px;
+}
+.err { color: #ffb4ab; font-size: 24px; margin-bottom: 8px; }
+.hint { color: #666; font-size: 20px; }
+</style>
+
+<script>
+import router from '@system.router'
+import deviceService from '../../services/deviceService.js'
+
+// 组件树节点(style 对象) -> Vela 内联 css 字符串
+function cssVal(v) {
+  return typeof v === 'number' ? v + 'px' : String(v)
+}
+function toCssStyle(obj) {
+  if (!obj || typeof obj !== 'object') return ''
+  const parts = []
+  Object.keys(obj).forEach((k) => {
+    const v = obj[k]
+    if (v === null || v === undefined) return
+    const prop = k.replace(/([A-Z])/g, '-$1').toLowerCase()
+    parts.push(prop + ': ' + cssVal(v))
+  })
+  return parts.join('; ')
+}
+
+const CONTAINERS = { column: 1, row: 1, card: 1, scroll: 1 }
+
+// 把整棵树压成"顶层叶子列表"：根容器样式交给 content，其余容器的子节点递归展开为平铺。
+function flatten(node, out) {
+  if (!node) return
+  if (CONTAINERS[node.type]) {
+    ;(node.children || []).forEach((c) => flatten(c, out))
+    return
+  }
+  const p = node.props || {}
+  out.push({
+    t: node.type,
+    s: toCssStyle(node.style),
+    v: p.text || '',
+    label: p.label || '',
+    chk: !!(p.checked),
+    tap: (node.events && node.events.tap) || '',
+    change: (node.events && node.events.change) || '',
+    isText: node.type === 'text',
+    isBtn: node.type === 'button',
+    isSw: node.type === 'switch',
+    isOther: node.type !== 'text' && node.type !== 'button' && node.type !== 'switch'
+  })
+}
+
+export default {
+  protected: {
+    plugin: '',
+    surface: '',
+    item: '',
+    host: '',
+    port: 0,
+    deviceId: ''
+  },
+
+  private: {
+    ui: [],
+    contentStyle: '',
+    loading: true,
+    errorText: '',
+    refreshMs: 0,
+    _timer: null,
+    _busy: false,
+    _started: false
+  },
+
+  onInit() {
+    this.load()
+  },
+
+  onDestroy() {
+    this._clearTimer()
+  },
+
+  onHide() {
+    this._clearTimer()
+  },
+
+  onShow() {
+    if (this._started && this.refreshMs > 0 && !this.errorText && !this._timer) this._startTimer()
+  },
+
+  _clearTimer() {
+    if (this._timer) { clearInterval(this._timer); this._timer = null }
+  },
+
+  _startTimer() {
+    this._clearTimer()
+    if (this.refreshMs > 0) {
+      this._timer = setInterval(() => this.refresh(), this.refreshMs)
+    }
+  },
+
+  path(action) {
+    return '/api/hydro/' + this.plugin + '/' + this.surface + '/' + this.item + '/' + action
+  },
+
+  async load() {
+    this.loading = true
+    this.errorText = ''
+    const view = await deviceService.hydro(this.host, this.port, this.path('view'), 'GET')
+    this.loading = false
+    if (!view || !view.root) {
+      this.errorText = '加载失败，请检查服务端'
+      return
+    }
+    this._apply(view)
+    this._started = true
+    this._startTimer()
+  },
+
+  async refresh() {
+    const view = await deviceService.hydro(this.host, this.port, this.path('refresh'), 'GET')
+    if (view && view.root) this._apply(view)
+  },
+
+  _apply(view) {
+    const out = []
+    flatten(view.root, out)
+    this.ui = out
+    this.contentStyle = view.root && view.root.style ? toCssStyle(view.root.style) : ''
+    this.refreshMs = view.refreshMs || 0
+    this._startTimer()
+  },
+
+  async doTap(handler) {
+    if (!handler) return
+    await this._send({ handler: handler, source: 'tap' })
+  },
+
+  async doSwitch(item) {
+    if (!item.change) return
+    await this._send({ handler: item.change, source: 'change' })
+  },
+
+  async _send(ev) {
+    if (this._busy) return
+    this._busy = true
+    try {
+      const view = await deviceService.hydro(this.host, this.port, this.path('event'), 'POST', { event: ev })
+      if (view && view.root) this._apply(view)
+    } catch (err) {
+      console.warn('[hydro] event failed', err)
+    } finally {
+      this._busy = false
+    }
+  },
+
+  goBack() {
+    router.back()
+  }
+}
+</script>

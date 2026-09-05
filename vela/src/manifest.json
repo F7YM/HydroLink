@@ -84,6 +84,9 @@
       },
       "pages/pairing": {
         "component": "pairing"
+      },
+      "pages/hydro": {
+        "component": "hydro"
       }
     }
   }
