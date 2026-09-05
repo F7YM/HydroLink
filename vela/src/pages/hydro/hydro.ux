@@ -1,6 +1,5 @@
 <template>
   <div class="page">
-    <!-- 返回 -->
     <text class="back" onclick="goBack">‹</text>
 
     <!-- 加载 / 错误 -->
@@ -12,16 +11,43 @@
       <text class="hint">点击 ‹ 返回</text>
     </div>
 
-    <!-- 组件树叶子列表 -->
+    <!-- 组件树（最多三层嵌套展开） -->
     <scroll class="hscroll" scroll-y="true" show="{{ !loading && !errorText }}">
       <div class="content" style="{{ contentStyle }}">
-        <div for="{{ (i, item) in ui }}" class="row">
-          <text if="{{ item.isText }}" style="{{ item.s }}" onclick="doTap(item.tap)">{{ item.v }}</text>
-          <div if="{{ item.isBtn }}" class="btn" style="{{ item.s }}" onclick="doTap(item.tap)">
-            <text class="btn-text">{{ item.label }}</text>
+        <!-- ===== 层级 1 ===== -->
+        <div for="{{ (i1, l1) in ui }}" style="width: 100%">
+          <!-- L1 容器 -->
+          <div if="{{ l1.c }}" style="{{ l1.s }}">
+            <!-- ===== 层级 2 ===== -->
+            <div for="{{ (i2, l2) in l1.kids }}" style="width: 100%">
+              <!-- L2 容器 -->
+              <div if="{{ l2.c }}" style="{{ l2.s }}">
+                <!-- ===== 层级 3（叶子） ===== -->
+                <div for="{{ (i3, l3) in l2.kids }}" style="width: 100%">
+                  <text if="{{ l3.isText }}" style="{{ l3.s }}" onclick="doTap(l3.tap)">{{ l3.v }}</text>
+                  <div if="{{ l3.isBtn }}" class="btn" style="{{ l3.s }}" onclick="doTap(l3.tap)">
+                    <text class="btn-text">{{ l3.label }}</text>
+                  </div>
+                  <switch if="{{ l3.isSw }}" style="{{ l3.s }}" checked="{{ l3.chk }}" @change="doSwitch(l3)"></switch>
+                  <text if="{{ l3.isOther }}" style="{{ l3.s }}">[{{ l3.t }}]</text>
+                </div>
+              </div>
+              <!-- L2 叶子 -->
+              <text if="{{ !l2.c && l2.isText }}" style="{{ l2.s }}" onclick="doTap(l2.tap)">{{ l2.v }}</text>
+              <div if="{{ !l2.c && l2.isBtn }}" class="btn" style="{{ l2.s }}" onclick="doTap(l2.tap)">
+                <text class="btn-text">{{ l2.label }}</text>
+              </div>
+              <switch if="{{ !l2.c && l2.isSw }}" style="{{ l2.s }}" checked="{{ l2.chk }}" @change="doSwitch(l2)"></switch>
+              <text if="{{ !l2.c && l2.isOther }}" style="{{ l2.s }}">[{{ l2.t }}]</text>
+            </div>
           </div>
-          <switch if="{{ item.isSw }}" style="{{ item.s }}" checked="{{ item.chk }}" @change="doSwitch(item)"></switch>
-          <text if="{{ item.isOther }}" style="{{ item.s }}">[{{ item.t }}]</text>
+          <!-- L1 叶子 -->
+          <text if="{{ !l1.c && l1.isText }}" style="{{ l1.s }}" onclick="doTap(l1.tap)">{{ l1.v }}</text>
+          <div if="{{ !l1.c && l1.isBtn }}" class="btn" style="{{ l1.s }}" onclick="doTap(l1.tap)">
+            <text class="btn-text">{{ l1.label }}</text>
+          </div>
+          <switch if="{{ !l1.c && l1.isSw }}" style="{{ l1.s }}" checked="{{ l1.chk }}" @change="doSwitch(l1)"></switch>
+          <text if="{{ !l1.c && l1.isOther }}" style="{{ l1.s }}">[{{ l1.t }}]</text>
         </div>
       </div>
     </scroll>
@@ -55,12 +81,6 @@
   flex-direction: column;
   padding: 20px;
 }
-.row {
-  width: 100%;
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-start;
-}
 .btn {
   background-color: #bac3ff;
   border-radius: 40px;
@@ -93,7 +113,7 @@
 import router from '@system.router'
 import deviceService from '../../services/deviceService.js'
 
-// 组件树节点(style 对象) -> Vela 内联 css 字符串
+// style 对象（camelCase）-> Vela 内联 css 字符串
 function cssVal(v) {
   return typeof v === 'number' ? v + 'px' : String(v)
 }
@@ -109,29 +129,35 @@ function toCssStyle(obj) {
   return parts.join('; ')
 }
 
-const CONTAINERS = { column: 1, row: 1, card: 1, scroll: 1 }
-
-// 把整棵树压成"顶层叶子列表"：根容器样式交给 content，其余容器的子节点递归展开为平铺。
-function flatten(node, out) {
-  if (!node) return
-  if (CONTAINERS[node.type]) {
-    ;(node.children || []).forEach((c) => flatten(c, out))
-    return
+// 单节点 -> 渲染条目（容器 or 叶子）
+function build(n) {
+  const hasKids = !!(n.children && n.children.length)
+  if (hasKids) {
+    return {
+      c: true,
+      s: 'flex-direction: ' + (n.type === 'row' ? 'row' : 'column') + '; ' + toCssStyle(n.style),
+      kids: n.children.map(build)
+    }
   }
-  const p = node.props || {}
-  out.push({
-    t: node.type,
-    s: toCssStyle(node.style),
+  const p = n.props || {}
+  const type = n.type || ''
+  const isText = type === 'text'
+  const isBtn = type === 'button'
+  const isSw = type === 'switch'
+  return {
+    c: false,
+    t: type,
+    s: toCssStyle(n.style),
     v: p.text || '',
     label: p.label || '',
     chk: !!(p.checked),
-    tap: (node.events && node.events.tap) || '',
-    change: (node.events && node.events.change) || '',
-    isText: node.type === 'text',
-    isBtn: node.type === 'button',
-    isSw: node.type === 'switch',
-    isOther: node.type !== 'text' && node.type !== 'button' && node.type !== 'switch'
-  })
+    tap: (n.events && n.events.tap) || '',
+    change: (n.events && n.events.change) || '',
+    isText: isText,
+    isBtn: isBtn,
+    isSw: isSw,
+    isOther: !isText && !isBtn && !isSw
+  }
 }
 
 export default {
@@ -206,10 +232,14 @@ export default {
   },
 
   _apply(view) {
-    const out = []
-    flatten(view.root, out)
-    this.ui = out
-    this.contentStyle = view.root && view.root.style ? toCssStyle(view.root.style) : ''
+    const root = view.root
+    if (root && root.children && root.children.length) {
+      this.ui = root.children.map(build)
+      this.contentStyle = root.style ? toCssStyle(root.style) : ''
+    } else {
+      this.ui = root ? [build(root)] : []
+      this.contentStyle = ''
+    }
     this.refreshMs = view.refreshMs || 0
     this._startTimer()
   },
