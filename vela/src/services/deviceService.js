@@ -145,10 +145,7 @@ function getWatchName() {
     try {
       device.getInfo({
         success: (info) => {
-          const brand = (info && info.brand) || ''
-          const model = (info && info.model) || ''
-          const name = [brand, model].filter(Boolean).join(' ')
-          resolve(name || 'Vela Watch')
+          resolve((info && info.product) || 'Vela Watch')
         },
         fail: () => resolve('Vela Watch'),
         complete: () => {}
