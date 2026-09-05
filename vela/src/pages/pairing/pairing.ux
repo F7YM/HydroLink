@@ -79,8 +79,8 @@
 }
 
 .spinner {
-  width: 72px;
-  height: 72px;
+  width: 64px;
+  height: 64px;
   margin-bottom: 28px;
   transform-origin: 50% 50%;
   animation-name: spin;
