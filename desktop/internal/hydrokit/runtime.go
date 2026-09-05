@@ -57,6 +57,25 @@ func (rt *Runtime) PluginIDs() []string {
 	return out
 }
 
+// PluginSummary is the launcher-facing description of a HydroPlugin.
+type PluginSummary struct {
+	Package Package `json:"package"`
+	Apps    []Item  `json:"apps"`
+	Widgets []Item  `json:"widgets"`
+}
+
+// List returns a summary of every registered plugin (for launchers).
+func (rt *Runtime) List() []PluginSummary {
+	rt.mu.RLock()
+	defer rt.mu.RUnlock()
+	out := make([]PluginSummary, 0, len(rt.plugins))
+	for _, p := range rt.plugins {
+		m := p.Manifest()
+		out = append(out, PluginSummary{Package: m.Package, Apps: m.Apps, Widgets: m.Widgets})
+	}
+	return out
+}
+
 // Dispatch routes a surface/item request to the plugin registered as pkg.
 // It returns a notFound error when the package or the surface item is not
 // registered by that plugin.

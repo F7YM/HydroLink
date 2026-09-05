@@ -87,6 +87,9 @@
       },
       "pages/hydro": {
         "component": "hydro"
+      },
+      "pages/hydro_launcher": {
+        "component": "hydro_launcher"
       }
     }
   }

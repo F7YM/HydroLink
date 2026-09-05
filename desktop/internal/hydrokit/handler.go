@@ -31,6 +31,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
+	// Launcher listing: GET /api/hydro/list
+	if strings.Trim(strings.TrimPrefix(r.URL.Path, RoutePrefix), "/") == "list" {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"plugins": h.rt.List()})
+		return
+	}
+
 	rest := strings.TrimPrefix(r.URL.Path, RoutePrefix)
 	parts := strings.Split(strings.Trim(rest, "/"), "/")
 	if len(parts) != 4 {

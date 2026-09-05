@@ -88,6 +88,19 @@
             <text class="control-label">性能</text>
           </div>
 
+          <div
+            class="control-item pressable {{ pressedKey === 'hydro' ? 'is-down press-down' : '' }} {{ releasedKey === 'hydro' ? 'press-up' : '' }}"
+            ontouchstart="pressDown('hydro')"
+            ontouchend="pressRelease('hydro')"
+            ontouchcancel="pressCancel('hydro')"
+            onclick="onHydroApps"
+          >
+            <div class="control-circle">
+              <image class="control-icon" src="/common/icons/mobile.png"></image>
+            </div>
+            <text class="control-label">HydroApps</text>
+          </div>
+
         </div>
 
         <!-- Music Control Card -->
@@ -711,6 +724,18 @@ export default {
         deviceId: this.deviceId,
         host: this.device.host || '',
         port: this.device.port || 0
+      }
+    })
+  },
+
+  onHydroApps() {
+    const dev = this.device || {}
+    router.push({
+      uri: '/pages/hydro_launcher',
+      params: {
+        deviceId: this.deviceId,
+        host: dev.host || '',
+        port: dev.port || 0
       }
     })
   },
