@@ -177,6 +177,37 @@
     loadLogs();
   }
 
+  // ---- pairing popup (pushed from backend via Wails event) ----
+  let modalPair = null;
+
+  function showPairModal(pair) {
+    modalPair = pair;
+    $("pairModalText").textContent =
+      `${pair.deviceName || "Unknown"} 请求连接\n(${pair.deviceId})`;
+    $("pairModal").classList.remove("hidden");
+    switchTab("pair");
+  }
+
+  function hidePairModal() {
+    modalPair = null;
+    $("pairModal").classList.add("hidden");
+  }
+
+  $("pairModalAccept").addEventListener("click", async () => {
+    if (modalPair) await api("RespondPair", modalPair.deviceId, "accept", modalPair.deviceName || "");
+    hidePairModal();
+    refresh();
+  });
+  $("pairModalReject").addEventListener("click", async () => {
+    if (modalPair) await api("RespondPair", modalPair.deviceId, "reject", modalPair.deviceName || "");
+    hidePairModal();
+    refresh();
+  });
+
+  if (window.runtime && window.runtime.EventsOn) {
+    window.runtime.EventsOn("pair:request", (pair) => showPairModal(pair || {}));
+  }
+
   refresh();
   setInterval(refresh, 2000);
 })();

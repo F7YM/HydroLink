@@ -123,3 +123,19 @@ input:focus { border-color: var(--primary); }
 
 .muted { color: var(--outline); font-size: 12px; }
 .empty { color: var(--outline); font-size: 12px; text-align: center; padding: 10px 0; }
+
+.modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,.6);
+  display: flex; align-items: center; justify-content: center; z-index: 100;
+}
+.modal.hidden { display: none; }
+.modal-card {
+  width: 320px; background: var(--surface); border-radius: 20px;
+  border: 1px solid var(--primary); padding: 20px; text-align: center;
+  animation: pop 160ms ease-out;
+}
+@keyframes pop { from { transform: scale(.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.modal-title { font-size: 16px; font-weight: 700; margin-bottom: 10px; }
+.modal-text { font-size: 13px; color: var(--on-surface-var); word-break: break-all; margin-bottom: 16px; }
+.modal-actions { display: flex; gap: 10px; justify-content: center; }
+.modal-actions .ok, .modal-actions .ghost { min-width: 110px; }

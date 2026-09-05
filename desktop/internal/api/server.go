@@ -43,11 +43,20 @@ type Server struct {
 
 	srvMu   sync.Mutex
 	httpSrv *http.Server
+
+	// pairCallback, when set, is invoked for every NEW pending pairing
+	// request (used by the desktop GUI for popups/notifications).
+	pairCallback func(deviceID, deviceName string)
 }
 
 // New creates a Server backed by the given store.
 func New(s *store.Store) *Server {
 	return &Server{store: s, maxLogs: 200}
+}
+
+// SetPairCallback registers a handler invoked on each new pairing request.
+func (s *Server) SetPairCallback(fn func(deviceID, deviceName string)) {
+	s.pairCallback = fn
 }
 
 // AddLog appends a log entry (kept for the desktop GUI).
@@ -276,7 +285,10 @@ func (s *Server) handlePair(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.AddLog("配对请求: "+shortID(body.DeviceID), "warning")
-	_ = s.store.AddPendingPair(body.DeviceID, body.DeviceName)
+	added, _ := s.store.AddPendingPair(body.DeviceID, body.DeviceName)
+	if added && s.pairCallback != nil {
+		s.pairCallback(body.DeviceID, body.DeviceName)
+	}
 	s.writeJSON(w, http.StatusOK, map[string]any{"status": "pending", "message": "Waiting for user confirmation"})
 }
 

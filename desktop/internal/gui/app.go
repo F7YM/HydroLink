@@ -6,6 +6,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/gen2brain/beeep"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
+
 	"hydrostation-desktop/internal/api"
 	"hydrostation-desktop/internal/store"
 )
@@ -27,6 +30,25 @@ func NewApp(srv *api.Server, st *store.Store, port int) *App {
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 	a.srv.AddLog("桌面端已启动", "success")
+	// Popup + system notification on every new pairing request.
+	a.srv.SetPairCallback(a.onPairRequest)
+}
+
+// onPairRequest fires whenever the API server records a new pending pair.
+func (a *App) onPairRequest(deviceID, deviceName string) {
+	name := deviceName
+	if name == "" {
+		name = "Unknown"
+	}
+	// System notification (works even when the window is not focused).
+	_ = beeep.Notify("HydroStation 配对请求", name+" 请求连接", "")
+	// Push to the frontend so it can raise a modal immediately.
+	if a.ctx != nil {
+		runtime.EventsEmit(a.ctx, "pair:request", map[string]string{
+			"deviceId":   deviceID,
+			"deviceName": deviceName,
+		})
+	}
 }
 
 // Shutdown is called by Wails on exit; stops the HTTP server.

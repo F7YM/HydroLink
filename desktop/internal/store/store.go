@@ -187,20 +187,25 @@ func (s *Store) LoadPendingPairs() ([]PairRequest, error) {
 	return loadJSON(s.pendingFile, []PairRequest{})
 }
 
-func (s *Store) AddPendingPair(deviceID, deviceName string) error {
+// AddPendingPair records a pairing request; returns true when the request is
+// new (false if the same device is already pending).
+func (s *Store) AddPendingPair(deviceID, deviceName string) (bool, error) {
 	pairs, err := s.LoadPendingPairs()
 	if err != nil {
-		return err
+		return false, err
 	}
 	for _, p := range pairs {
 		if p.DeviceID == deviceID {
-			return nil
+			return false, nil
 		}
 	}
 	pairs = append(pairs, PairRequest{DeviceID: deviceID, DeviceName: deviceName})
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return saveJSON(s.pendingFile, pairs)
+	if err := saveJSON(s.pendingFile, pairs); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (s *Store) RemovePendingPair(deviceID string) error {
