@@ -1,4 +1,4 @@
-package com.hydro.station.server.model
+package com.hydro.link.server.model
 
 import com.google.gson.annotations.SerializedName
 

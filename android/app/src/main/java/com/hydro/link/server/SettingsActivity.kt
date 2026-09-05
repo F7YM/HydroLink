@@ -1,4 +1,4 @@
-package com.hydro.station.server
+package com.hydro.link.server
 
 import android.os.Bundle
 import android.os.Handler
@@ -8,8 +8,8 @@ import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.snackbar.Snackbar
-import com.hydro.station.server.util.DataManager
-import com.hydro.station.server.util.ShizukuManager
+import com.hydro.link.server.util.DataManager
+import com.hydro.link.server.util.ShizukuManager
 
 class SettingsActivity : AppCompatActivity() {
 
@@ -41,7 +41,7 @@ class SettingsActivity : AppCompatActivity() {
 
         // Display version info
         val versionName = packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0.0"
-        tvAppName.text = "HydroStation V${versionName}"
+        tvAppName.text = "HydroLink V${versionName}"
 
         // Initialize Shizuku listeners (lazy, safe)
         ShizukuManager.init()

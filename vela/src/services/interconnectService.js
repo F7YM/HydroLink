@@ -278,7 +278,7 @@ const _service = {
   },
 
   /**
-   * Discover the HydroStation server over interconnect.
+   * Discover the HydroLink server over interconnect.
    * If already connected, sends discover immediately.
    * If not yet connected, waits for onopen to fire (which auto-sends discover).
    * Resolves with { host, port }.

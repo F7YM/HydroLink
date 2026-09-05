@@ -1,4 +1,4 @@
-package com.hydro.station.server.util
+package com.hydro.link.server.util
 
 import android.content.Context
 import android.net.wifi.WifiManager

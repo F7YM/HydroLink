@@ -1,7 +1,7 @@
-package com.hydro.station.server.service
+package com.hydro.link.server.service
 
 import android.util.Log
-import com.hydro.station.server.ICommandService
+import com.hydro.link.server.ICommandService
 import java.io.BufferedReader
 import java.io.InputStreamReader
 

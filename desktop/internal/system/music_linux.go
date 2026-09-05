@@ -35,7 +35,7 @@ func GetMusic() MusicInfo {
 	return info
 }
 
-// ControlMusic maps the HydroStation actions to playerctl commands.
+// ControlMusic maps the HydroLink actions to playerctl commands.
 func ControlMusic(action string) bool {
 	var args []string
 	switch action {

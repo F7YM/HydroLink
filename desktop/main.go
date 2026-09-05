@@ -1,12 +1,12 @@
-// HydroStation desktop app (Wails): desktop window + HTTP API server.
+// HydroLink desktop app (Wails): desktop window + HTTP API server.
 //
 // Build (Linux, webkit2gtk-4.1):
 //
-//	go build -tags webkit2_41 -o hydrostation .
+//	go build -tags webkit2_41 -o hydrolink .
 //
 // Run headless (HTTP server only):
 //
-//	./hydrostation -no-gui
+//	./hydrolink -no-gui
 package main
 
 import (
@@ -20,9 +20,9 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/linux"
 
-	"hydrostation-desktop/internal/api"
-	"hydrostation-desktop/internal/gui"
-	"hydrostation-desktop/internal/store"
+	"hydrolink-desktop/internal/api"
+	"hydrolink-desktop/internal/gui"
+	"hydrolink-desktop/internal/store"
 )
 
 //go:embed all:frontend/dist
@@ -56,7 +56,7 @@ func main() {
 	if err := srv.Start(addr); err != nil {
 		log.Fatalf("server: %v", err)
 	}
-	log.Printf("HydroStation desktop server v%s (api_level %d) on %s", api.Version, api.APILevel, addr)
+	log.Printf("HydroLink desktop server v%s (api_level %d) on %s", api.Version, api.APILevel, addr)
 	log.Printf("local IP: %s  |  data dir: %s", api.LocalIP(), st.Dir())
 
 	if *noGUI {
@@ -67,7 +67,7 @@ func main() {
 	app := gui.NewApp(srv, st, listenPort)
 
 	err = wails.Run(&options.App{
-		Title:     "HydroStation",
+		Title:     "HydroLink",
 		Width:     480,
 		Height:    780,
 		MinWidth:  400,

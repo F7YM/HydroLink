@@ -1,5 +1,5 @@
 // ICommandService.aidl
-package com.hydro.station.server;
+package com.hydro.link.server;
 
 interface ICommandService {
     void destroy() = 16777114;

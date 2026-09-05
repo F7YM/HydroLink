@@ -9,8 +9,8 @@ import (
 	"github.com/gen2brain/beeep"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
-	"hydrostation-desktop/internal/api"
-	"hydrostation-desktop/internal/store"
+	"hydrolink-desktop/internal/api"
+	"hydrolink-desktop/internal/store"
 )
 
 // App is bound to the Wails frontend (window.go.gui.App.*).
@@ -41,7 +41,7 @@ func (a *App) onPairRequest(deviceID, deviceName string) {
 		name = "Unknown"
 	}
 	// System notification (works even when the window is not focused).
-	_ = beeep.Notify("HydroStation 配对请求", name+" 请求连接", "")
+	_ = beeep.Notify("HydroLink 配对请求", name+" 请求连接", "")
 	// Push to the frontend so it can raise a modal immediately.
 	if a.ctx != nil {
 		runtime.EventsEmit(a.ctx, "pair:request", map[string]string{

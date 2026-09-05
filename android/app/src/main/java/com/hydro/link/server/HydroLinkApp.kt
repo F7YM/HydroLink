@@ -1,12 +1,12 @@
-package com.hydro.station.server
+package com.hydro.link.server
 
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
-import com.hydro.station.server.util.DataManager
+import com.hydro.link.server.util.DataManager
 
-class HydroApp : Application() {
+class HydroLinkApp : Application() {
 
     companion object {
         const val CHANNEL_ID = "hydro_server_channel"

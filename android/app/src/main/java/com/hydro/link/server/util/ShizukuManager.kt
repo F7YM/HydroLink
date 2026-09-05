@@ -1,12 +1,12 @@
-package com.hydro.station.server.util
+package com.hydro.link.server.util
 
 import android.content.ComponentName
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.IBinder
 import android.util.Log
-import com.hydro.station.server.BuildConfig
-import com.hydro.station.server.ICommandService
+import com.hydro.link.server.BuildConfig
+import com.hydro.link.server.ICommandService
 import rikka.shizuku.Shizuku
 
 /**
@@ -71,7 +71,7 @@ object ShizukuManager {
 
     private val userServiceArgs by lazy {
         Shizuku.UserServiceArgs(
-            ComponentName(BuildConfig.APPLICATION_ID, "com.hydro.station.server.service.CommandService")
+            ComponentName(BuildConfig.APPLICATION_ID, "com.hydro.link.server.service.CommandService")
         )
             .daemon(false)
             .processNameSuffix("command")

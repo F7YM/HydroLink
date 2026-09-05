@@ -361,7 +361,7 @@ export default {
     if (this.deviceId === '__interconnect__' && this.icHost) {
       this.device = {
         id: '__interconnect__',
-        name: 'HydroStation',
+        name: 'HydroLink',
         host: this.icHost,
         port: this.icPort || 9000,
         deviceId: 'interconnect-device',

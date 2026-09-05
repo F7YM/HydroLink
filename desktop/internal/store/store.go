@@ -1,4 +1,4 @@
-// Package store implements JSON persistence for the HydroStation desktop
+// Package store implements JSON persistence for the HydroLink desktop
 // server. File names and JSON field names match the Android version so the
 // protocol stays byte-compatible.
 package store
@@ -55,7 +55,7 @@ type Store struct {
 }
 
 // New returns a Store rooted at the platform-appropriate data directory
-// (os.UserConfigDir()/hydrostation, falling back to ~/.hydrostation).
+// (os.UserConfigDir()/hydrolink, falling back to ~/.hydrolink).
 func New() (*Store, error) {
 	dir, err := dataDir()
 	if err != nil {
@@ -314,7 +314,7 @@ func saveJSON(path string, v any) error {
 
 func dataDir() (string, error) {
 	if cfg, err := os.UserConfigDir(); err == nil && cfg != "" {
-		dir := filepath.Join(cfg, "hydrostation")
+		dir := filepath.Join(cfg, "hydrolink")
 		// macOS: os.UserConfigDir returns ~/Library/Application Support,
 		// which is the conventional app-data location there.
 		return dir, nil
@@ -323,7 +323,7 @@ func dataDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".hydrostation"), nil
+	return filepath.Join(home, ".hydrolink"), nil
 }
 
 func newEncryptionKey() string {

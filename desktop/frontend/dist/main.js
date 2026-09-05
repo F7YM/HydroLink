@@ -1,4 +1,4 @@
-// HydroStation desktop frontend — vanilla JS over Wails bindings
+// HydroLink desktop frontend — vanilla JS over Wails bindings
 // (window.go.gui.App.*). No build step required.
 (function () {
   const B = () => window.go && window.go.gui && window.go.gui.App;

@@ -1,6 +1,6 @@
 {
-  "package": "com.hydro.station",
-  "name": "HydroStation",
+  "package": "com.hydro.link",
+  "name": "HydroLink",
   "versionName": "1.0.0",
   "versionCode": 1,
   "minPlatformVersion": 1200,

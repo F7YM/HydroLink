@@ -1,4 +1,4 @@
-package com.hydro.station.server.service
+package com.hydro.link.server.service
 
 import android.app.Notification
 import android.app.PendingIntent
@@ -8,11 +8,11 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import com.hydro.station.server.HydroApp
-import com.hydro.station.server.MainActivity
-import com.hydro.station.server.R
-import com.hydro.station.server.server.HydroHttpServer
-import com.hydro.station.server.util.DataManager
+import com.hydro.link.server.HydroLinkApp
+import com.hydro.link.server.MainActivity
+import com.hydro.link.server.R
+import com.hydro.link.server.server.HydroHttpServer
+import com.hydro.link.server.util.DataManager
 
 class ServerService : Service() {
 
@@ -75,7 +75,7 @@ class ServerService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        return NotificationCompat.Builder(this, HydroApp.CHANNEL_ID)
+        return NotificationCompat.Builder(this, HydroLinkApp.CHANNEL_ID)
             .setContentTitle(getString(R.string.notification_title))
             .setContentText(getString(R.string.notification_text, port))
             .setSmallIcon(android.R.drawable.ic_dialog_info)

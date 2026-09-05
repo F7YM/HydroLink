@@ -1,5 +1,5 @@
 // Package system provides the platform-adapted system capabilities used by
-// the HydroStation API: hostname/version, performance, battery, music, lock
+// the HydroLink API: hostname/version, performance, battery, music, lock
 // and shell command execution.
 package system
 

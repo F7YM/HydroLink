@@ -1,4 +1,4 @@
-package com.hydro.station.server.service
+package com.hydro.link.server.service
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo

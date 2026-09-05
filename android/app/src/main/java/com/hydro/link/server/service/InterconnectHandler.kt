@@ -1,4 +1,4 @@
-package com.hydro.station.server.service
+package com.hydro.link.server.service
 
 import android.content.Context
 import android.os.Build
@@ -7,7 +7,7 @@ import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
-import com.hydro.station.server.server.HydroHttpServer
+import com.hydro.link.server.server.HydroHttpServer
 import com.xiaomi.xms.wearable.Wearable
 import com.xiaomi.xms.wearable.auth.AuthApi
 import com.xiaomi.xms.wearable.auth.Permission
@@ -34,7 +34,7 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * InterconnectHandler
  *
- * Bridges the HydroStation HTTP server with a paired Xiaomi watch through the
+ * Bridges the HydroLink HTTP server with a paired Xiaomi watch through the
  * XMS Wearable SDK (com.xiaomi.xms.wearable). All traffic flows over the
  * Bluetooth-backed interconnect channel provided by the Xiaomi Wearable app.
  *

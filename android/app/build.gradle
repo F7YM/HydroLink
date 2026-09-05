@@ -3,11 +3,11 @@ apply plugin: 'org.jetbrains.kotlin.android'
 // apply plugin: 'com.chaquo.python'  // Temporarily disabled - network issue downloading bootstrap
 
 android {
-    namespace 'com.hydro.station.server'
+    namespace 'com.hydro.link.server'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.hydro.station"
+        applicationId "com.hydro.link"
         minSdk 24
         targetSdk 34
         versionCode 1
@@ -19,7 +19,7 @@ android {
 
     signingConfigs {
         release {
-            storeFile file('hydro-release.keystore')
+            storeFile file('hydrolink-release.keystore')
             storePassword 'hydrostation'
             keyAlias 'hydro'
             keyPassword 'hydrostation'

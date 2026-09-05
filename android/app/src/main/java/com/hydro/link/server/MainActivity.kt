@@ -1,4 +1,4 @@
-package com.hydro.station.server
+package com.hydro.link.server
 
 import android.content.ComponentName
 import android.content.Intent
@@ -22,16 +22,16 @@ import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
-import com.hydro.station.server.model.Command
-import com.hydro.station.server.model.PairRequest
-import com.hydro.station.server.model.TrustedDevice
-import com.hydro.station.server.service.LockAccessibilityService
-import com.hydro.station.server.service.ServerService
-import com.hydro.station.server.ui.CommandAdapter
-import com.hydro.station.server.ui.DeviceAdapter
-import com.hydro.station.server.ui.PairRequestAdapter
-import com.hydro.station.server.util.DataManager
-import com.hydro.station.server.util.NetworkUtil
+import com.hydro.link.server.model.Command
+import com.hydro.link.server.model.PairRequest
+import com.hydro.link.server.model.TrustedDevice
+import com.hydro.link.server.service.LockAccessibilityService
+import com.hydro.link.server.service.ServerService
+import com.hydro.link.server.ui.CommandAdapter
+import com.hydro.link.server.ui.DeviceAdapter
+import com.hydro.link.server.ui.PairRequestAdapter
+import com.hydro.link.server.util.DataManager
+import com.hydro.link.server.util.NetworkUtil
 
 class MainActivity : AppCompatActivity() {
 

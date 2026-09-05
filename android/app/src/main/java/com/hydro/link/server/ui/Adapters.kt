@@ -1,4 +1,4 @@
-package com.hydro.station.server.ui
+package com.hydro.link.server.ui
 
 import android.view.LayoutInflater
 import android.view.View
@@ -7,11 +7,11 @@ import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
-import com.hydro.station.server.R
-import com.hydro.station.server.model.Command
-import com.hydro.station.server.model.LogEntry
-import com.hydro.station.server.model.PairRequest
-import com.hydro.station.server.model.TrustedDevice
+import com.hydro.link.server.R
+import com.hydro.link.server.model.Command
+import com.hydro.link.server.model.LogEntry
+import com.hydro.link.server.model.PairRequest
+import com.hydro.link.server.model.TrustedDevice
 
 // ---- Device Adapter ----
 class DeviceAdapter(

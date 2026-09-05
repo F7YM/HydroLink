@@ -1,7 +1,7 @@
 {
-  "name": "HydroStation",
+  "name": "HydroLink",
   "version": "1.0.0",
-  "description": "HydroStation for VelaOS",
+  "description": "HydroLink for VelaOS",
   "scripts": {
     "prebuild": "node scripts/update-buildinfo.js",
     "build": "aiot build",

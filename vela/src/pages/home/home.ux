@@ -2,7 +2,7 @@
   <div class="page-container">
     <div class="header">
       <text class="time-display">{{ currentTime }}</text>
-      <text class="title">HydroStation</text>
+      <text class="title">HydroLink</text>
     </div>
 
     <scroll
@@ -314,7 +314,7 @@ export default {
       if (info && info.host) {
         console.log('[home] server_info handler: ' + JSON.stringify(info))
         this.icDevice = {
-          name: info.name || 'HydroStation',
+          name: info.name || 'HydroLink',
           host: info.host,
           port: info.port || 9000,
           viaInterconnect: true
@@ -361,7 +361,7 @@ export default {
       .then((info) => {
         if (info && info.host) {
           this.icDevice = {
-            name: info.name || 'HydroStation',
+            name: info.name || 'HydroLink',
             host: info.host,
             port: info.port || 9000,
             viaInterconnect: true

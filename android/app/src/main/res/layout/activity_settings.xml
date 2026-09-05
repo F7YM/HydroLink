@@ -113,7 +113,7 @@
                         android:id="@+id/tvAppName"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="HydroStation V1.0.0"
+                        android:text="HydroLink V1.0.0"
                         android:textAppearance="?attr/textAppearanceTitleLarge"
                         android:textColor="?attr/colorOnSurface" />
 

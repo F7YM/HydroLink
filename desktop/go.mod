@@ -1,4 +1,4 @@
-module hydrostation-desktop
+module hydrolink-desktop
 
 go 1.26
 

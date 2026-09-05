@@ -25,7 +25,7 @@
         >
           <image class="app-icon" src="/common/icon.png"></image>
           <div class="app-info">
-            <text class="app-name">HydroStation</text>
+            <text class="app-name">HydroLink</text>
             <text class="app-version">v{{ appVersion }} · By Float-11</text>
             <text class="app-group">交流群：1053432339</text>
           </div>

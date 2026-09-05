@@ -1,4 +1,4 @@
-// Package api implements the HydroStation HTTP API. It is byte-compatible
+// Package api implements the HydroLink HTTP API. It is byte-compatible
 // with the Android server: same routes (with /api and /api-less aliases),
 // same JSON shapes, same trust/auth semantics and CORS behavior.
 package api
@@ -16,8 +16,8 @@ import (
 	"sync"
 	"time"
 
-	"hydrostation-desktop/internal/store"
-	"hydrostation-desktop/internal/system"
+	"hydrolink-desktop/internal/store"
+	"hydrolink-desktop/internal/system"
 )
 
 const (
@@ -33,7 +33,7 @@ type LogEntry struct {
 	Level string `json:"level"`
 }
 
-// Server is the HydroStation HTTP server.
+// Server is the HydroLink HTTP server.
 type Server struct {
 	store *store.Store
 
@@ -209,7 +209,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	// ---- Root / health check ----
 	case path == "/" || path == "":
 		s.writeJSON(w, http.StatusOK, map[string]any{
-			"status": "ok", "service": "HydroStationServer", "version": Version,
+			"status": "ok", "service": "HydroLinkServer", "version": Version,
 		})
 
 	default:

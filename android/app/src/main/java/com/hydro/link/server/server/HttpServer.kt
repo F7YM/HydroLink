@@ -1,4 +1,4 @@
-package com.hydro.station.server.server
+package com.hydro.link.server.server
 
 import android.app.ActivityManager
 import android.content.Context
@@ -6,12 +6,12 @@ import android.os.Build
 import android.os.StatFs
 import com.google.gson.Gson
 import com.google.gson.JsonObject
-import com.hydro.station.server.model.*
-import com.hydro.station.server.service.LockAccessibilityService
-import com.hydro.station.server.service.MusicController
-import com.hydro.station.server.util.DataManager
-import com.hydro.station.server.util.NetworkUtil
-import com.hydro.station.server.util.ShizukuManager
+import com.hydro.link.server.model.*
+import com.hydro.link.server.service.LockAccessibilityService
+import com.hydro.link.server.service.MusicController
+import com.hydro.link.server.util.DataManager
+import com.hydro.link.server.util.NetworkUtil
+import com.hydro.link.server.util.ShizukuManager
 import fi.iki.elonen.NanoHTTPD
 import java.io.BufferedReader
 import java.io.ByteArrayInputStream
@@ -150,7 +150,7 @@ class HydroHttpServer(
 
                 // ---- Root / health check ----
                 cleanUri == "/" || cleanUri == "" -> {
-                    jsonResp(mapOf("status" to "ok", "service" to "HydroStationServer", "version" to VERSION))
+                    jsonResp(mapOf("status" to "ok", "service" to "HydroLinkServer", "version" to VERSION))
                 }
 
                 else -> jsonResp(mapOf("status" to "error", "message" to "Not found"), Response.Status.NOT_FOUND)

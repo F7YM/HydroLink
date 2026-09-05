@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">HydroStation</string>
+    <string name="app_name">HydroLink</string>
     <string name="server_running">服务运行中</string>
     <string name="server_stopped">服务已停止</string>
     <string name="start_server">启动服务</string>
@@ -30,7 +30,7 @@
     <string name="no_commands">暂无快捷命令</string>
     <string name="no_logs">暂无日志</string>
     <string name="notification_channel">服务状态</string>
-    <string name="notification_title">HydroStation Server</string>
+    <string name="notification_title">HydroLink Server</string>
     <string name="notification_text">服务运行中 · 端口 %1$d</string>
     <string name="tab_status">状态</string>
     <string name="tab_devices">设备</string>
