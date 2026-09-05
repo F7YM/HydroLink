@@ -1,3 +1,4 @@
+<import name="hydro-leaf" src="../../components/HydroLeaf/HydroLeaf"></import>
 <template>
   <div class="page">
     <text class="back" onclick="goBack">‹</text>
@@ -11,43 +12,23 @@
       <text class="hint">点击 ‹ 返回</text>
     </div>
 
-    <!-- 组件树（最多三层嵌套展开） -->
+    <!-- 组件树（容器最多三层嵌套，叶子由 hydro-leaf 渲染） -->
     <scroll class="hscroll" scroll-y="true" show="{{ !loading && !errorText }}">
       <div class="content" style="{{ contentStyle }}">
-        <!-- ===== 层级 1 ===== -->
         <div for="{{ (i1, l1) in ui }}" style="width: 100%">
           <!-- L1 容器 -->
           <div if="{{ l1.c }}" style="{{ l1.s }}">
-            <!-- ===== 层级 2 ===== -->
             <div for="{{ (i2, l2) in l1.kids }}" style="width: 100%">
               <!-- L2 容器 -->
               <div if="{{ l2.c }}" style="{{ l2.s }}">
-                <!-- ===== 层级 3（叶子） ===== -->
                 <div for="{{ (i3, l3) in l2.kids }}" style="width: 100%">
-                  <text if="{{ l3.isText }}" style="{{ l3.s }}" onclick="doTap(l3.tap)">{{ l3.v }}</text>
-                  <div if="{{ l3.isBtn }}" class="btn" style="{{ l3.s }}" onclick="doTap(l3.tap)">
-                    <text class="btn-text">{{ l3.label }}</text>
-                  </div>
-                  <switch if="{{ l3.isSw }}" style="{{ l3.s }}" checked="{{ l3.chk }}" @change="doSwitch(l3)"></switch>
-                  <text if="{{ l3.isOther }}" style="{{ l3.s }}">[{{ l3.t }}]</text>
+                  <hydro-leaf leaf="{{ l3 }}" ontap="leafTap" onchange="leafChange" onopeninput="leafInput"></hydro-leaf>
                 </div>
               </div>
-              <!-- L2 叶子 -->
-              <text if="{{ !l2.c && l2.isText }}" style="{{ l2.s }}" onclick="doTap(l2.tap)">{{ l2.v }}</text>
-              <div if="{{ !l2.c && l2.isBtn }}" class="btn" style="{{ l2.s }}" onclick="doTap(l2.tap)">
-                <text class="btn-text">{{ l2.label }}</text>
-              </div>
-              <switch if="{{ !l2.c && l2.isSw }}" style="{{ l2.s }}" checked="{{ l2.chk }}" @change="doSwitch(l2)"></switch>
-              <text if="{{ !l2.c && l2.isOther }}" style="{{ l2.s }}">[{{ l2.t }}]</text>
+              <hydro-leaf if="{{ !l2.c }}" leaf="{{ l2 }}" ontap="leafTap" onchange="leafChange" onopeninput="leafInput"></hydro-leaf>
             </div>
           </div>
-          <!-- L1 叶子 -->
-          <text if="{{ !l1.c && l1.isText }}" style="{{ l1.s }}" onclick="doTap(l1.tap)">{{ l1.v }}</text>
-          <div if="{{ !l1.c && l1.isBtn }}" class="btn" style="{{ l1.s }}" onclick="doTap(l1.tap)">
-            <text class="btn-text">{{ l1.label }}</text>
-          </div>
-          <switch if="{{ !l1.c && l1.isSw }}" style="{{ l1.s }}" checked="{{ l1.chk }}" @change="doSwitch(l1)"></switch>
-          <text if="{{ !l1.c && l1.isOther }}" style="{{ l1.s }}">[{{ l1.t }}]</text>
+          <hydro-leaf if="{{ !l1.c }}" leaf="{{ l1 }}" ontap="leafTap" onchange="leafChange" onopeninput="leafInput"></hydro-leaf>
         </div>
       </div>
     </scroll>
@@ -81,18 +62,6 @@
   flex-direction: column;
   padding: 20px;
 }
-.btn {
-  background-color: #bac3ff;
-  border-radius: 40px;
-  padding: 8px 24px;
-  align-items: center;
-  justify-content: center;
-}
-.btn-text {
-  color: #00237c;
-  font-size: 24px;
-  font-weight: bold;
-}
 .center {
   position: absolute;
   left: 0;
@@ -101,10 +70,7 @@
   flex-direction: column;
   align-items: center;
 }
-.spin {
-  width: 56px;
-  height: 56px;
-}
+.spin { width: 56px; height: 56px; }
 .err { color: #ffb4ab; font-size: 24px; margin-bottom: 8px; }
 .hint { color: #666; font-size: 20px; }
 </style>
@@ -113,7 +79,21 @@
 import router from '@system.router'
 import deviceService from '../../services/deviceService.js'
 
-// style 对象（camelCase）-> Vela 内联 css 字符串
+// 已知内置图标 -> 本地资源（其余未知图标不显示）
+const ICON_MAP = {
+  play: '/common/icons/play-custom.png',
+  pause: '/common/icons/pause-custom.png',
+  next: '/common/icons/skip-next-custom.png',
+  prev: '/common/icons/skip-previous-custom.png',
+  music: '/common/icons/music-circle-custom.png',
+  lock: '/common/icons/lock-custom.png',
+  gauge: '/common/icons/gauge-custom.png',
+  battery: '/common/icons/battery-custom.png',
+  laptop: '/common/icons/laptop.png',
+  desktop: '/common/icons/desktop.png',
+  mobile: '/common/icons/mobile.png'
+}
+
 function cssVal(v) {
   return typeof v === 'number' ? v + 'px' : String(v)
 }
@@ -129,8 +109,45 @@ function toCssStyle(obj) {
   return parts.join('; ')
 }
 
-// 单节点 -> 渲染条目（容器 or 叶子）
+// 节点 -> 叶子渲染条目（容器由模板展开）
+function buildLeaf(n) {
+  const p = n.props || {}
+  const type = n.type || ''
+  const isText = type === 'text'
+  const isBtn = type === 'button'
+  const isSw = type === 'switch'
+  const isBadge = type === 'badge'
+  const isSpin = type === 'spinner'
+  const isIcon = type === 'icon'
+  const isImg = type === 'image'
+  const isInput = type === 'input'
+  const iconSrc = isIcon ? (ICON_MAP[p.name] || '') : ''
+  return {
+    c: false,
+    t: type,
+    s: toCssStyle(n.style),
+    v: p.text || '',
+    label: p.label || '',
+    placeholder: p.placeholder || '',
+    chk: !!(p.checked),
+    src: p.src || '',
+    iconSrc: iconSrc,
+    tap: (n.events && n.events.tap) || '',
+    change: (n.events && n.events.change) || '',
+    isText: isText,
+    isBtn: isBtn,
+    isSw: isSw,
+    isBadge: isBadge,
+    isSpin: isSpin,
+    isIcon: isIcon,
+    isImg: isImg,
+    isInput: isInput,
+    isOther: !(isText || isBtn || isSw || isBadge || isSpin || isIcon || isImg || isInput)
+  }
+}
+
 function build(n) {
+  if (!n) return null
   const hasKids = !!(n.children && n.children.length)
   if (hasKids) {
     return {
@@ -139,25 +156,7 @@ function build(n) {
       kids: n.children.map(build)
     }
   }
-  const p = n.props || {}
-  const type = n.type || ''
-  const isText = type === 'text'
-  const isBtn = type === 'button'
-  const isSw = type === 'switch'
-  return {
-    c: false,
-    t: type,
-    s: toCssStyle(n.style),
-    v: p.text || '',
-    label: p.label || '',
-    chk: !!(p.checked),
-    tap: (n.events && n.events.tap) || '',
-    change: (n.events && n.events.change) || '',
-    isText: isText,
-    isBtn: isBtn,
-    isSw: isSw,
-    isOther: !isText && !isBtn && !isSw
-  }
+  return buildLeaf(n)
 }
 
 export default {
@@ -178,7 +177,8 @@ export default {
     refreshMs: 0,
     _timer: null,
     _busy: false,
-    _started: false
+    _started: false,
+    _inputItem: null
   },
 
   onInit() {
@@ -194,6 +194,17 @@ export default {
   },
 
   onShow() {
+    // 键盘返回结果（输入框）
+    const appDef = this.$app && this.$app.$def
+    const res = appDef ? appDef.keyboardResult : null
+    if (res && res.field === 'hydro_input') {
+      appDef.keyboardResult = null
+      const it = this._inputItem
+      if (it && it.change) {
+        this._send({ handler: it.change, source: 'change', value: res.value })
+      }
+      this._inputItem = null
+    }
     if (this._started && this.refreshMs > 0 && !this.errorText && !this._timer) this._startTimer()
   },
 
@@ -244,14 +255,20 @@ export default {
     this._startTimer()
   },
 
-  async doTap(handler) {
-    if (!handler) return
-    await this._send({ handler: handler, source: 'tap' })
+  // HydroLeaf 事件（由组件 $emit 上来）
+  leafTap(item) {
+    if (item && item.tap) this._send({ handler: item.tap, source: 'tap' })
   },
-
-  async doSwitch(item) {
-    if (!item.change) return
-    await this._send({ handler: item.change, source: 'change' })
+  leafChange(item) {
+    if (item && item.change) this._send({ handler: item.change, source: 'change' })
+  },
+  leafInput(item) {
+    if (!item || !item.change) return
+    this._inputItem = item
+    router.push({
+      uri: '/pages/keyboard',
+      params: { field: 'hydro_input', label: '输入', value: item.v || item.placeholder || '' }
+    })
   },
 
   async _send(ev) {

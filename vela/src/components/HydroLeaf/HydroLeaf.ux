@@ -1,0 +1,95 @@
+<template>
+  <div class="hydro-leaf">
+    <!-- text -->
+    <text if="{{ leaf.isText }}" style="{{ leaf.s }}" onclick="emitTap">{{ leaf.v }}</text>
+
+    <!-- button -->
+    <div if="{{ leaf.isBtn }}" class="btn" style="{{ leaf.s }}" onclick="emitTap">
+      <text class="btn-text">{{ leaf.label }}</text>
+    </div>
+
+    <!-- badge -->
+    <div if="{{ leaf.isBadge }}" class="badge" style="{{ leaf.s }}">
+      <text class="badge-text">{{ leaf.v || leaf.label }}</text>
+    </div>
+
+    <!-- switch -->
+    <switch if="{{ leaf.isSw }}" style="{{ leaf.s }}" checked="{{ leaf.chk }}" @change="emitChange"></switch>
+
+    <!-- spinner -->
+    <image if="{{ leaf.isSpin }}" class="spin-img" src="/common/icons/progress-activity.png"></image>
+
+    <!-- icon (已知内置图标) / 未知不显示 -->
+    <image if="{{ leaf.isIcon && leaf.iconSrc }}" class="icon-img" src="{{ leaf.iconSrc }}"></image>
+
+    <!-- image -->
+    <image if="{{ leaf.isImg }}" class="img" src="{{ leaf.src }}"></image>
+
+    <!-- input: 点击弹出键盘输入 -->
+    <div if="{{ leaf.isInput }}" class="btn ghost" onclick="emitOpenInput">
+      <text class="btn-text">{{ leaf.v || leaf.placeholder || '点击输入' }}</text>
+    </div>
+
+    <!-- 未知类型占位 -->
+    <text if="{{ leaf.isOther }}" style="{{ leaf.s }}">[{{ leaf.t }}]</text>
+  </div>
+</template>
+
+<style>
+.hydro-leaf {
+  width: 100%;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+}
+.btn {
+  background-color: #bac3ff;
+  border-radius: 40px;
+  padding: 8px 24px;
+  align-items: center;
+  justify-content: center;
+}
+.btn.ghost {
+  background-color: transparent;
+  border-width: 2px;
+  border-style: solid;
+  border-color: #666;
+}
+.btn-text { color: #00237c; font-size: 24px; font-weight: bold; }
+.badge {
+  border-radius: 16px;
+  padding: 4px 14px;
+  align-items: center;
+  justify-content: center;
+}
+.badge-text { font-size: 20px; }
+.spin-img {
+  width: 40px; height: 40px;
+  transform-origin: 20px 20px;
+  animation-name: leaf-spin;
+  animation-duration: 900ms;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+.icon-img { width: 28px; height: 28px; }
+.img { width: 120px; height: 120px; }
+@keyframes leaf-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+</style>
+
+<script>
+export default {
+  props: ['leaf'],
+  emitTap() {
+    if (this.leaf && this.leaf.tap) this.$emit('tap', this.leaf)
+  },
+  emitChange() {
+    if (this.leaf && this.leaf.change) this.$emit('change', this.leaf)
+  },
+  emitOpenInput() {
+    if (this.leaf && this.leaf.change) this.$emit('openinput', this.leaf)
+  }
+}
+</script>

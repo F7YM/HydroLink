@@ -43,9 +43,29 @@ func (w *Weather) appRoot(req hydrokit.Request) *hydrokit.Node {
 	if req.Trigger == hydrokit.TriggerEvent && req.Event.Handler == "refresh" {
 		title = "已刷新"
 	}
+	row := func(c ...*hydrokit.Node) *hydrokit.Node {
+		return hydrokit.New(hydrokit.TypeRow).Add(c...)
+	}
 	return hydrokit.Column(
 		hydrokit.Text(title).StyleSet("fontSize", 28).StyleSet("weight", 700),
 		hydrokit.Text("北京 · 23°C 晴"),
+		row(
+			hydrokit.Icon("wb_sunny").StyleSet("size", 24),
+			hydrokit.Text("23°C").StyleSet("fontSize", 40).StyleSet("weight", 700),
+		),
+		row(
+			hydrokit.Icon("battery"),
+			hydrokit.Text("电量 87%"),
+		),
+		row(
+			hydrokit.Text("省电模式"),
+			hydrokit.New(hydrokit.TypeSwitch).Prop("checked", true).On("change", "toggle"),
+		),
+		row(
+			hydrokit.New(hydrokit.TypeBadge).Prop("label", "beta").StyleSet("backgroundColor", "#434659"),
+			hydrokit.New(hydrokit.TypeSpinner),
+			hydrokit.New(hydrokit.TypeInput).Prop("placeholder", "输入地名").Prop("value", "北京").On("change", "place"),
+		),
 		hydrokit.Button("刷新").On("tap", "refresh"),
 	).StyleSet("padding", 16).StyleSet("gap", 8)
 }

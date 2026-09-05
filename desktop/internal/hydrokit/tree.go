@@ -83,6 +83,12 @@ func (n *Node) Child(c *Node) *Node {
 	return n
 }
 
+// Add appends multiple child nodes.
+func (n *Node) Add(cs ...*Node) *Node {
+	n.Children = append(n.Children, cs...)
+	return n
+}
+
 // ---- Convenience constructors ----
 
 func Column(children ...*Node) *Node {
