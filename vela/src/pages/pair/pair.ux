@@ -52,16 +52,19 @@
         </div>
       </div>
 
-      <!-- Pair button -->
+      <!-- 表单校验错误（页内显示，不弹 toast） -->
+      <text class="form-error" if="{{ formError }}">{{ formError }}</text>
+
+      <!-- Pair button: 箭头图标按钮，点击进入「正在配对」页 -->
       <div class="button-wrapper">
         <div
-          class="pair-button {{ isPairing ? 'pair-button-disabled' : '' }} pressable {{ pressedKey === 'pairButton' ? 'is-down press-down' : '' }} {{ releasedKey === 'pairButton' ? 'press-up' : '' }}"
-          ontouchstart="pressDown('pairButton')"
-          ontouchend="pressRelease('pairButton')"
-          ontouchcancel="pressCancel('pairButton')"
+          class="pair-go pressable {{ pressedKey === 'pairGo' ? 'is-down press-down' : '' }} {{ releasedKey === 'pairGo' ? 'press-up' : '' }}"
+          ontouchstart="pressDown('pairGo')"
+          ontouchend="pressRelease('pairGo')"
+          ontouchcancel="pressCancel('pairGo')"
           onclick="onPair"
         >
-          <text class="pair-button-text">{{ pairButtonText }}</text>
+          <image class="pair-go-icon" src="/common/icons/arrow-forward.png"></image>
         </div>
       </div>
     </div>
@@ -153,23 +156,26 @@
   margin-top: 30px;
   padding-bottom: 80px;
 }
-.pair-button {
-  width: 300px;
-  height: 90px;
-  border-radius: 45px;
+.pair-go {
+  width: 104px;
+  height: 104px;
+  border-radius: 52px;
   background-color: #bac3ff;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   flex-shrink: 0;
 }
-.pair-button-disabled {
-  background-color: rgba(186, 195, 255, 0.4);
+.pair-go-icon {
+  width: 48px;
+  height: 48px;
 }
-.pair-button-text {
-  font-size: 28px;
-  font-weight: bold;
-  color: #000;
+.form-error {
+  width: 390px;
+  font-size: 22px;
+  color: #ffb4ab;
+  text-align: center;
+  margin-top: 4px;
 }
 .pressable {
   transform-origin: 50% 50%;
@@ -224,10 +230,10 @@
     height: 92px;
     border-radius: 46px;
   }
-  .pair-button {
-    width: 280px;
-    height: 80px;
-    border-radius: 40px;
+  .pair-go {
+    width: 96px;
+    height: 96px;
+    border-radius: 48px;
   }
   .button-wrapper {
     padding-bottom: 120px;
@@ -263,8 +269,6 @@
 
 <script>
 import router from '@system.router'
-import prompt from '@system.prompt'
-import deviceService from '../../services/deviceService.js'
 
 export default {
   private: {
@@ -272,9 +276,7 @@ export default {
     serverIp: '',
     serverPort: '9000',
     deviceName: '',
-    isPairing: false,
-    statusText: '',
-    pairButtonText: '开始配对',
+    formError: '',
     pressedKey: '',
     releasedKey: ''
   },
@@ -294,6 +296,7 @@ export default {
   },
 
   onShow() {
+    this.formError = ''
     // 从 app.ux 导出的全局对象读取键盘结果
     const appDef = this.$app && this.$app.$def
     const result = appDef ? appDef.keyboardResult : null
@@ -310,12 +313,10 @@ export default {
   },
 
   goBack() {
-    if (this.isPairing) return
     router.back()
   },
 
   onFieldClick(fieldName, label) {
-    if (this.isPairing) return
     let currentValue = ''
     if (fieldName === 'serverIp') currentValue = this.serverIp
     else if (fieldName === 'serverPort') currentValue = this.serverPort
@@ -332,50 +333,31 @@ export default {
     })
   },
 
-  async onPair() {
-    if (this.isPairing) return
-
+  onPair() {
     if (!this.serverIp) {
-      prompt.showToast({ message: '请输入服务器IP' })
+      this.formError = '请输入服务器IP'
       return
     }
     if (!this.serverPort) {
-      prompt.showToast({ message: '请输入端口' })
+      this.formError = '请输入端口'
       return
     }
-
     const port = parseInt(this.serverPort, 10)
     if (isNaN(port) || port < 1 || port > 65535) {
-      prompt.showToast({ message: '端口无效' })
+      this.formError = '端口无效'
       return
     }
 
-    this.isPairing = true
-    this.statusText = ''
-    this.pairButtonText = '正在连接服务器...'
-
-    const result = await deviceService.pairDevice(
-      this.serverIp,
-      port,
-      this.deviceName.trim(),
-      (msg) => {
-        this.statusText = msg
-        this.pairButtonText = msg || '配对中...'
+    this.formError = ''
+    // 进入「正在配对」页执行配对（错误在页面内显示，不弹 toast）
+    router.push({
+      uri: '/pages/pairing',
+      params: {
+        serverIp: this.serverIp.trim(),
+        serverPort: String(port),
+        deviceName: (this.deviceName || '').trim()
       }
-    )
-
-    this.isPairing = false
-    this.pairButtonText = '开始配对'
-
-    if (result.success) {
-      prompt.showToast({ message: '配对成功' })
-      setTimeout(() => {
-        router.back()
-      }, 1000)
-    } else {
-      this.statusText = result.message
-      prompt.showToast({ message: result.message })
-    }
+    })
   },
 
   pressDown(key) {

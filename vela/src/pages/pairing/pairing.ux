@@ -1,0 +1,285 @@
+<template>
+  <div class="page-container">
+    <!-- Header -->
+    <div class="header">
+      <text class="time-display">{{ currentTime }}</text>
+      <text
+        class="title pressable {{ pressedKey === 'back' ? 'is-down press-down' : '' }} {{ releasedKey === 'back' ? 'press-up' : '' }}"
+        ontouchstart="pressDown('back')"
+        ontouchend="pressRelease('back')"
+        ontouchcancel="pressCancel('back')"
+        onclick="goBack"
+      >‹正在配对</text>
+    </div>
+
+    <!-- Pairing state -->
+    <div class="pairing-area">
+      <!-- 旋转加载动画：静态圆环 + 旋转弧段（progress arc + animation-style） -->
+      <div class="spinner-wrap" if="{{ pairState === 'loading' }}">
+        <progress class="spinner-track" percent="100" type="arc"></progress>
+        <progress class="spinner-arc" percent="25" type="arc"></progress>
+      </div>
+
+      <!-- 成功对勾位（预留） -->
+      <text class="pairing-title {{ pairState === 'error' ? 'title-error' : '' }}">
+        {{ pairState === 'success' ? '配对成功' : (pairState === 'error' ? '配对失败' : '正在配对') }}
+      </text>
+
+      <text class="status-text {{ pairState === 'error' ? 'status-error' : '' }}">
+        {{ pairState === 'error' ? errorText : statusText }}
+      </text>
+
+      <text class="target">{{ serverIp }}:{{ serverPort }}</text>
+    </div>
+  </div>
+</template>
+
+<style>
+.page-container {
+  width: 100%;
+  height: 100%;
+  background-color: #000;
+  position: relative;
+}
+
+/* ---- Header ---- */
+.header {
+  width: 100%;
+  height: 90px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #000;
+}
+.time-display {
+  font-size: 28px;
+  font-weight: bold;
+  color: #fff;
+  padding-top: 5px;
+  text-align: center;
+}
+.title {
+  font-size: 32px;
+  font-weight: bold;
+  color: #fff;
+  text-align: center;
+}
+
+/* ---- Pairing ---- */
+.pairing-area {
+  position: absolute;
+  top: 90px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.spinner-wrap {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  margin-bottom: 28px;
+}
+.spinner-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 132px;
+  height: 132px;
+  color: #2e323c;
+  layer-color: #000000;
+  stroke-width: 8px;
+  start-angle: 0;
+  total-angle: 360deg;
+}
+.spinner-arc {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 132px;
+  height: 132px;
+  color: #bac3ff;
+  layer-color: #000000;
+  stroke-width: 8px;
+  start-angle: 0;
+  total-angle: 360deg;
+  animation-name: spin;
+  animation-duration: 900ms;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.pairing-title {
+  font-size: 32px;
+  font-weight: bold;
+  color: #fff;
+  margin-bottom: 12px;
+}
+.title-error {
+  color: #ffb4ab;
+}
+.status-text {
+  font-size: 24px;
+  color: #888;
+  text-align: center;
+  lines: 2;
+  margin-bottom: 16px;
+}
+.status-error {
+  color: #ffb4ab;
+}
+.target {
+  font-size: 22px;
+  color: #555;
+}
+
+.pressable {
+  transform-origin: 50% 50%;
+  transform: scale(1);
+  opacity: 1;
+}
+.is-down {
+  opacity: 0.75;
+}
+.press-down {
+  animation-name: PressDown;
+  animation-duration: 80ms;
+  animation-timing-function: ease-out;
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+.press-up {
+  animation-name: PressUp;
+  animation-duration: 140ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+@keyframes PressDown {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.94); opacity: 0.75; }
+}
+@keyframes PressUp {
+  0% { transform: scale(0.94); opacity: 0.75; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ---- Circle screen adaptation ---- */
+@media (shape: circle) {
+  .pairing-area {
+    padding: 0 40px;
+  }
+}
+
+/* ---- Rect screen adaptation ---- */
+@media (shape: rect) {
+  .header {
+    height: 65px;
+    flex-direction: row-reverse;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 36px;
+  }
+  .title {
+    margin-left: 8px;
+  }
+  .time-display {
+    margin-right: 8px;
+  }
+  .pairing-area {
+    top: 65px;
+  }
+}
+</style>
+
+<script>
+import router from '@system.router'
+import deviceService from '../../services/deviceService.js'
+
+export default {
+  private: {
+    currentTime: '00:00',
+    serverIp: '',
+    serverPort: '9000',
+    deviceName: '',
+    pairState: 'loading', // loading | success | error
+    statusText: '正在连接服务器...',
+    errorText: '',
+    pressedKey: '',
+    releasedKey: ''
+  },
+
+  onInit() {
+    this.updateTime()
+    this._timeInterval = setInterval(() => this.updateTime(), 60000)
+  },
+
+  onShow() {
+    if (this._started) return
+    this._started = true
+    this.startPairing()
+  },
+
+  onDestroy() {
+    if (this._timeInterval) clearInterval(this._timeInterval)
+  },
+
+  updateTime() {
+    const now = new Date()
+    this.currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  },
+
+  async startPairing() {
+    this.pairState = 'loading'
+    this.statusText = '正在连接服务器...'
+    this.errorText = ''
+
+    const result = await deviceService.pairDevice(
+      this.serverIp,
+      parseInt(this.serverPort, 10),
+      (this.deviceName || '').trim(),
+      (msg) => {
+        if (this.pairState === 'loading') this.statusText = msg
+      }
+    )
+
+    if (result.success) {
+      this.pairState = 'success'
+      this.statusText = '设备已添加'
+      setTimeout(() => router.back(), 1000)
+    } else {
+      this.pairState = 'error'
+      this.errorText = result.message || '配对失败，请返回重试'
+    }
+  },
+
+  goBack() {
+    router.back()
+  },
+
+  pressDown(key) {
+    this.releasedKey = ''
+    this.pressedKey = key
+  },
+
+  pressRelease(key) {
+    this.pressedKey = ''
+    this.releasedKey = key
+    setTimeout(() => {
+      if (this.releasedKey === key) this.releasedKey = ''
+    }, 160)
+  },
+
+  pressCancel(key) {
+    if (this.pressedKey === key) this.pressedKey = ''
+    if (this.releasedKey === key) this.releasedKey = ''
+  }
+}
+</script>

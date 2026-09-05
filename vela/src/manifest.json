@@ -5,20 +5,42 @@
   "versionCode": 1,
   "minPlatformVersion": 1200,
   "icon": "/common/icon.png",
-  "deviceTypeList": ["watch"],
+  "deviceTypeList": [
+    "watch"
+  ],
   "features": [
-    { "name": "system.router" },
-    { "name": "system.file" },
-    { "name": "system.prompt" },
-    { "name": "system.fetch" },
-    { "name": "system.device" },
-    { "name": "system.vibrator" },
-    { "name": "system.interconnect" },
-    { "name": "system.audio" },
-    { "name": "system.app"}
+    {
+      "name": "system.router"
+    },
+    {
+      "name": "system.file"
+    },
+    {
+      "name": "system.prompt"
+    },
+    {
+      "name": "system.fetch"
+    },
+    {
+      "name": "system.device"
+    },
+    {
+      "name": "system.vibrator"
+    },
+    {
+      "name": "system.interconnect"
+    },
+    {
+      "name": "system.audio"
+    },
+    {
+      "name": "system.app"
+    }
   ],
   "permissions": [
-    { "name": "hapjs.permission.DEVICE_INFO" }
+    {
+      "name": "hapjs.permission.DEVICE_INFO"
+    }
   ],
   "config": {
     "logLevel": "log",
@@ -59,6 +81,9 @@
       },
       "pages/version": {
         "component": "version"
+      },
+      "pages/pairing": {
+        "component": "pairing"
       }
     }
   }
