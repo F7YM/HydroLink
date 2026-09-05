@@ -106,6 +106,7 @@
   stroke-width: 8px;
   start-angle: 0;
   total-angle: 360deg;
+  transform-origin: 50% 50%;
   animation-name: spin;
   animation-duration: 900ms;
   animation-timing-function: linear;
@@ -253,7 +254,10 @@ export default {
     if (result.success) {
       this.pairState = 'success'
       this.statusText = '设备已添加'
-      setTimeout(() => router.back(), 1000)
+      // 配对完成回到首页（设备列表），配对页/正在配对页一并出栈
+      setTimeout(() => {
+        router.back({ path: '/pages/home' })
+      }, 1000)
     } else {
       this.pairState = 'error'
       this.errorText = result.message || '配对失败，请返回重试'
