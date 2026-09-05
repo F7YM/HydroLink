@@ -4,6 +4,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -36,9 +37,12 @@ type LogEntry struct {
 type Server struct {
 	store *store.Store
 
-	logMu    sync.Mutex
-	logs     []LogEntry
-	maxLogs  int
+	logMu   sync.Mutex
+	logs    []LogEntry
+	maxLogs int
+
+	srvMu   sync.Mutex
+	httpSrv *http.Server
 }
 
 // New creates a Server backed by the given store.
@@ -71,15 +75,53 @@ func (s *Server) Handler() http.Handler {
 	return http.HandlerFunc(s.serve)
 }
 
-// ListenAndServe starts the HTTP server on the given address.
-func (s *Server) ListenAndServe(addr string) error {
+// Start begins serving on addr in a background goroutine. The server can be
+// stopped with Stop (used by the GUI when the port setting changes).
+func (s *Server) Start(addr string) error {
+	s.srvMu.Lock()
+	if s.httpSrv != nil {
+		s.srvMu.Unlock()
+		return nil
+	}
 	srv := &http.Server{
 		Addr:         addr,
 		Handler:      s.Handler(),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 60 * time.Second,
 	}
-	return srv.ListenAndServe()
+	s.httpSrv = srv
+	s.srvMu.Unlock()
+
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		s.srvMu.Lock()
+		s.httpSrv = nil
+		s.srvMu.Unlock()
+		return err
+	}
+	go func() { _ = srv.Serve(ln) }()
+	return nil
+}
+
+// Stop gracefully shuts the HTTP server down (no-op if not running).
+func (s *Server) Stop() {
+	s.srvMu.Lock()
+	srv := s.httpSrv
+	s.httpSrv = nil
+	s.srvMu.Unlock()
+	if srv != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(ctx)
+	}
+}
+
+// ListenAndServe blocks serving on addr (headless mode).
+func (s *Server) ListenAndServe(addr string) error {
+	if err := s.Start(addr); err != nil {
+		return err
+	}
+	select {}
 }
 
 func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
