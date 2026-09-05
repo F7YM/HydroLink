@@ -59,15 +59,18 @@ func (s *Server) SetPairCallback(fn func(deviceID, deviceName string)) {
 	s.pairCallback = fn
 }
 
-// AddLog appends a log entry (kept for the desktop GUI).
+// AddLog appends a log entry (kept for the desktop GUI) and mirrors it to
+// the terminal.
 func (s *Server) AddLog(message, level string) {
 	ts := time.Now().Format("15:04:05")
 	s.logMu.Lock()
-	defer s.logMu.Unlock()
 	s.logs = append(s.logs, LogEntry{Text: "[" + ts + "] " + message, Level: level})
 	if len(s.logs) > s.maxLogs {
 		s.logs = s.logs[len(s.logs)-s.maxLogs:]
 	}
+	s.logMu.Unlock()
+	// Mirror to the terminal so headless/GUI launches show the server log.
+	fmt.Printf("[%s] [%s] %s\n", ts, level, message)
 }
 
 // Logs returns a copy of the log buffer.
