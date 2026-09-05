@@ -83,7 +83,7 @@
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  transform-origin: 50% 50%;
+  transform-origin: 32px 32px;
   animation-name: spin;
   animation-duration: 900ms;
   animation-timing-function: linear;
