@@ -7,17 +7,23 @@
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
   let activeTab = "status";
+  const tabTitles = { status: "状态", pair: "配对", commands: "命令", settings: "设置", logs: "日志" };
 
   function switchTab(name) {
     activeTab = name;
-    document.querySelectorAll(".tab").forEach((t) =>
+    document.querySelectorAll(".rail-item").forEach((t) =>
       t.classList.toggle("active", t.dataset.tab === name));
-    document.querySelectorAll(".panel").forEach((p) =>
-      p.classList.toggle("hidden", p.id !== "tab-" + name));
+    // Non-linear page transition: re-trigger the emphasized easing animation
+    document.querySelectorAll(".panel").forEach((p) => {
+      const on = p.id === "tab-" + name;
+      p.classList.toggle("active", on);
+      if (on) { p.style.animation = "none"; void p.offsetWidth; p.style.animation = ""; }
+    });
+    $("pageTitle").textContent = tabTitles[name] || name;
     refresh();
   }
 
-  document.querySelectorAll(".tab").forEach((t) =>
+  document.querySelectorAll(".rail-item").forEach((t) =>
     t.addEventListener("click", () => switchTab(t.dataset.tab)));
 
   async function api(fn, ...args) {
@@ -30,8 +36,6 @@
   async function loadStatus() {
     const st = await api("GetStatus");
     if (!st) return;
-    $("serverDot").classList.add("on");
-    $("headerSub").textContent = `listening on ${st.ip}:${st.port}`;
     $("versionBadge").textContent = `v${st.version} · api ${st.apiLevel}`;
     $("stAddr").textContent = `0.0.0.0:${st.port}`;
     $("stIp").textContent = st.ip;

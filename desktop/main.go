@@ -74,10 +74,10 @@ func main() {
 
 	err = wails.Run(&options.App{
 		Title:     "HydroLink",
-		Width:     480,
-		Height:    780,
-		MinWidth:  400,
-		MinHeight: 640,
+		Width:     960,
+		Height:    640,
+		MinWidth:  820,
+		MinHeight: 560,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},

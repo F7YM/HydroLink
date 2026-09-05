@@ -8,100 +8,130 @@
 </head>
 <body>
   <div id="app">
-    <header class="app-header">
-      <div class="brand">
-        <div class="brand-dot" id="serverDot"></div>
-        <div>
-          <h1>HydroLink</h1>
-          <p class="subtitle" id="headerSub">desktop server</p>
-        </div>
+    <!-- MD3 Navigation Rail -->
+    <aside class="rail">
+      <div class="rail-brand">
+        <img src="icon.png" alt="HydroLink">
       </div>
-      <span class="version-badge" id="versionBadge">v1.0.0</span>
-    </header>
+      <nav class="rail-nav">
+        <button class="rail-item active" data-tab="status">
+          <span class="rail-icon">
+            <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+          </span>
+          <span class="rail-label">状态</span>
+        </button>
+        <button class="rail-item" data-tab="pair">
+          <span class="rail-icon">
+            <svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>
+          </span>
+          <span class="rail-label">配对</span>
+        </button>
+        <button class="rail-item" data-tab="commands">
+          <span class="rail-icon">
+            <svg viewBox="0 0 24 24"><path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 14H4V6h16v12zM7 9.41 8.41 8 12 11.59 8.41 15.18 7 13.77l2.18-2.18L7 9.41zM12 15h5v2h-5v-2z"/></svg>
+          </span>
+          <span class="rail-label">命令</span>
+        </button>
+        <button class="rail-item" data-tab="settings">
+          <span class="rail-icon">
+            <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+          </span>
+          <span class="rail-label">设置</span>
+        </button>
+        <button class="rail-item" data-tab="logs">
+          <span class="rail-icon">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+          </span>
+          <span class="rail-label">日志</span>
+        </button>
+      </nav>
+      <div class="rail-footer">
+        <span class="version-badge" id="versionBadge">v1.0.0</span>
+      </div>
+    </aside>
 
-    <nav class="tabs">
-      <button class="tab active" data-tab="status">状态</button>
-      <button class="tab" data-tab="pair">配对</button>
-      <button class="tab" data-tab="commands">命令</button>
-      <button class="tab" data-tab="settings">设置</button>
-      <button class="tab" data-tab="logs">日志</button>
-    </nav>
+    <!-- Content -->
+    <div class="content">
+      <header class="page-header">
+        <h1 id="pageTitle">状态</h1>
+      </header>
 
-    <main>
-      <!-- 状态 -->
-      <section class="panel" id="tab-status">
-        <div class="card">
-          <div class="card-title">服务</div>
-          <div class="kv"><span>地址</span><b id="stAddr">-</b></div>
-          <div class="kv"><span>本机 IP</span><b id="stIp">-</b></div>
-          <div class="kv"><span>API 等级</span><b id="stApi">-</b></div>
-          <div class="kv"><span>数据目录</span><b class="wrap" id="stDataDir">-</b></div>
-        </div>
-        <div class="card">
-          <div class="card-title">已信任设备 <span class="badge" id="trustedCount">0</span></div>
-          <div id="trustedList" class="list"></div>
-        </div>
-      </section>
-
-      <!-- 配对 -->
-      <section class="panel hidden" id="tab-pair">
-        <div class="card">
-          <div class="card-title">配对请求 <span class="badge" id="pendingCount">0</span></div>
-          <div id="pendingList" class="list"><p class="muted">暂无配对请求</p></div>
-        </div>
-      </section>
-
-      <!-- 配对弹窗 -->
-      <div class="modal hidden" id="pairModal">
-        <div class="modal-card">
-          <div class="modal-title">配对请求</div>
-          <p class="modal-text" id="pairModalText">-</p>
-          <div class="modal-actions">
-            <button class="ghost" id="pairModalReject">拒绝</button>
-            <button class="ok" id="pairModalAccept">接受</button>
+      <main>
+        <!-- 状态 -->
+        <section class="panel active" id="tab-status">
+          <div class="card">
+            <div class="card-title">服务</div>
+            <div class="kv"><span>地址</span><b id="stAddr">-</b></div>
+            <div class="kv"><span>本机 IP</span><b id="stIp">-</b></div>
+            <div class="kv"><span>API 等级</span><b id="stApi">-</b></div>
+            <div class="kv"><span>数据目录</span><b class="wrap" id="stDataDir">-</b></div>
           </div>
+          <div class="card">
+            <div class="card-title">已信任设备 <span class="badge" id="trustedCount">0</span></div>
+            <div id="trustedList" class="list"></div>
+          </div>
+        </section>
+
+        <!-- 配对 -->
+        <section class="panel" id="tab-pair">
+          <div class="card">
+            <div class="card-title">配对请求 <span class="badge" id="pendingCount">0</span></div>
+            <div id="pendingList" class="list"><p class="muted">暂无配对请求</p></div>
+          </div>
+        </section>
+
+        <!-- 命令 -->
+        <section class="panel" id="tab-commands">
+          <div class="card">
+            <div class="card-title">快速命令 <span class="badge" id="cmdCount">0</span></div>
+            <div id="cmdList" class="list"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">添加命令</div>
+            <input id="cmdName" type="text" placeholder="名称（如：重启服务）">
+            <input id="cmdBody" type="text" placeholder="命令（如：systemctl restart x）">
+            <button class="btn" id="cmdAdd">添加</button>
+          </div>
+        </section>
+
+        <!-- 设置 -->
+        <section class="panel" id="tab-settings">
+          <div class="card">
+            <div class="card-title">设置</div>
+            <label class="field">
+              <span>端口</span>
+              <input id="setPort" type="number" min="1" max="65535">
+            </label>
+            <label class="check-row">
+              <input id="setAcceptAll" type="checkbox">
+              <span>自动接受所有配对请求（accept_all）</span>
+            </label>
+            <button class="btn" id="setSave">保存</button>
+            <p class="muted" id="setMsg"></p>
+          </div>
+        </section>
+
+        <!-- 日志 -->
+        <section class="panel" id="tab-logs">
+          <div class="card">
+            <div class="card-title">日志</div>
+            <div id="logList" class="logs"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- 配对弹窗 -->
+    <div class="modal hidden" id="pairModal">
+      <div class="modal-card">
+        <div class="modal-title">配对请求</div>
+        <p class="modal-text" id="pairModalText">-</p>
+        <div class="modal-actions">
+          <button class="btn ghost" id="pairModalReject">拒绝</button>
+          <button class="btn" id="pairModalAccept">接受</button>
         </div>
       </div>
-
-      <!-- 命令 -->
-      <section class="panel hidden" id="tab-commands">
-        <div class="card">
-          <div class="card-title">快速命令 <span class="badge" id="cmdCount">0</span></div>
-          <div id="cmdList" class="list"></div>
-        </div>
-        <div class="card">
-          <div class="card-title">添加命令</div>
-          <input id="cmdName" type="text" placeholder="名称（如：重启服务）">
-          <input id="cmdBody" type="text" placeholder="命令（如：systemctl restart x）">
-          <button class="btn primary" id="cmdAdd">添加</button>
-        </div>
-      </section>
-
-      <!-- 设置 -->
-      <section class="panel hidden" id="tab-settings">
-        <div class="card">
-          <div class="card-title">设置</div>
-          <label class="field">
-            <span>端口</span>
-            <input id="setPort" type="number" min="1" max="65535">
-          </label>
-          <label class="check-row">
-            <input id="setAcceptAll" type="checkbox">
-            <span>自动接受所有配对请求（accept_all）</span>
-          </label>
-          <button class="btn primary" id="setSave">保存</button>
-          <p class="muted" id="setMsg"></p>
-        </div>
-      </section>
-
-      <!-- 日志 -->
-      <section class="panel hidden" id="tab-logs">
-        <div class="card">
-          <div class="card-title">日志</div>
-          <div id="logList" class="logs"></div>
-        </div>
-      </section>
-    </main>
+    </div>
   </div>
   <script src="main.js"></script>
 </body>
