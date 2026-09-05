@@ -138,6 +138,27 @@ function generateDeviceId() {
   })
 }
 
+// getWatchName resolves this watch's display name from device.getInfo
+// (brand + model), used when the user leaves the name empty.
+function getWatchName() {
+  return new Promise((resolve) => {
+    try {
+      device.getInfo({
+        success: (info) => {
+          const brand = (info && info.brand) || ''
+          const model = (info && info.model) || ''
+          const name = [brand, model].filter(Boolean).join(' ')
+          resolve(name || 'Vela Watch')
+        },
+        fail: () => resolve('Vela Watch'),
+        complete: () => {}
+      })
+    } catch (e) {
+      resolve('Vela Watch')
+    }
+  })
+}
+
 export default {
   /** Returns true if the given host uses interconnect transport. */
   isInterconnectDevice(host) {
@@ -257,6 +278,13 @@ export default {
   async pairDevice(host, port, deviceName, onStatus) {
     const deviceId = await this.getDeviceId()
     const status = (msg) => { if (onStatus) onStatus(msg) }
+
+    // Empty name -> auto-fill with this watch's brand/model so the server
+    // shows a real device name instead of "Unknown".
+    deviceName = (deviceName || '').trim()
+    if (!deviceName) {
+      deviceName = await getWatchName()
+    }
 
     status('正在连接服务器...')
     const reachable = await this.ping(host, port)
