@@ -19,7 +19,7 @@
           ontouchend="onIcTouchEnd"
           ontouchcancel="onIcTouchCancel"
         >
-          <image class="device-icon" src="/common/icons/cellphone.png"></image>
+          <image class="device-icon" src="/common/icons/mobile.png"></image>
           <div class="device-info">
             <text class="device-name">{{ icDevice.name }}</text>
             <text class="device-ip">Interconnect</text>

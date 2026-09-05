@@ -257,7 +257,7 @@ export default {
 
   determineDeviceType(sysInfo) {
     if (sysInfo.version && sysInfo.version.toLowerCase().includes('android')) {
-      return 'cellphone'
+      return 'mobile'
     }
     if (sysInfo.hasBattery) {
       return 'laptop'
