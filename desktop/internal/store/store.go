@@ -173,6 +173,24 @@ func (s *Store) AddRejected(deviceID string) error {
 	return saveJSON(s.rejectedFile, list)
 }
 
+// RemoveRejected forgets a prior rejection so a new pairing attempt is
+// prompted again instead of being auto-rejected forever.
+func (s *Store) RemoveRejected(deviceID string) error {
+	list, err := s.loadRejected()
+	if err != nil {
+		return err
+	}
+	out := list[:0]
+	for _, id := range list {
+		if id != deviceID {
+			out = append(out, id)
+		}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return saveJSON(s.rejectedFile, out)
+}
+
 func (s *Store) loadRejected() ([]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

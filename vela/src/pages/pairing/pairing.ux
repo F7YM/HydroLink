@@ -14,12 +14,10 @@
 
     <!-- Pairing state -->
     <div class="pairing-area">
-      <!-- 旋转加载动画：progress_activity 图标绕中心旋转 -->
-      <image
-        class="spinner"
-        if="{{ pairState === 'loading' }}"
-        src="/common/icons/progress-activity.png"
-      ></image>
+      <!-- 旋转加载动画：方形容器绕自身中心旋转，图片铺满 -->
+      <div class="spinner" if="{{ pairState === 'loading' }}">
+        <image class="spinner-img" src="/common/icons/progress-activity.png"></image>
+      </div>
 
       <!-- 成功对勾位（预留） -->
       <text class="pairing-title {{ pairState === 'error' ? 'title-error' : '' }}">
@@ -82,11 +80,18 @@
   width: 64px;
   height: 64px;
   margin-bottom: 28px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
   transform-origin: 50% 50%;
   animation-name: spin;
   animation-duration: 900ms;
   animation-timing-function: linear;
   animation-iteration-count: infinite;
+}
+.spinner-img {
+  width: 64px;
+  height: 64px;
 }
 @keyframes spin {
   from { transform: rotate(0deg); }

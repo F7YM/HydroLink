@@ -263,11 +263,6 @@ func (s *Server) handlePair(w http.ResponseWriter, r *http.Request) {
 		body.DeviceName = body.DeviceName[:50]
 	}
 
-	if s.store.IsRejected(body.DeviceID) {
-		s.writeJSON(w, http.StatusOK, map[string]any{"status": "rejected", "message": "Device was rejected"})
-		return
-	}
-
 	cfg, _ := s.store.LoadConfig()
 
 	if s.store.IsTrusted(body.DeviceID) {
@@ -277,6 +272,10 @@ func (s *Server) handlePair(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	// A fresh pairing attempt gives the user another chance: clear any prior
+	// rejection so this request is prompted again instead of auto-rejected.
+	_ = s.store.RemoveRejected(body.DeviceID)
 
 	if cfg.AcceptAll {
 		_ = s.store.AddTrustedDevice(body.DeviceID, body.DeviceName)
