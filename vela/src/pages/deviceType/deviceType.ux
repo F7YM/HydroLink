@@ -202,7 +202,7 @@ export default {
     selectedType: 'desktop',
     currentTime: '00:00',
     typeList: [
-      { key: 'mobile' },
+      { key: 'cellphone' },
       { key: 'laptop' },
       { key: 'desktop' }
     ],

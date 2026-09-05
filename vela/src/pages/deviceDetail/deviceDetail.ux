@@ -285,7 +285,7 @@ import prompt from '@system.prompt'
 import deviceService from '../../services/deviceService.js'
 
 const TYPE_LABELS = {
-  mobile: '手机',
+  cellphone: '手机',
   laptop: '笔记本',
   desktop: '台式机'
 }
@@ -365,7 +365,7 @@ export default {
         host: this.icHost,
         port: this.icPort || 9000,
         deviceId: 'interconnect-device',
-        deviceType: 'mobile',
+        deviceType: 'cellphone',
         viaInterconnect: true
       }
       this.typeLabel = '手机'

@@ -641,7 +641,7 @@ export default {
         host: this.icHost,
         port: this.icPort || 9000,
         deviceId: 'interconnect-device',
-        deviceType: 'mobile',
+        deviceType: 'cellphone',
         viaInterconnect: true
       }
       this.deviceName = this.device.name
