@@ -72,6 +72,9 @@ func main() {
 
 	app := gui.NewApp(srv, st, listenPort)
 
+	// Window / taskbar icon (GTK on Linux; Windows uses the embedded .syso).
+	windowIcon, _ := assets.ReadFile("frontend/dist/icon.png")
+
 	err = wails.Run(&options.App{
 		Title:     "HydroLink",
 		Width:     960,
@@ -87,6 +90,8 @@ func main() {
 		Bind:             []interface{}{app},
 		Linux: &linux.Options{
 			WindowIsTranslucent: false,
+			Icon:                windowIcon,
+			ProgramName:         "hydrolink",
 		},
 	})
 	if err != nil {

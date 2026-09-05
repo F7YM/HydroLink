@@ -359,3 +359,27 @@ input::placeholder { color: var(--md-outline); }
 ::-webkit-scrollbar-thumb { background: var(--md-outline-var); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--md-outline); }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* ---------- Icon button ---------- */
+
+.icon-btn {
+  width: 38px; height: 38px;
+  border: none; border-radius: 50%;
+  background: transparent; color: var(--md-outline);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: background-color 150ms var(--md-ease-standard),
+              color 150ms var(--md-ease-standard),
+              transform 150ms var(--md-ease-emphasized);
+}
+.icon-btn svg { width: 19px; height: 19px; fill: currentColor; }
+.icon-btn:hover { background: rgba(255, 180, 171, 0.14); color: var(--md-error); }
+.icon-btn:active { transform: scale(0.88); }
+
+.btn.danger-solid {
+  background: var(--md-error); color: #690005;
+}
+.btn.danger-solid::after { background: #690005; }
+
+.modal-text { white-space: pre-line; }

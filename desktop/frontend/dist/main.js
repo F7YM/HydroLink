@@ -54,12 +54,13 @@
             <span class="sub">${esc(d.device_id)}</span>
             <span class="sub">${esc(d.trusted_at || "")}</span>
           </div>
-          <button class="danger" data-del="${esc(d.device_id)}">删除</button>
+          <button class="icon-btn" data-del="${esc(d.device_id)}" data-name="${esc(d.device_name || "")}" title="删除">
+            <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM8 9h8v10H8V9zm7.5-5-1-1h-5l-1 1H5v2h14V4h-3.5z"/></svg>
+          </button>
         </div>`).join("");
       list.querySelectorAll("[data-del]").forEach((b) =>
-        b.addEventListener("click", async () => {
-          await api("DeleteTrustedDevice", b.dataset.del);
-          loadStatus();
+        b.addEventListener("click", () => {
+          showConfirm(b.dataset.del, b.dataset.name);
         }));
     }
 
@@ -206,6 +207,27 @@
     if (modalPair) await api("RespondPair", modalPair.deviceId, "reject", modalPair.deviceName || "");
     hidePairModal();
     refresh();
+  });
+
+  // ---- delete confirm dialog ----
+  let confirmTarget = null;
+
+  function showConfirm(deviceId, name) {
+    confirmTarget = { id: deviceId, name: name };
+    $("confirmText").textContent =
+      `确定删除设备「${name || deviceId}」吗？\n此操作不可撤销。`;
+    $("confirmModal").classList.remove("hidden");
+  }
+
+  $("confirmOk").addEventListener("click", async () => {
+    if (confirmTarget) await api("DeleteTrustedDevice", confirmTarget.id);
+    $("confirmModal").classList.add("hidden");
+    confirmTarget = null;
+    loadStatus();
+  });
+  $("confirmCancel").addEventListener("click", () => {
+    $("confirmModal").classList.add("hidden");
+    confirmTarget = null;
   });
 
   if (window.runtime && window.runtime.EventsOn) {
