@@ -44,6 +44,10 @@ type Server struct {
 	srvMu   sync.Mutex
 	httpSrv *http.Server
 
+	// hydro is the HydroKit plugin API dispatcher (optional; mounted under
+	// /api/hydro/...). This keeps the route surface fixed as plugins grow.
+	hydro http.Handler
+
 	// pairCallback, when set, is invoked for every NEW pending pairing
 	// request (used by the desktop GUI for popups/notifications).
 	pairCallback func(deviceID, deviceName string)
@@ -57,6 +61,12 @@ func New(s *store.Store) *Server {
 // SetPairCallback registers a handler invoked on each new pairing request.
 func (s *Server) SetPairCallback(fn func(deviceID, deviceName string)) {
 	s.pairCallback = fn
+}
+
+// SetHydroHandler mounts the HydroKit plugin API dispatcher under
+// /api/hydro/... (see the "hydro" field).
+func (s *Server) SetHydroHandler(h http.Handler) {
+	s.hydro = h
 }
 
 // AddLog appends a log entry (kept for the desktop GUI) and mirrors it to
@@ -149,6 +159,12 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	// Strip trailing slash (except root)
 	if len(path) > 1 && strings.HasSuffix(path, "/") {
 		path = strings.TrimSuffix(path, "/")
+	}
+
+	// Delegate HydroKit plugin API to its own dispatcher.
+	if s.hydro != nil && (strings.HasPrefix(path, "/api/hydro/") || path == "/api/hydro") {
+		s.hydro.ServeHTTP(w, r)
+		return
 	}
 
 	switch {

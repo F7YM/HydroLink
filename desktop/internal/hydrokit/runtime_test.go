@@ -1,0 +1,95 @@
+package hydrokit
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+)
+
+type stubPlugin struct {
+	m Manifest
+}
+
+func (s stubPlugin) Manifest() Manifest { return s.m }
+func (s stubPlugin) View(surface, item string, req Request) (*View, error) {
+	return &View{Root: Text("ok:" + surface + "/" + item)}, nil
+}
+
+func TestDispatchView(t *testing.T) {
+	rt := NewRuntime(nil)
+	err := rt.Register(stubPlugin{m: Manifest{
+		Package: Package{ID: "com.x.a", Version: "1.0.0"},
+		Apps:    []Item{{ID: "main"}},
+		Widgets: []Item{{ID: "now"}},
+	}})
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	h := NewHandler(rt)
+	for _, path := range []string{
+		"/api/hydro/com.x.a/app/main/view",
+		"/api/hydro/com.x.a/widget/now/view",
+	} {
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, path, nil))
+		if rr.Code != http.StatusOK {
+			t.Fatalf("%s -> %d", path, rr.Code)
+		}
+		var v View
+		if err := json.Unmarshal(rr.Body.Bytes(), &v); err != nil {
+			t.Fatalf("view json: %v", err)
+		}
+		if v.Root == nil {
+			t.Fatalf("expected root for %s", path)
+		}
+	}
+}
+
+func TestDispatchEvent(t *testing.T) {
+	rt := NewRuntime(nil)
+	_ = rt.Register(stubPlugin{m: Manifest{
+		Package: Package{ID: "com.x.b"},
+		Apps:    []Item{{ID: "main"}},
+	}})
+	h := NewHandler(rt)
+	body := `{"event":{"handler":"refresh","value":1}}`
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPost,
+		"/api/hydro/com.x.b/app/main/event", bytes.NewBufferString(body)))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("event -> %d: %s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), "app/main") {
+		t.Fatalf("unexpected body %s", rr.Body.String())
+	}
+}
+
+func TestUnknownPluginOrItem(t *testing.T) {
+	rt := NewRuntime(nil)
+	h := NewHandler(rt)
+	for _, path := range []string{
+		"/api/hydro/no.such/app/main/view",
+		"/api/hydro/no.such/widget/x/view",
+	} {
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, path, nil))
+		if rr.Code != http.StatusNotFound {
+			t.Fatalf("%s -> %d (want 404)", path, rr.Code)
+		}
+	}
+}
+
+func TestRegisterDuplicate(t *testing.T) {
+	rt := NewRuntime(nil)
+	m := Manifest{Package: Package{ID: "com.x"}, Apps: []Item{{ID: "a"}}}
+	if err := rt.Register(stubPlugin{m: m}); err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.Register(stubPlugin{m: m}); err == nil {
+		t.Fatal("expected duplicate register error")
+	}
+}

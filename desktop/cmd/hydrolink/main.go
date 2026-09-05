@@ -1,8 +1,4 @@
-// HydroLink desktop server — entry point.
-//
-// Starts the HTTP API server (byte-compatible with the Android version) and,
-// once the Wails GUI layer is wired in, opens the desktop window. Until then
-// the server runs headless: run `hydrolink` to serve on port 9000.
+// HydroLink desktop server — headless entry point (no Wails window).
 package main
 
 import (
@@ -11,21 +7,19 @@ import (
 	"log"
 
 	"hydrolink-desktop/internal/api"
-	"hydrolink-desktop/internal/store"
+	"hydrolink-desktop/internal/app"
 )
 
 func main() {
 	port := flag.Int("port", 0, "listen port (default: from config, 9000)")
-	noLog := flag.Bool("quiet", false, "suppress request logging")
-	_ = noLog
 	flag.Parse()
 
-	st, err := store.New()
+	srv, st, err := app.NewServer()
 	if err != nil {
-		log.Fatalf("store: %v", err)
+		log.Fatalf("init: %v", err)
 	}
-	cfg, _ := st.LoadConfig()
 
+	cfg, _ := st.LoadConfig()
 	listenPort := *port
 	if listenPort == 0 {
 		listenPort = cfg.LastPort
@@ -38,7 +32,6 @@ func main() {
 		_ = st.SaveConfig(cfg)
 	}
 
-	srv := api.New(st)
 	addr := fmt.Sprintf("0.0.0.0:%d", listenPort)
 	log.Printf("HydroLink desktop server v%s (api_level %d)", api.Version, api.APILevel)
 	log.Printf("listening on http://%s  (data dir: %s)", addr, st.Dir())

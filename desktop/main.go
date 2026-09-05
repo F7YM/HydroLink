@@ -22,8 +22,8 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/linux"
 
 	"hydrolink-desktop/internal/api"
+	"hydrolink-desktop/internal/app"
 	"hydrolink-desktop/internal/gui"
-	"hydrolink-desktop/internal/store"
 )
 
 //go:embed all:frontend/dist
@@ -39,11 +39,10 @@ func main() {
 	port := flag.Int("port", 0, "listen port override")
 	flag.Parse()
 
-	st, err := store.New()
+	srv, st, err := app.NewServer()
 	if err != nil {
-		log.Fatalf("store: %v", err)
+		log.Fatalf("init: %v", err)
 	}
-	srv := api.New(st)
 
 	cfg, _ := st.LoadConfig()
 	listenPort := *port
