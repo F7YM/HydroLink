@@ -222,8 +222,10 @@ func (a *App) GetPluginBundle(id string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("读取入口 %s 失败: %v", entry, err)
 	}
-	base := fmt.Sprintf("http://127.0.0.1:%d", a.port)
-	return string(hydrokit.WorkerBundle(id, string(code), base)), nil
+	// Relative base: the worker fetches same-origin /api/... through the Wails
+	// asset server, which proxies to the API server (avoids webview worker
+	// CORS/mixed-content hangs).
+	return string(hydrokit.WorkerBundle(id, string(code), "")), nil
 }
 
 // PluginBridgeLog forwards a frontend worker-runtime message into the server

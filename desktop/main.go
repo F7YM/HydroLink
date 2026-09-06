@@ -14,6 +14,8 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
+	"strings"
 
 	"github.com/gen2brain/beeep"
 	"github.com/wailsapp/wails/v2"
@@ -32,6 +34,20 @@ var assets embed.FS
 func init() {
 	// beeep shows this as the notification app name (dbus/notify-send -a).
 	beeep.AppName = "HydroLink"
+}
+
+// assetAPIProxy forwards page-origin /api/* requests (the plugin worker's
+// poll/respond/kit calls and future frontend API calls) to the HydroLink API
+// server, keeping the webview same-origin with the API. This avoids worker
+// fetch CORS/mixed-content failures entirely — the worker uses relative URLs.
+func assetAPIProxy(srv *api.Server) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			srv.Handler().ServeHTTP(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	})
 }
 
 func main() {
@@ -80,7 +96,8 @@ func main() {
 		MinWidth:  820,
 		MinHeight: 560,
 		AssetServer: &assetserver.Options{
-			Assets: assets,
+			Assets:  assets,
+			Handler: assetAPIProxy(srv),
 		},
 		BackgroundColour: &options.RGBA{R: 18, G: 19, B: 24, A: 1},
 		OnStartup:        app.Startup,

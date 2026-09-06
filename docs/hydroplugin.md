@@ -179,6 +179,7 @@ HydroKit 路由（Go HTTP 服务）        ← 平台中立，与现有实现一
   - `POST /store`：`kit.storage`（§6，权限 `storage`）
   - `POST /notify`、`/music`、`/lock`、`/commands`：能力 API（§7，按清单权限校验）
   - `GET /asset?package=&path=`：插件包内文件（`kit.loadWasm`/图片，防目录逃逸）
+- 同源策略：桌面 WebView 页面通过 asset server 把 `/api/*` 同源转发给本进程 API 服务（worker 使用相对路径），worker 内不再有跨源 fetch 问题（安卓同构：App 内 WebView 同样处理）
 - 各插件 **Worker 相互隔离**（一个插件一个 Worker，崩溃不影响其他插件与应用）
 - Worker 引导脚本由 Kit 生成（`GetPluginBundle`：CommonJS shim + `kit` 全局 + 轮询泵），前端用 Blob Worker 实例化，前端不参与消息转发
 
