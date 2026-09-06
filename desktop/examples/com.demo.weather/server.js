@@ -6,7 +6,7 @@
 module.exports = {
   manifest() {
     return {
-      package: { id: 'com.demo.weather', name: '示例天气', version: '0.2.2' },
+      package: { id: 'com.demo.weather', name: '示例天气', version: '0.2.3' },
       apps: [{ id: 'main', name: '天气' }],
       widgets: [{ id: 'now', name: '当前天气', refreshMs: 60000 }]
     }
@@ -81,6 +81,9 @@ module.exports = {
         root: {
           type: 'column', style: { padding: 8 },
           children: [
+            { type: 'nav', props: { action: 'back', label: '‹ 返回' },
+              style: { fontSize: 26, color: '#FFFFFF', marginBottom: 10 },
+              media: { circle: { width: '100%', justifyContent: 'center', fontSize: 28 } } },
             { type: 'icon', props: { name: 'battery' }, style: { width: 18, height: 18 } },
             { type: 'text', props: { text: '23°C' },
               style: { fontSize: 24, fontWeight: 700, color: '#FFFFFF', marginTop: 2 } }
