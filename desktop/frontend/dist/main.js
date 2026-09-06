@@ -281,8 +281,17 @@
       }));
     list.querySelectorAll("[data-pweb]").forEach((b) =>
       b.addEventListener("click", () => openWebUI(b.dataset.pweb)));
-    // Keep every installed JS plugin's worker alive for watch requests.
+    // Keep every installed JS plugin's worker alive for watch requests and
+    // terminate workers of uninstalled plugins.
     if (plugins) {
+      const installed = new Set(plugins.map((p) => p.id));
+      Object.keys(workers).forEach((id) => {
+        if (!installed.has(id)) {
+          const w = workers[id];
+          if (w && w.worker) { try { w.worker.terminate(); } catch (e) {} }
+          delete workers[id];
+        }
+      });
       plugins.filter((p) => !p.builtin).forEach((p) => ensureWorker(p.id));
     }
   }

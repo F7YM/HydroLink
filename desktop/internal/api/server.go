@@ -60,6 +60,13 @@ type Server struct {
 	// pairCallback, when set, is invoked for every NEW pending pairing
 	// request (used by the desktop GUI for popups/notifications).
 	pairCallback func(deviceID, deviceName string)
+
+	// loadPlugin/unloadPlugin are installed by the app wiring: hot
+	// register/unregister a plugin package in the HydroKit runtime (called by
+	// the GUI right after install/uninstall, so the watch sees the change
+	// without a server restart).
+	loadPlugin   func(id string) error
+	unloadPlugin func(id string) error
 }
 
 // New creates a Server backed by the given store.
@@ -82,6 +89,28 @@ func (s *Server) SetHydroHandler(h http.Handler) {
 // /api/hydro/worker/... (see the "worker" field).
 func (s *Server) SetWorkerHandler(h http.Handler) {
 	s.worker = h
+}
+
+// SetPluginHooks installs the hot-load callbacks used after install/uninstall.
+func (s *Server) SetPluginHooks(load, unload func(id string) error) {
+	s.loadPlugin = load
+	s.unloadPlugin = unload
+}
+
+// LoadPlugin hot-registers a plugin package in the runtime.
+func (s *Server) LoadPlugin(id string) error {
+	if s.loadPlugin == nil {
+		return fmt.Errorf("plugin runtime not available")
+	}
+	return s.loadPlugin(id)
+}
+
+// UnloadPlugin hot-unregisters a plugin package from the runtime.
+func (s *Server) UnloadPlugin(id string) error {
+	if s.unloadPlugin == nil {
+		return fmt.Errorf("plugin runtime not available")
+	}
+	return s.unloadPlugin(id)
 }
 
 // SetWorkerBridge records the WorkerBridge backing JS plugins (GUI uses it to

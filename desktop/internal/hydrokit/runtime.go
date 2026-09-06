@@ -39,6 +39,14 @@ func (rt *Runtime) Register(p Plugin) error {
 	return nil
 }
 
+// Unregister removes a plugin by package id (used when a plugin package is
+// uninstalled; the runtime continues serving the remaining plugins).
+func (rt *Runtime) Unregister(pkg string) {
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+	delete(rt.plugins, pkg)
+}
+
 // Lookup returns a registered plugin by package id.
 func (rt *Runtime) Lookup(pkg string) Plugin {
 	rt.mu.RLock()

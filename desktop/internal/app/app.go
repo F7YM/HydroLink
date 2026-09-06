@@ -28,26 +28,34 @@ func NewServer() (*api.Server, *store.Store, error) {
 	bridge.Logf = func(format string, args ...any) { log.Printf(format, args...) }
 	rt := hydrokit.NewRuntime(nil)
 	for _, info := range st.ListPlugins() {
-		if info.Error != "" {
-			log.Printf("hydrokit: skip plugin %s: %s", info.ID, info.Error)
-			continue
-		}
-		m, err := st.GetPluginManifest(info.ID)
-		if err != nil {
+		if err := registerDiskPlugin(rt, bridge, st, info.ID); err != nil {
 			log.Printf("hydrokit: skip plugin %s: %v", info.ID, err)
-			continue
-		}
-		hm := toManifest(m)
-		if err := rt.Register(hydrokit.NewJSPlugin(&hm, bridge)); err != nil {
-			log.Printf("hydrokit: skip plugin %s: %v", info.ID, err)
-			continue
 		}
 	}
 	srv.SetHydroHandler(hydrokit.NewHandler(rt))
 	srv.SetWorkerHandler(api.NewWorkerHandler(bridge, st))
 	srv.SetWorkerBridge(bridge)
 
+	// Hot-load/unload after GUI install/uninstall — no server restart needed.
+	srv.SetPluginHooks(
+		func(id string) error { return registerDiskPlugin(rt, bridge, st, id) },
+		func(id string) error {
+			rt.Unregister(id)
+			return nil
+		},
+	)
+
 	return srv, st, nil
+}
+
+// registerDiskPlugin registers one installed plugin package in the runtime.
+func registerDiskPlugin(rt *hydrokit.Runtime, bridge *hydrokit.WorkerBridge, st *store.Store, id string) error {
+	m, err := st.GetPluginManifest(id)
+	if err != nil {
+		return err
+	}
+	hm := toManifest(m)
+	return rt.Register(hydrokit.NewJSPlugin(&hm, bridge))
 }
 
 // toManifest converts a store plugin manifest into a hydrokit manifest.

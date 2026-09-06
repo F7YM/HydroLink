@@ -179,7 +179,11 @@ func (a *App) InstallPlugin() (store.PluginInfo, error) {
 	if err != nil {
 		return store.PluginInfo{}, err
 	}
-	a.srv.AddLog(fmt.Sprintf("已安装插件: %s v%s", info.ID, info.Version), "success")
+	if err := a.srv.LoadPlugin(info.ID); err != nil {
+		a.srv.AddLog(fmt.Sprintf("插件已安装但热加载失败: %s (%v)", info.ID, err), "error")
+	} else {
+		a.srv.AddLog(fmt.Sprintf("已安装插件: %s v%s", info.ID, info.Version), "success")
+	}
 	return info, nil
 }
 
@@ -188,6 +192,7 @@ func (a *App) UninstallPlugin(id string) error {
 	if err := a.st.UninstallPlugin(id); err != nil {
 		return err
 	}
+	_ = a.srv.UnloadPlugin(id)
 	a.srv.AddLog("已卸载插件: "+id, "info")
 	return nil
 }
