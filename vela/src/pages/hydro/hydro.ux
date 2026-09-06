@@ -88,11 +88,13 @@
   align-items: center;
   justify-content: center;
 }
-/* 树区包裹：必须显式撑满（scroll 的 height:100% 依赖这层有定高，否则不能滚） */
-.safe { width: 100%; height: 100%; }
-/* 圆屏安全区（由 device.getInfo 的 shape 驱动，JS 侧计算）：
-   四周避开弧边——顶部留给插件的第一行（通常是导航），底部顶出最后一行 */
-.safe-circle { padding-top: 20px; padding-left: 18px; padding-right: 18px; padding-bottom: 28px; }
+/* 圆屏安全区（由 device.getInfo 的 shape 驱动，JS 侧计算）。
+   数值按 466px(233dp) 圆面弧边测算：顶部 30px 起内容可见（留给居中的导航），
+   左右 42px 保证 y≈100px 处左对齐行不被切，底部 48px 顶出最后一行。
+   box-sizing 必须 border-box：否则 padding 会把滚动区高度撑出页面，
+   底部内容被推出屏幕（此前"刷新"被裁的根因）。 */
+.safe { width: 100%; height: 100%; box-sizing: border-box; }
+.safe-circle { padding-top: 30px; padding-left: 42px; padding-right: 42px; padding-bottom: 48px; }
 .spin { width: 56px; height: 56px; }
 .err { color: #ffb4ab; font-size: 24px; margin-bottom: 8px; }
 .hint { color: #666; font-size: 20px; }
