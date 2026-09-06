@@ -172,9 +172,12 @@ function build(n, inRow) {
   if (!n) return null
   const hasKids = !!(n.children && n.children.length)
   if (hasKids) {
+    // Vela 的 div 默认按内容收窄，容器必须显式撑满父级，
+    // 行内才有剩余空间供 flex-grow / space-between 分配
+    const dir = n.type === 'row' ? 'row' : 'column'
     return {
       c: true,
-      s: 'flex-direction: ' + (n.type === 'row' ? 'row' : 'column') + '; ' + toCssStyle(n.style),
+      s: 'width: 100%; flex-direction: ' + dir + '; ' + toCssStyle(n.style),
       kids: n.children.map((c) => build(c, n.type === 'row'))
     }
   }
