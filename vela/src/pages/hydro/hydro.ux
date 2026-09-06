@@ -148,7 +148,7 @@ function buildLeaf(n, inRow) {
     // 行容器里的文本叶子自动撑满剩余宽度，把后面的控件顶到右侧
     // （Vela 内联 justify-content 不生效，用 flex-grow 实现）
     grow: !!(inRow && isText),
-    v: p.text || '',
+    v: (isInput ? (p.value || '') : (p.text || '')),
     label: p.label || '',
     placeholder: p.placeholder || '',
     chk: !!(p.checked),
