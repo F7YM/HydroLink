@@ -226,6 +226,15 @@ func (a *App) GetPluginBundle(id string) (string, error) {
 	return string(hydrokit.WorkerBundle(id, string(code), base)), nil
 }
 
+// PluginBridgeLog forwards a frontend worker-runtime message into the server
+// log (so worker bootstrap failures are visible in the terminal).
+func (a *App) PluginBridgeLog(text string) {
+	if text == "" {
+		return
+	}
+	a.srv.AddLog("hydrokit(frontend): "+text, "warning")
+}
+
 // Settings holds the editable server settings.
 type Settings struct {
 	Port      int  `json:"port"`

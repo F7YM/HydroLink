@@ -103,11 +103,17 @@ func (b *WorkerBridge) Call(pkg, action string, payload []byte) ([]byte, error) 
 
 	select {
 	case resp := <-pr.done:
+		if resp.err != nil && b.Logf != nil {
+			b.Logf("hydrokit: %s worker returned error: %v", pkg, resp.err)
+		}
 		return resp.data, resp.err
 	case <-time.After(b.timeout):
 		conn.mu.Lock()
 		delete(conn.pending, id)
 		conn.mu.Unlock()
+		if b.Logf != nil {
+			b.Logf("hydrokit: %s request timed out (no worker answer within %s)", pkg, b.timeout)
+		}
 		return nil, fmt.Errorf("hydrokit: plugin %s worker timed out", pkg)
 	}
 }
@@ -154,6 +160,9 @@ func (b *WorkerBridge) HandlePoll(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte("{}"))
 		return
+	}
+	if b.Logf != nil {
+		b.Logf("hydrokit: delivered %s req id=%d", pkg, pr.id)
 	}
 
 	// The payload is the {surface,item,req} triple; embed it verbatim.
@@ -209,6 +218,9 @@ func (b *WorkerBridge) HandleRespond(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if body.Error != "" {
+		if b.Logf != nil {
+			b.Logf("hydrokit: %s responded req id=%d with error: %s", body.Package, body.ID, body.Error)
+		}
 		pr.done <- workerResp{err: fmt.Errorf("plugin: %s", body.Error)}
 	} else {
 		pr.done <- workerResp{data: body.Result}
