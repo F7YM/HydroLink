@@ -209,7 +209,11 @@ func (a *App) UninstallPlugin(id string) error {
 
 // GetPluginBundle returns the self-contained WebWorker script (bootstrap +
 // the plugin's server.js) for a package, ready to run via Blob Worker.
-func (a *App) GetPluginBundle(id string) (string, error) {
+// base must be the page's own origin (same-origin with the Wails asset
+// server, which proxies /api/* to the in-process API server) — absolute
+// same-origin URLs avoid both cross-origin CORS handling and blob-worker
+// relative-URL quirks.
+func (a *App) GetPluginBundle(id, base string) (string, error) {
 	m, err := a.st.GetPluginManifest(id)
 	if err != nil {
 		return "", err
@@ -222,10 +226,7 @@ func (a *App) GetPluginBundle(id string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("读取入口 %s 失败: %v", entry, err)
 	}
-	// Relative base: the worker fetches same-origin /api/... through the Wails
-	// asset server, which proxies to the API server (avoids webview worker
-	// CORS/mixed-content hangs).
-	return string(hydrokit.WorkerBundle(id, string(code), "")), nil
+	return string(hydrokit.WorkerBundle(id, string(code), base)), nil
 }
 
 // PluginBridgeLog forwards a frontend worker-runtime message into the server

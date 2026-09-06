@@ -206,7 +206,9 @@
       if (!app || !app.GetPluginBundle) throw new Error("Wails 绑定未就绪");
       workers[id] = { worker: null, status: "启动中", starting: true };
       updateWorkerTags();
-      const bundle = await app.GetPluginBundle(id);
+      // Same-origin base: the worker fetches /api/... on the page origin,
+      // which the asset server proxies to the API server.
+      const bundle = await app.GetPluginBundle(id, window.location.origin);
       if (!bundle) throw new Error("插件代码为空");
       const blob = new Blob([bundle], { type: "text/javascript" });
       const w = new Worker(URL.createObjectURL(blob));
@@ -215,13 +217,18 @@
       w.onmessage = (e) => {
         if (!workers[id]) return;
         if (e.data && e.data.type === "ready") workers[id].status = "在线";
-        else if (e.data && e.data.type === "error") workers[id].status = "错误";
+        else if (e.data && e.data.type === "error") {
+          workers[id].status = "错误";
+          workers[id].err = e.data.message || "worker error";
+          api("PluginBridgeLog", `worker ${id}: ` + workers[id].err);
+        }
         updateWorkerTags();
       };
       w.onerror = (e) => {
         if (workers[id]) {
           workers[id].status = "错误";
           workers[id].err = e && e.message ? e.message : "worker error";
+          api("PluginBridgeLog", `worker ${id}: ` + workers[id].err);
         }
         updateWorkerTags();
       };
@@ -229,6 +236,7 @@
     } catch (e) {
       console.error("worker start failed", id, e);
       workers[id] = { worker: null, status: "错误", err: String(e && e.message ? e.message : e) };
+      api("PluginBridgeLog", `worker ${id} 启动失败: ` + workers[id].err);
       updateWorkerTags();
     }
   }
