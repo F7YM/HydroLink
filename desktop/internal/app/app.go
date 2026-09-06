@@ -25,6 +25,7 @@ func NewServer() (*api.Server, *store.Store, error) {
 
 	// HydroKit: register bundled plugins, then JS plugins from disk.
 	bridge := hydrokit.NewWorkerBridge()
+	bridge.Logf = func(format string, args ...any) { log.Printf(format, args...) }
 	rt := hydrokit.NewRuntime(nil)
 	for _, p := range []hydrokit.Plugin{demo.NewWeather()} {
 		if err := rt.Register(p); err != nil {

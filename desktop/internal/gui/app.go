@@ -37,6 +37,7 @@ func (a *App) Startup(ctx context.Context) {
 	// offline JS plugin, ask the frontend to spawn its worker.
 	if b := a.srv.WorkerBridge(); b != nil {
 		b.SetOnNeedWake(func(pkg string) {
+			a.srv.AddLog("hydrokit: 唤醒插件 worker: "+pkg, "info")
 			runtime.EventsEmit(ctx, "plugins:wake", pkg)
 		})
 	}

@@ -182,7 +182,14 @@
 
   function workerStatus(id) {
     const e = workers[id];
-    return e ? e.status : "未启动";
+    if (!e) return "未启动";
+    if (e.status === "错误" && e.err) return "错误";
+    return e.status;
+  }
+
+  function workerErr(id) {
+    const e = workers[id];
+    return e && e.err ? e.err : "";
   }
 
   function updateWorkerTags() {
@@ -193,27 +200,35 @@
 
   async function ensureWorker(id) {
     const cur = workers[id];
-    if (cur && cur.worker) return;
+    if (cur && (cur.worker || cur.starting)) return;
     try {
       const app = B();
+      if (!app || !app.GetPluginBundle) throw new Error("Wails 绑定未就绪");
+      workers[id] = { worker: null, status: "启动中", starting: true };
+      updateWorkerTags();
       const bundle = await app.GetPluginBundle(id);
-      if (!bundle) throw new Error("无法获取插件代码");
+      if (!bundle) throw new Error("插件代码为空");
       const blob = new Blob([bundle], { type: "text/javascript" });
       const w = new Worker(URL.createObjectURL(blob));
-      workers[id] = { worker: w, status: "启动中" };
+      const entry = { worker: w, status: "启动中" };
+      workers[id] = entry;
       w.onmessage = (e) => {
         if (!workers[id]) return;
         if (e.data && e.data.type === "ready") workers[id].status = "在线";
         else if (e.data && e.data.type === "error") workers[id].status = "错误";
         updateWorkerTags();
       };
-      w.onerror = () => {
-        if (workers[id]) { workers[id].status = "错误"; updateWorkerTags(); }
+      w.onerror = (e) => {
+        if (workers[id]) {
+          workers[id].status = "错误";
+          workers[id].err = e && e.message ? e.message : "worker error";
+        }
+        updateWorkerTags();
       };
       updateWorkerTags();
     } catch (e) {
       console.error("worker start failed", id, e);
-      workers[id] = { worker: null, status: "错误" };
+      workers[id] = { worker: null, status: "错误", err: String(e && e.message ? e.message : e) };
       updateWorkerTags();
     }
   }
@@ -235,7 +250,7 @@
         : `<span class="sub">${esc(p.id)} · v${esc(p.version)} · ${esc(p.entry)}${p.installedAt ? " · " + esc(p.installedAt) : ""}</span>`;
       const stat = p.builtin
         ? ""
-        : `<span class="tag" data-pw="${esc(p.id)}">${esc(workerStatus(p.id))}</span>`;
+        : `<span class="tag" data-pw="${esc(p.id)}" title="${esc(workerErr(p.id))}">${esc(workerStatus(p.id))}</span>`;
       return `
         <div class="item">
           <div class="meta">

@@ -21,6 +21,7 @@ type WorkerBridge struct {
 	pollWindow   time.Duration
 	pollInterval time.Duration
 	onNeedWake   func(pkg string)
+	Logf         func(format string, args ...any)
 
 	mu    sync.Mutex
 	conns map[string]*workerConn
@@ -78,6 +79,9 @@ func (b *WorkerBridge) Call(pkg, action string, payload []byte) ([]byte, error) 
 	wake := b.onNeedWake
 	b.mu.Unlock()
 	if conn == nil {
+		if b.Logf != nil {
+			b.Logf("hydrokit: plugin %s worker offline (request dropped, wake fired)", pkg)
+		}
 		if wake != nil {
 			go wake(pkg)
 		}
@@ -221,6 +225,9 @@ func (b *WorkerBridge) ensureConn(pkg string) *workerConn {
 	if conn == nil {
 		conn = &workerConn{pending: map[int64]*pendingReq{}, notify: make(chan struct{}, 1)}
 		b.conns[pkg] = conn
+		if b.Logf != nil {
+			b.Logf("hydrokit: worker connected for %s", pkg)
+		}
 	}
 	return conn
 }
