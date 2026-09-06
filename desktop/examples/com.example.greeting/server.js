@@ -9,9 +9,16 @@ module.exports = {
     }
   },
 
-  // 组件树协议与内置 demo 一致；storage 演示服务端持久存储
+  // 组件树协议与内置 demo 一致；storage 演示服务端持久存储；
+  // 事件流：输入框 change=setname → 下一次 view() 里 req.trigger=event
   async view(surface, item, req) {
     if (surface !== 'app' || item !== 'main') return null
+
+    if (req && req.trigger === 'event' && req.event && req.event.handler === 'setname') {
+      const v = req.event.value
+      if (v) await kit.storage.setItem('name', v)
+    }
+
     const name = (await kit.storage.getItem('name')) || '世界'
     return {
       root: {

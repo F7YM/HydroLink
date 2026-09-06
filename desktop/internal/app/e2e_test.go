@@ -37,6 +37,9 @@ func TestJSRuntimeProductionChain(t *testing.T) {
   manifest() { return { package: { id: 'com.example.greeting', name: '示例问候', version: '0.1.0' }, apps: [{ id: 'main', name: '问候' }], widgets: [] } },
   async view(surface, item, req) {
     if (surface !== 'app' || item !== 'main') return null
+    if (req && req.trigger === 'event' && req.event && req.event.handler === 'setname') {
+      if (req.event.value) await kit.storage.setItem('name', req.event.value)
+    }
     const name = (await kit.storage.getItem('name')) || '世界'
     return {
       root: {
@@ -153,20 +156,21 @@ setInterval(function () {}, 1000);
 		t.Fatalf("first text = %q (want 你好，世界！) body=%s", first, body)
 	}
 
-	// Storage through the kit endpoint: set name, then re-view.
-	storeURL := ts.URL + "/api/hydro/worker/store"
-	setBody := `{"package":"com.example.greeting","op":"set","key":"name","value":"上海"}`
-	req, _ := http.NewRequest(http.MethodPost, storeURL, bytes.NewBufferString(setBody))
+	// Event round-trip: input change=setname -> plugin stores -> next view
+	// reflects the new name (the real production flow).
+	evtURL := ts.URL + "/api/hydro/com.example.greeting/app/main/event"
+	evtBody := `{"event":{"handler":"setname","source":"change","value":"上海"}}`
+	req, _ := http.NewRequest(http.MethodPost, evtURL, bytes.NewBufferString(evtBody))
 	rr := httptest.NewRecorder()
 	srv2.Handler().ServeHTTP(rr, req)
 	if rr.Code != http.StatusOK {
-		t.Fatalf("store set -> %d: %s", rr.Code, rr.Body.String())
+		t.Fatalf("event -> %d: %s", rr.Code, rr.Body.String())
 	}
 	time.Sleep(400 * time.Millisecond) // let the worker re-enter the poll
 	req2, _ := http.NewRequest(http.MethodPost, viewURL, nil)
 	rr2 := httptest.NewRecorder()
 	srv2.Handler().ServeHTTP(rr2, req2)
 	if rr2.Code != http.StatusOK || !strings.Contains(rr2.Body.String(), "上海") {
-		t.Fatalf("view after store -> %d: %s", rr2.Code, rr2.Body.String())
+		t.Fatalf("view after event -> %d: %s", rr2.Code, rr2.Body.String())
 	}
 }
