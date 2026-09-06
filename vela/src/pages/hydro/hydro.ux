@@ -6,17 +6,18 @@
       <text class="back" onclick="goBack">‹</text>
     </div>
 
-    <!-- 加载 / 错误 -->
-    <div class="center" if="{{ loading && !errorText }}">
+    <!-- 加载 / 错误（头部下方垂直居中，不与返回栏重叠） -->
+    <div class="center-area" if="{{ loading && !errorText }}">
       <image class="spin" src="/common/icons/progress-activity.png"></image>
     </div>
-    <div class="center" if="{{ errorText }}">
+    <div class="center-area" if="{{ errorText }}">
       <text class="err">{{ errorText }}</text>
       <text class="hint">点击 ‹ 返回</text>
     </div>
 
     <!-- 组件树（容器最多三层嵌套，叶子由 hydro-leaf 渲染） -->
     <scroll class="hscroll" scroll-y="true" show="{{ !loading && !errorText }}">
+      <div class="safe {{ safeClass }}">
       <div class="content" style="{{ contentStyle }}">
         <div for="{{ (i1, l1) in ui }}" style="{{ l1.grow ? 'flex-grow: 1' : '' }}">
           <!-- L1 容器 -->
@@ -33,6 +34,7 @@
           </div>
           <hydro-leaf if="{{ !l1.c }}" leaf="{{ l1 }}" @hydrotap="leafTap" @change="leafChange" @hydroinput="leafInput"></hydro-leaf>
         </div>
+      </div>
       </div>
     </scroll>
   </div>
@@ -69,14 +71,18 @@
   flex-direction: column;
   color: #ffffff;
 }
-.center {
+/* 加载/错误块：头部(108px)以下垂直居中 */
+.center-area {
   position: absolute;
-  left: 0;
-  right: 0;
-  top: 45%;
+  left: 0; right: 0;
+  top: 108px; bottom: 0;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
 }
+/* 圆屏左右安全区（由 device.getInfo 的 shape 驱动，JS 侧计算） */
+.safe { width: 100%; }
+.safe-circle { padding-left: 18px; padding-right: 18px; }
 .spin { width: 56px; height: 56px; }
 .err { color: #ffb4ab; font-size: 24px; margin-bottom: 8px; }
 .hint { color: #666; font-size: 20px; }
@@ -85,6 +91,7 @@
 @media (shape: rect) {
   .header { height: 72px; padding-left: 24px; }
   .hscroll { top: 72px; }
+  .center-area { top: 72px; }
 }
 </style>
 
@@ -220,7 +227,8 @@ export default {
     _started: false,
     _inputItem: null,
     _screen: null,
-    _watchStore: null
+    _watchStore: null,
+    safeClass: ''
   },
 
   onInit() {
@@ -231,6 +239,7 @@ export default {
   // 屏幕信息同时用于请求参数(A) 和 media 解析(B)
   async _init() {
     this._screen = await this._readScreen()
+    this.safeClass = this._screen && this._screen.shape === 'circle' ? 'safe-circle' : ''
     // 插件手表端存储（scope:'watch'）：请求上送快照，响应落盘
     this._watchStore = await deviceService.readPluginStore(this.plugin)
     await this.load()

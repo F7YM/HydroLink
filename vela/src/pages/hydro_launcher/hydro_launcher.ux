@@ -12,11 +12,11 @@
       >‹HydroApps</text>
     </div>
 
-    <div class="center" if="{{ loading }}">
+    <div class="center-area" if="{{ loading }}">
       <image class="spin" src="/common/icons/progress-activity.png"></image>
       <text class="hint">加载中...</text>
     </div>
-    <div class="center" if="{{ errorText }}">
+    <div class="center-area" if="{{ errorText }}">
       <text class="err">{{ errorText }}</text>
     </div>
 
@@ -58,9 +58,11 @@
 }
 .time-display { font-size: 28px; font-weight: bold; color: #fff; padding-top: 5px; text-align: center; }
 .title { font-size: 32px; font-weight: bold; color: #fff; text-align: center; }
-.center {
-  position: absolute; left: 0; right: 0; top: 45%;
-  flex-direction: column; align-items: center;
+/* 加载/错误块：头部以下区域垂直居中，绝不与头部(含返回按钮)重叠 */
+.center-area {
+  position: absolute; left: 0; right: 0;
+  top: 90px; bottom: 0;
+  flex-direction: column; align-items: center; justify-content: center;
 }
 .spin { width: 56px; height: 56px; }
 .hint { color: #888; font-size: 20px; margin-top: 8px; }
@@ -92,6 +94,7 @@
   .title { margin-left: 8px; }
   .time-display { margin-right: 8px; }
   .scroll-area { top: 65px; }
+  .center-area { top: 65px; }
 }
 </style>
 
