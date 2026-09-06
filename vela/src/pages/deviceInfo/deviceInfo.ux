@@ -149,17 +149,15 @@
           </div>
         </div>
 
-        <!-- 组件卡片区（Widget 表面：独立卡片，音乐卡下方；卡片本身不跳转，按钮可跳转 HydroApp） -->
-        <div if="{{ hasWidgets }}" class="widgets-area">
-          <text class="widgets-title">HydroWidget</text>
-          <div for="{{ (wi, wc) in widgetCards }}" class="widget-card">
-            <text class="wcard-name">{{ wc.name }}</text>
-            <div for="{{ (i1, l1) in wc.ui }}" style="width: 100%">
-              <hydro-leaf if="{{ !l1.c }}" leaf="{{ l1 }}" @hydrotap="onCardTap" @change="onCardChange"></hydro-leaf>
-              <div if="{{ l1.c }}" class="wrow" style="{{ l1.s }}">
-                <div for="{{ (i2, l2) in l1.kids }}" style="width: 100%">
-                  <hydro-leaf leaf="{{ l2 }}" @hydrotap="onCardTap" @change="onCardChange"></hydro-leaf>
-                </div>
+        <!-- HydroWidget 卡片区（与音乐卡同级的对齐上下文；卡片不跳转，button action:'open' 可跳转） -->
+        <text class="widgets-title" show="{{ hasWidgets }}">HydroWidget</text>
+        <div for="{{ (wi, wc) in widgetCards }}" class="widget-card" show="{{ hasWidgets }}">
+          <text class="wcard-name">{{ wc.name }}</text>
+          <div for="{{ (i1, l1) in wc.ui }}" style="width: 100%">
+            <hydro-leaf if="{{ !l1.c }}" leaf="{{ l1 }}" @hydrotap="onCardTap" @change="onCardChange"></hydro-leaf>
+            <div if="{{ l1.c }}" class="wrow" style="{{ l1.s }}">
+              <div for="{{ (i2, l2) in l1.kids }}" style="width: 100%">
+                <hydro-leaf leaf="{{ l2 }}" @hydrotap="onCardTap" @change="onCardChange"></hydro-leaf>
               </div>
             </div>
           </div>
@@ -397,20 +395,18 @@
   max-width: 260px;
 }
 
-/* ---- Widget Cards (组件卡片区) ---- */
-.widgets-area {
-  width: 400px;
-  margin-top: 16px;
-  flex-direction: column;
-}
+/* ---- HydroWidget 卡片区（与音乐卡同级：宽度跟随形状 400/420） ---- */
 .widgets-title {
+  width: 400px;
   font-size: 22px;
   font-weight: bold;
   color: #888;
-  margin: 0 0 8px 10px;
+  margin-top: 16px;
+  margin-bottom: 8px;
+  padding-left: 10px;
 }
 .widget-card {
-  width: 100%;
+  width: 400px;
   background-color: #2e323c;
   border-radius: 28px;
   padding: 16px 24px 18px 24px;
@@ -622,6 +618,12 @@
     width: 420px;
   }
   .music-card {
+    width: 420px;
+  }
+  .widgets-title {
+    width: 420px;
+  }
+  .widget-card {
     width: 420px;
   }
 }
