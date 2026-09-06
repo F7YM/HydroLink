@@ -61,7 +61,12 @@ func (w *Weather) appRoot(req hydrokit.Request) *hydrokit.Node {
 		case "toggle":
 			w.powerSave = !w.powerSave
 		case "place":
-			if v := req.Params["value"]; v != "" {
+			// 客户端把输入值放在 event.value；params.value 兼容 curl 风格
+			v, _ := req.Event.Value.(string)
+			if v == "" {
+				v = req.Params["value"]
+			}
+			if v != "" {
 				w.place = v
 			}
 		}
