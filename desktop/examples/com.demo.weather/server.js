@@ -37,6 +37,9 @@ module.exports = {
         style: { padding: 16 },
         media: { circle: { padding: 24 }, rect: { padding: 20 }, pill: { padding: 12 } },
         children: [
+          // 页面导航（协议 §4）：返回按钮由插件声明
+          { type: 'nav', props: { action: 'back', label: '‹ 返回' },
+            style: { fontSize: 26, color: '#FFFFFF', marginBottom: 12 } },
           { type: 'text', props: { text: title },
             style: { fontSize: 28, fontWeight: 700, color: '#FFFFFF', marginBottom: 4 },
             media: { rect: { fontSize: 30 }, pill: { fontSize: 22 } } },

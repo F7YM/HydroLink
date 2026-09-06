@@ -150,6 +150,7 @@ module.exports = {
 
 - 返回值整体为 `{ "root": Node, "refreshMs": 0 }`；返回 `null` 表示"无变更"
 - **滚动由插件声明**：HydroApp 的根节点应为 `type:"scroll"`（容器只给树的纵向滚动容器，`scroll-y` + 回弹；根为其他类型时内容按流动布局，超高部分会被裁）。`scroll` 节点在树内嵌套位置当前按普通 column 处理（后续支持嵌套滚动）
+- **页面导航是插件的一部分**：协议节点 `type:"nav"`，`props`: `action:"back"|"open"`、`label`（默认 `‹`/`›`）、`surface`/`item`（仅 open 用，跳转到**同一插件**的另一表面/条目）。容器负责渲染与执行动作（back→返回、open→推入 hydro 页）；HydroApp 应包含导航节点，否则用户无法退出页面（容器只在加载/错误兜底态提供"‹ 返回"）
 - `view` 可以 `async`——Kit 等 Promise 完成
 - 多屏适配：请求自带 `req.screen`（§4.1），插件可据此返回不同树；也可用节点级 `media` 让容器按形状自动覆盖样式（优先级：base < 形状键）
 
@@ -274,5 +275,6 @@ curl -X POST 'http://127.0.0.1:9000/api/hydro/com.demo.weather/app/main/view?sha
 - v0.1（草案，2026-09-06）：首版规范。与桌面 HydroKit Go 实现同步演进；实现与本文档冲突时以本文档为准（需评审修订）。
 - v0.1.1（2026-09-06）：§5 通道实现定为**长轮询**（poll/respond，无 WebSocket 依赖）；§2 生命周期补充"启动即建 + 按需唤起"。
 - v0.2（2026-09-06）：**watch 端存储落地**（§6 请求上下文语义：`X-Hydro-Store` 上送快照 / `view.storage` 落盘，容器与 bundle 已实现）；**插件 WebUI 落地**（§9：`web/` 同源服务 + 桌面端遮罩层内嵌）；示例插件更新为 v0.2（名字=watch 端、备注=server 端 + WebUI 设置页）。
+- v0.2.3（2026-09-06）：**页面导航进协议**——新增 `type:"nav"` 节点（back/open），容器移除硬编码返回栏，插件声明自己的导航（§4）；天气示例带头声明。
 - v0.2.2（2026-09-06）：滚动改为**插件声明**——容器移除整页滚动，HydroApp 根节点需为 `type:"scroll"`（§4）；示例天气根节点同步更新。
 - v0.2.1（2026-09-06）：示例组织调整——删除 greeting 示例；**天气示例从 Go 内嵌改为 JS 插件包**（`examples/com.demo.weather.hpk`，含 WebUI），内置插件移除（桌面端无内置插件，全部经安装流程；示例中"城市=服务端/省电模式=手表端"展示双端存储）。

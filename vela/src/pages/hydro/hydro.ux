@@ -1,10 +1,6 @@
 <import name="hydro-leaf" src="../../components/HydroLeaf/HydroLeaf"></import>
 <template>
   <div class="page">
-    <!-- 返回栏：独立一行，避免压住内容树，避开屏幕圆角 -->
-    <div class="header">
-      <text class="back" onclick="goBack">‹</text>
-    </div>
 
     <!-- 加载 / 错误（头部下方垂直居中，不与返回栏重叠） -->
     <div class="center-area" if="{{ loading && !errorText }}">
@@ -12,7 +8,7 @@
     </div>
     <div class="center-area" if="{{ errorText }}">
       <text class="err">{{ errorText }}</text>
-      <text class="hint">点击 ‹ 返回</text>
+      <text class="hint" onclick="goBack">‹ 返回</text>
     </div>
 
     <!-- 组件树：滚动由插件声明（根节点 type:'scroll'）；非 scroll 根按内容流动（可能被裁） -->
@@ -27,13 +23,13 @@
                   <!-- L2 容器 -->
                   <div if="{{ l2.c }}" style="{{ l2.s }}">
                     <div for="{{ (i3, l3) in l2.kids }}" style="{{ l3.grow ? 'flex-grow: 1' : '' }}">
-                      <hydro-leaf leaf="{{ l3 }}" @hydrotap="leafTap" @change="leafChange" @hydroinput="leafInput"></hydro-leaf>
+                      <hydro-leaf leaf="{{ l3 }}" @hydrotap="leafTap" @change="leafChange" @hydroinput="leafInput" @hydronav="leafNav"></hydro-leaf>
                     </div>
                   </div>
-                  <hydro-leaf if="{{ !l2.c }}" leaf="{{ l2 }}" @hydrotap="leafTap" @change="leafChange" @hydroinput="leafInput"></hydro-leaf>
+                  <hydro-leaf if="{{ !l2.c }}" leaf="{{ l2 }}" @hydrotap="leafTap" @change="leafChange" @hydroinput="leafInput" @hydronav="leafNav"></hydro-leaf>
                 </div>
               </div>
-              <hydro-leaf if="{{ !l1.c }}" leaf="{{ l1 }}" @hydrotap="leafTap" @change="leafChange" @hydroinput="leafInput"></hydro-leaf>
+              <hydro-leaf if="{{ !l1.c }}" leaf="{{ l1 }}" @hydrotap="leafTap" @change="leafChange" @hydroinput="leafInput" @hydronav="leafNav"></hydro-leaf>
             </div>
           </div>
         </scroll>
@@ -45,13 +41,13 @@
                 <!-- L2 容器 -->
                 <div if="{{ l2.c }}" style="{{ l2.s }}">
                   <div for="{{ (i3, l3) in l2.kids }}" style="{{ l3.grow ? 'flex-grow: 1' : '' }}">
-                    <hydro-leaf leaf="{{ l3 }}" @hydrotap="leafTap" @change="leafChange" @hydroinput="leafInput"></hydro-leaf>
+                    <hydro-leaf leaf="{{ l3 }}" @hydrotap="leafTap" @change="leafChange" @hydroinput="leafInput" @hydronav="leafNav"></hydro-leaf>
                   </div>
                 </div>
-                <hydro-leaf if="{{ !l2.c }}" leaf="{{ l2 }}" @hydrotap="leafTap" @change="leafChange" @hydroinput="leafInput"></hydro-leaf>
+                <hydro-leaf if="{{ !l2.c }}" leaf="{{ l2 }}" @hydrotap="leafTap" @change="leafChange" @hydroinput="leafInput" @hydronav="leafNav"></hydro-leaf>
               </div>
             </div>
-            <hydro-leaf if="{{ !l1.c }}" leaf="{{ l1 }}" @hydrotap="leafTap" @change="leafChange" @hydroinput="leafInput"></hydro-leaf>
+            <hydro-leaf if="{{ !l1.c }}" leaf="{{ l1 }}" @hydrotap="leafTap" @change="leafChange" @hydroinput="leafInput" @hydronav="leafNav"></hydro-leaf>
           </div>
         </div>
       </div>
@@ -66,22 +62,10 @@
   background-color: #000;
   position: relative;
 }
-/* 默认按圆屏（circle）安全区留白；rect 屏在下方媒体查询里收紧 */
-.header {
-  width: 100%;
-  height: 108px;
-  flex-direction: row;
-  align-items: center;
-  padding-left: 40px;
-}
-.back {
-  font-size: 44px;
-  color: rgba(255, 255, 255, 0.85);
-}
-/* 树区：头部以下整块；滚动由插件根节点声明（type:'scroll'） */
+/* 树区：整页；滚动与导航都来自插件树（导航节点 type:"nav"） */
 .tree-area {
   position: absolute;
-  top: 108px;
+  top: 0;
   left: 0;
   right: 0;
   bottom: 0;
@@ -95,11 +79,11 @@
   flex-direction: column;
   color: #ffffff;
 }
-/* 加载/错误块：头部(108px)以下垂直居中 */
+/* 加载/错误块：整页垂直居中 */
 .center-area {
   position: absolute;
   left: 0; right: 0;
-  top: 108px; bottom: 0;
+  top: 0; bottom: 0;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -107,17 +91,15 @@
 /* 树区包裹：必须显式撑满（scroll 的 height:100% 依赖这层有定高，否则不能滚） */
 .safe { width: 100%; height: 100%; }
 /* 圆屏安全区（由 device.getInfo 的 shape 驱动，JS 侧计算）：
-   左右避开弧边，底部留出圆角把最后一行顶上去 */
-.safe-circle { padding-left: 18px; padding-right: 18px; padding-bottom: 28px; }
+   四周避开弧边——顶部留给插件的第一行（通常是导航），底部顶出最后一行 */
+.safe-circle { padding-top: 20px; padding-left: 18px; padding-right: 18px; padding-bottom: 28px; }
 .spin { width: 56px; height: 56px; }
 .err { color: #ffb4ab; font-size: 24px; margin-bottom: 8px; }
 .hint { color: #666; font-size: 20px; }
 
-/* 方屏/圆角矩形：角上安全区小，头部收紧 */
+/* 方屏/圆角矩形：无额外安全区（插件按需自留边距） */
 @media (shape: rect) {
-  .header { height: 72px; padding-left: 24px; }
-  .tree-area { top: 72px; }
-  .center-area { top: 72px; }
+  .safe-circle { padding: 0; }
 }
 </style>
 
@@ -182,6 +164,7 @@ function buildLeaf(n, inRow, ctx) {
   const isIcon = type === 'icon'
   const isImg = type === 'image'
   const isInput = type === 'input'
+  const isNav = type === 'nav'
   const iconSrc = isIcon ? (ICON_MAP[p.name] || '') : ''
   const st = resolveStyle(n, ctx)
   // 容器默认主题：文本未指定颜色时用白色（Vela 默认文本色是灰的）
@@ -212,7 +195,12 @@ function buildLeaf(n, inRow, ctx) {
     isIcon: isIcon,
     isImg: isImg,
     isInput: isInput,
-    isOther: !(isText || isBtn || isSw || isBadge || isSpin || isIcon || isImg || isInput)
+    isNav: isNav,
+    navAction: p.action || '',
+    navLabel: p.label || (p.action === 'open' ? '›' : '‹'),
+    navSurface: p.surface || 'app',
+    navItem: p.item || '',
+    isOther: !(isText || isBtn || isSw || isBadge || isSpin || isIcon || isImg || isInput || isNav)
   }
 }
 
@@ -394,6 +382,27 @@ export default {
     const merged = Object.assign({}, this._watchStore || {}, view.storage)
     this._watchStore = merged
     deviceService.writePluginStore(this.plugin, merged)
+  },
+
+  // 页面导航：协议节点 type:"nav"（back / open 动作），由插件声明
+  leafNav(evt) {
+    const item = this._unwrap(evt)
+    if (!item) return
+    if (item.navAction === 'back') {
+      router.back()
+    } else if (item.navAction === 'open') {
+      router.push({
+        uri: '/pages/hydro',
+        params: {
+          plugin: this.plugin,
+          surface: item.navSurface || 'app',
+          item: item.navItem || '',
+          host: this.host || '',
+          port: String(this.port || 0),
+          deviceId: this.deviceId || ''
+        }
+      })
+    }
   },
 
   // Vela 自定义组件 $emit 的 payload 包在 evt.detail 里（见组件事件文档/

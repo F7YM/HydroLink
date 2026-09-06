@@ -131,6 +131,9 @@ setInterval(function () {}, 1000);
 	if !strings.Contains(rr.Body.String(), "示例天气") {
 		t.Fatalf("view body missing title: %s", rr.Body.String())
 	}
+	if !strings.Contains(rr.Body.String(), `"nav"`) {
+		t.Fatalf("view body missing nav node: %s", rr.Body.String())
+	}
 
 	// Watch-store upload: the snapshot rides X-Hydro-Store; the plugin reads
 	// powerSave from the watch scope (device-local preference).

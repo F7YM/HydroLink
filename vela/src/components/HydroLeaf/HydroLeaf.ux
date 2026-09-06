@@ -30,6 +30,11 @@
       <text class="btn-text ghost-text">{{ leaf.v || leaf.placeholder || '点击输入' }}</text>
     </div>
 
+    <!-- 页面导航（协议节点 type:"nav"：action=back/open） -->
+    <div if="{{ leaf.isNav }}" class="nav" style="{{ leaf.s }}" onclick="emitNav">
+      <text class="nav-text">{{ leaf.navLabel }}</text>
+    </div>
+
     <!-- 未知类型占位 -->
     <text if="{{ leaf.isOther }}" style="{{ leaf.s }}">[{{ leaf.t }}]</text>
   </div>
@@ -73,6 +78,8 @@
   animation-timing-function: linear;
   animation-iteration-count: infinite;
 }
+.nav { padding: 6px 0; align-items: center; }
+.nav-text { font-size: 28px; color: #ffffff; }
 .icon-img { width: 28px; height: 28px; }
 .img { width: 120px; height: 120px; }
 @keyframes leaf-spin {
@@ -93,6 +100,9 @@ export default {
   },
   emitOpenInput() {
     if (this.leaf && this.leaf.change) this.$emit('hydroinput', this.leaf)
+  },
+  emitNav() {
+    if (this.leaf && this.leaf.navAction) this.$emit('hydronav', this.leaf)
   }
 }
 </script>
