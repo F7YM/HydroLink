@@ -9,10 +9,10 @@ module.exports = {
     }
   },
 
-  // 组件树协议与内置 demo 一致；storage 演示"手表端/服务端"双端存储
+  // 组件树协议与内置 demo 一致；storage 演示服务端持久存储
   async view(surface, item, req) {
     if (surface !== 'app' || item !== 'main') return null
-    const name = (await kit.storage.getItem('name', { scope: 'watch' })) || '世界'
+    const name = (await kit.storage.getItem('name')) || '世界'
     return {
       root: {
         type: 'column',
@@ -20,7 +20,7 @@ module.exports = {
         children: [
           { type: 'text', props: { text: '你好，' + name + '！' },
             style: { fontSize: 30, color: '#FFFFFF', fontWeight: 700 } },
-          { type: 'text', props: { text: '（输入名字后回车再进一次）' },
+          { type: 'text', props: { text: '（输入名字后回车，再进一次看变化）' },
             style: { fontSize: 20, color: '#D6DCE8', marginTop: 8 } },
           { type: 'input', props: { placeholder: '输入名字', value: name },
             events: { change: 'setname' } }
