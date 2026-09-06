@@ -280,14 +280,23 @@ export default {
     this._startTimer()
   },
 
+  // Vela 自定义组件 $emit 的 payload 包在 evt.detail 里（见组件事件文档/
+  // NumPad 用法），这里统一解包
+  _unwrap(evt) {
+    return evt && evt.detail !== undefined && evt.detail !== null ? evt.detail : evt
+  },
+
   // HydroLeaf 事件（由组件 $emit 上来）
-  leafTap(item) {
+  leafTap(evt) {
+    const item = this._unwrap(evt)
     if (item && item.tap) this._send({ handler: item.tap, source: 'tap' })
   },
-  leafChange(item) {
+  leafChange(evt) {
+    const item = this._unwrap(evt)
     if (item && item.change) this._send({ handler: item.change, source: 'change' })
   },
-  leafInput(item) {
+  leafInput(evt) {
+    const item = this._unwrap(evt)
     if (!item || !item.change) return
     this._inputItem = item
     router.push({
