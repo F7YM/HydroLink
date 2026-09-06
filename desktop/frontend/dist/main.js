@@ -256,24 +256,21 @@
       return;
     }
     list.innerHTML = plugins.map((p, i) => {
-      const apps = (p.apps || []).map((a) => `<span class="tag">app ${esc(a.id)}</span>`).join("");
-      const wids = (p.widgets || []).map((w) => `<span class="tag">widget ${esc(w.id)}</span>`).join("");
+      const apps = (p.apps || []).map((a) => `<span class="tag" title="${esc(a.id)}">应用 ${esc(a.name || a.id)}</span>`).join("");
+      const wids = (p.widgets || []).map((w) => `<span class="tag" title="${esc(w.id)}">组件 ${esc(w.name || w.id)}</span>`).join("");
       const perms = (p.permissions || []).map((x) => `<span class="tag permission">${esc(x)}</span>`).join("");
       const meta = p.error
         ? `<span class="sub" style="color:var(--md-error)">${esc(p.error)}</span>`
         : `<span class="sub">${esc(p.id)} · v${esc(p.version)} · ${esc(p.entry)}${p.installedAt ? " · " + esc(p.installedAt) : ""}</span>`;
-      const stat = p.builtin
-        ? ""
-        : `<span class="tag" data-pw="${esc(p.id)}" title="${esc(workerErr(p.id))}">${esc(workerStatus(p.id))}</span>`;
       return `
         <div class="item">
           <div class="meta">
             <span class="name">${esc(p.name || p.id)}${p.builtin ? ' <span class="badge builtin">内置</span>' : ""}</span>
             ${meta}
-            <div class="chips">${stat}${apps}${wids}${perms}</div>
+            <div class="chips">${apps}${wids}${perms}</div>
           </div>
           <div style="display:flex;gap:6px;align-items:center">
-            ${p.hasWeb ? `<button class="ok" data-pweb="${esc(p.id)}">界面</button>` : ""}
+            ${p.hasWeb ? `<button class="ok" data-pweb="${esc(p.id)}">WebUI</button>` : ""}
             ${p.builtin
               ? `<span class="muted">内置</span>`
               : `<button class="danger" data-pdel="${esc(p.id)}">卸载</button>`}
@@ -302,29 +299,75 @@
     }
   }
 
+  // 权限中文标签
+  const PERM_LABELS = {
+    notify: "发送通知", music: "控制音乐", lock: "锁屏",
+    commands: "执行命令", fetch: "访问网络", storage: "数据存储"
+  };
+  let pendingInstall = null; // { path, info }
+
+  function showInstallConfirm(info) {
+    pendingInstall = { path: pendingInstall ? pendingInstall.path : "", info: info };
+    const perms = (info.permissions || []).map((p) =>
+      `<span class="tag permission">${esc(PERM_LABELS[p] || p)}</span>`).join("");
+    const apps = (info.apps || []).map((a) => esc(a.name || a.id)).join("、");
+    const wids = (info.widgets || []).map((w) => esc(w.name || w.id)).join("、");
+    $("pipName").textContent = `${info.name || info.id}  v${info.version}`;
+    $("pipMeta").innerHTML = `<span class="tag">${esc(info.id)}</span>` +
+      (apps ? `<span class="tag">应用：${apps}</span>` : "") +
+      (wids ? `<span class="tag">组件：${wids}</span>` : "");
+    $("pipPerms").innerHTML = perms || '<span class="muted">无权限声明</span>';
+    $("pluginConfirmModal").classList.remove("hidden");
+  }
+
   $("pluginInstall").addEventListener("click", async () => {
     const msg = $("pluginMsg");
     msg.textContent = "";
     try {
       const app = B();
-      const info = await app.InstallPlugin();
+      const path = await app.PickPluginFile();
+      if (!path) return; // cancelled
+      pendingInstall = { path: path, info: null };
+      const info = await app.PreviewPlugin(path);
+      showInstallConfirm(info);
+    } catch (e) {
+      const text = String(e && e.message ? e.message : e);
+      if (text.includes("canceled")) { msg.textContent = ""; return; }
+      msg.textContent = text;
+      msg.style.color = "var(--md-error)";
+      setTimeout(() => { msg.textContent = ""; msg.style.color = ""; }, 4000);
+    }
+  });
+
+  $("pipCancel").addEventListener("click", () => {
+    $("pluginConfirmModal").classList.add("hidden");
+    pendingInstall = null;
+  });
+
+  $("pipOk").addEventListener("click", async () => {
+    if (!pendingInstall || !pendingInstall.path) return;
+    const msg = $("pluginMsg");
+    try {
+      const app = B();
+      const info = await app.InstallPlugin(pendingInstall.path);
       if (info && info.id) {
         msg.textContent = `已安装 ${info.name || info.id} v${info.version}`;
         msg.style.color = "var(--md-primary)";
       }
     } catch (e) {
       const text = String(e && e.message ? e.message : e);
-      if (text.includes("canceled")) { msg.textContent = ""; return; }
       msg.textContent = text;
       msg.style.color = "var(--md-error)";
+      setTimeout(() => { msg.textContent = ""; msg.style.color = ""; }, 4000);
     }
-    setTimeout(() => { msg.textContent = ""; msg.style.color = ""; }, 4000);
+    $("pluginConfirmModal").classList.add("hidden");
+    pendingInstall = null;
     loadPlugins();
   });
 
   // ---- plugin WebUI overlay (served same-origin via the asset proxy) ----
   function openWebUI(id) {
-    $("webuiTitle").textContent = "插件界面 · " + id;
+    $("webuiTitle").textContent = "WebUI · " + id;
     $("webuiFrame").src = "/api/hydro/webui/" + encodeURIComponent(id) + "/index.html";
     $("webuiModal").classList.remove("hidden");
   }

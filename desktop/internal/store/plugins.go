@@ -121,52 +121,60 @@ func orEmpty[T any](s []T) []T {
 	return s
 }
 
-// InstallPlugin validates an .hpk/.zip package and installs it under
-// plugins/{id}. The package layout follows docs/hydroplugin.md §3:
-// manifest.json + server.js at the package root (a single wrapping top-level
-// directory is tolerated and stripped).
-func (s *Store) InstallPlugin(zipPath string) (PluginInfo, error) {
+// ReadPluginPackage validates an .hpk/.zip package and returns its manifest
+// WITHOUT installing (used by the install-confirmation UI). The layout
+// follows docs/hydroplugin.md §3: manifest.json + server.js at the package
+// root (a single wrapping top-level directory is tolerated and stripped).
+func (s *Store) ReadPluginPackage(zipPath string) (*PluginManifest, error) {
 	if zipPath == "" {
-		return PluginInfo{}, ErrPluginCanceled
+		return nil, ErrPluginCanceled
 	}
 	ext := strings.ToLower(filepath.Ext(zipPath))
 	if ext != ".hpk" && ext != ".zip" {
-		return PluginInfo{}, fmt.Errorf("只支持 .hpk / .zip 安装包")
+		return nil, fmt.Errorf("只支持 .hpk / .zip 安装包")
 	}
 	zr, err := zip.OpenReader(zipPath)
 	if err != nil {
-		return PluginInfo{}, fmt.Errorf("无法打开安装包: %v", err)
+		return nil, fmt.Errorf("无法打开安装包: %v", err)
 	}
 	defer zr.Close()
 
-	// Find manifest.json; tolerate a single common top-level directory.
 	prefix := commonPrefix(zr.File)
-	manifestName := "manifest.json"
-	if ok, _ := hasEntry(zr.File, prefix, manifestName); !ok {
-		return PluginInfo{}, fmt.Errorf("安装包缺少 manifest.json")
+	if ok, _ := hasEntry(zr.File, prefix, "manifest.json"); !ok {
+		return nil, fmt.Errorf("安装包缺少 manifest.json")
 	}
-	raw, err := readEntry(zr.File, prefix, manifestName)
+	raw, err := readEntry(zr.File, prefix, "manifest.json")
 	if err != nil {
-		return PluginInfo{}, fmt.Errorf("读取 manifest.json 失败: %v", err)
+		return nil, fmt.Errorf("读取 manifest.json 失败: %v", err)
 	}
 	var m PluginManifest
 	if err := json.Unmarshal(raw, &m); err != nil {
-		return PluginInfo{}, fmt.Errorf("manifest.json 格式错误: %v", err)
+		return nil, fmt.Errorf("manifest.json 格式错误: %v", err)
 	}
 	if !pluginIDRe.MatchString(m.ID) {
-		return PluginInfo{}, fmt.Errorf("无效的包 ID: %q", m.ID)
+		return nil, fmt.Errorf("无效的包 ID: %q", m.ID)
 	}
 	if m.Entry == "" {
 		m.Entry = "server.js"
 	}
 	if ok, _ := hasEntry(zr.File, prefix, m.Entry); !ok {
-		return PluginInfo{}, fmt.Errorf("安装包缺少入口文件 %s", m.Entry)
+		return nil, fmt.Errorf("安装包缺少入口文件 %s", m.Entry)
+	}
+	if len(orEmpty(m.Apps)) == 0 && len(orEmpty(m.Widgets)) == 0 {
+		return nil, fmt.Errorf("插件没有注册任何 App / Widget")
+	}
+	return &m, nil
+}
+
+// InstallPlugin validates an .hpk/.zip package and installs it under
+// plugins/{id}.
+func (s *Store) InstallPlugin(zipPath string) (PluginInfo, error) {
+	m, err := s.ReadPluginPackage(zipPath)
+	if err != nil {
+		return PluginInfo{}, err
 	}
 	apps := orEmpty(m.Apps)
 	widgets := orEmpty(m.Widgets)
-	if len(apps) == 0 && len(widgets) == 0 {
-		return PluginInfo{}, fmt.Errorf("插件没有注册任何 App / Widget")
-	}
 
 	target := filepath.Join(s.PluginsDir(), m.ID)
 	if _, err := os.Stat(target); err == nil {
@@ -175,6 +183,14 @@ func (s *Store) InstallPlugin(zipPath string) (PluginInfo, error) {
 	if err := os.MkdirAll(s.PluginsDir(), 0o755); err != nil {
 		return PluginInfo{}, err
 	}
+	// Reopen the archive for extraction (ReadPluginPackage closed its reader).
+	zr, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return PluginInfo{}, fmt.Errorf("无法打开安装包: %v", err)
+	}
+	defer zr.Close()
+	prefix := commonPrefix(zr.File)
+
 	tmp, err := os.MkdirTemp(s.PluginsDir(), ".tmp-"+m.ID+"-")
 	if err != nil {
 		return PluginInfo{}, err

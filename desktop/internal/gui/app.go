@@ -155,23 +155,49 @@ func (a *App) GetPlugins() []store.PluginInfo {
 	return a.st.ListPlugins()
 }
 
-// InstallPlugin opens a file picker for an .hpk/.zip package, validates it and
-// installs it. Returns ErrPluginCanceled (store.ErrPluginCanceled) when the
-// user cancels the dialog.
-func (a *App) InstallPlugin() (store.PluginInfo, error) {
+// PickPluginFile opens a file picker for an .hpk/.zip package and returns the
+// chosen path ("" if cancelled). The UI previews it (PreviewPlugin) and asks
+// for confirmation before InstallPlugin runs.
+func (a *App) PickPluginFile() (string, error) {
 	if a.ctx == nil {
-		return store.PluginInfo{}, fmt.Errorf("窗口尚未就绪")
+		return "", fmt.Errorf("窗口尚未就绪")
 	}
-	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+	return runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
 		Title: "选择 HydroPlugin 安装包",
 		Filters: []runtime.FileFilter{{
 			DisplayName: "HydroPlugin 安装包",
 			Pattern:     "*.hpk;*.zip",
 		}},
 	})
+}
+
+// PreviewPlugin reads a package's manifest without installing anything.
+func (a *App) PreviewPlugin(path string) (store.PluginInfo, error) {
+	if path == "" {
+		return store.PluginInfo{}, store.ErrPluginCanceled
+	}
+	m, err := a.st.ReadPluginPackage(path)
 	if err != nil {
 		return store.PluginInfo{}, err
 	}
+	return PluginInfoFromManifest(m), nil
+}
+
+// PluginInfoFromManifest builds display info from a package manifest.
+func PluginInfoFromManifest(m *store.PluginManifest) store.PluginInfo {
+	return store.PluginInfo{
+		ID:          m.ID,
+		Name:        m.Name,
+		Version:     m.Version,
+		Entry:       m.Entry,
+		Apps:        m.Apps,
+		Widgets:     m.Widgets,
+		Permissions: m.Permissions,
+	}
+}
+
+// InstallPlugin installs the already-confirmed package path.
+func (a *App) InstallPlugin(path string) (store.PluginInfo, error) {
 	if path == "" {
 		return store.PluginInfo{}, store.ErrPluginCanceled
 	}
