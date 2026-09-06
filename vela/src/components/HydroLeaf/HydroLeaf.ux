@@ -31,10 +31,10 @@
     </div>
 
     <!-- 页面导航（协议节点 type:"nav"：action=back/open）。
-         Vela 的 text-align 只对 text 生效：节点样式直接落在文字上，
-         div 只负责撑满与布局（flex:1） -->
-    <div if="{{ leaf.isNav }}" class="nav" onclick="emitNav">
-      <text class="nav-text" style="{{ leaf.s }}">{{ leaf.navLabel }}</text>
+         样式作用于容器 div（Vela 文本元素上 width 行为不可靠）；
+         居中由插件在 style/media 里用 justifyContent 声明（div 是 flex 容器） -->
+    <div if="{{ leaf.isNav }}" class="nav" style="{{ leaf.s }}" onclick="emitNav">
+      <text class="nav-text">{{ leaf.navLabel }}</text>
     </div>
 
     <!-- 未知类型占位 -->
@@ -80,7 +80,7 @@
   animation-timing-function: linear;
   animation-iteration-count: infinite;
 }
-.nav { padding: 6px 0; align-items: center; flex: 1; }
+.nav { padding: 6px 0; align-items: center; }
 .nav-text { font-size: 28px; color: #ffffff; }
 .icon-img { width: 28px; height: 28px; }
 .img { width: 120px; height: 120px; }

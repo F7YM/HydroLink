@@ -6,7 +6,7 @@
 module.exports = {
   manifest() {
     return {
-      package: { id: 'com.demo.weather', name: '示例天气', version: '0.2.1' },
+      package: { id: 'com.demo.weather', name: '示例天气', version: '0.2.2' },
       apps: [{ id: 'main', name: '天气' }],
       widgets: [{ id: 'now', name: '当前天气', refreshMs: 60000 }]
     }
@@ -41,7 +41,7 @@ module.exports = {
           // 圆屏下水平居中（圆形表盘顶端惯例），方屏左对齐
           { type: 'nav', props: { action: 'back', label: '‹ 返回' },
             style: { fontSize: 26, color: '#FFFFFF', marginBottom: 12 },
-            media: { circle: { width: '100%', textAlign: 'center', fontSize: 28 } } },
+            media: { circle: { width: '100%', justifyContent: 'center', fontSize: 28 } } },
           { type: 'text', props: { text: title },
             style: { fontSize: 28, fontWeight: 700, color: '#FFFFFF', marginBottom: 4 },
             media: { rect: { fontSize: 30 }, pill: { fontSize: 22 } } },

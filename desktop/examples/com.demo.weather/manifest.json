@@ -1,7 +1,7 @@
 {
   "id": "com.demo.weather",
   "name": "示例天气",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "entry": "server.js",
   "apps": [
     {
