@@ -1,19 +1,30 @@
 // Package demo provides a sample HydroPlugin used to exercise HydroKit.
 package demo
 
-import "hydrolink-desktop/internal/hydrokit"
+import (
+	"fmt"
+	"sync"
+
+	"hydrolink-desktop/internal/hydrokit"
+)
 
 // Weather is a trivial plugin: one HydroApp ("main") and one HydroWidget
 // ("now"), both returning a small static tree with a refresh button/event.
+// It keeps a little state so events actually change the rendered tree.
 type Weather struct {
-	pkg hydrokit.Package
+	pkg       hydrokit.Package
+	mu        sync.Mutex
+	powerSave bool
+	place     string
 }
 
 // NewWeather returns a Weather plugin.
 func NewWeather() *Weather {
-	return &Weather{pkg: hydrokit.Package{
-		ID: "com.demo.weather", Name: "示例天气", Version: "0.1.0",
-	}}
+	return &Weather{
+		pkg:       hydrokit.Package{ID: "com.demo.weather", Name: "示例天气", Version: "0.1.0"},
+		powerSave: true,
+		place:     "北京",
+	}
 }
 
 func (w *Weather) Manifest() hydrokit.Manifest {
@@ -39,10 +50,24 @@ func (w *Weather) View(surface, item string, req hydrokit.Request) (*hydrokit.Vi
 }
 
 func (w *Weather) appRoot(req hydrokit.Request) *hydrokit.Node {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
 	title := "示例天气"
-	if req.Trigger == hydrokit.TriggerEvent && req.Event.Handler == "refresh" {
-		title = "已刷新"
+	if req.Trigger == hydrokit.TriggerEvent {
+		switch req.Event.Handler {
+		case "refresh":
+			title = "已刷新"
+		case "toggle":
+			w.powerSave = !w.powerSave
+		case "place":
+			if v := req.Params["value"]; v != "" {
+				w.place = v
+			}
+		}
 	}
+	subtitle := fmt.Sprintf("%s · 23°C 晴", w.place)
+
 	row := func(c ...*hydrokit.Node) *hydrokit.Node {
 		return hydrokit.New(hydrokit.TypeRow).Add(c...)
 	}
@@ -50,7 +75,7 @@ func (w *Weather) appRoot(req hydrokit.Request) *hydrokit.Node {
 		hydrokit.Text(title).
 			StyleSet("fontSize", 28).StyleSet("fontWeight", 700).StyleSet("color", "#FFFFFF").
 			StyleSet("marginBottom", 4),
-		hydrokit.Text("北京 · 23°C 晴").
+		hydrokit.Text(subtitle).
 			StyleSet("fontSize", 22).StyleSet("color", "#D6DCE8").
 			StyleSet("marginBottom", 16),
 		row(
@@ -65,14 +90,14 @@ func (w *Weather) appRoot(req hydrokit.Request) *hydrokit.Node {
 		).StyleSet("marginBottom", 14),
 		row(
 			hydrokit.Text("省电模式").StyleSet("fontSize", 22).StyleSet("color", "#D6DCE8"),
-			hydrokit.New(hydrokit.TypeSwitch).Prop("checked", true).On("change", "toggle"),
+			hydrokit.New(hydrokit.TypeSwitch).Prop("checked", w.powerSave).On("change", "toggle"),
 		).StyleSet("marginBottom", 16).StyleSet("justifyContent", "space-between"),
 		row(
 			hydrokit.New(hydrokit.TypeBadge).Prop("label", "beta").
 				StyleSet("backgroundColor", "#434659"),
 			hydrokit.New(hydrokit.TypeSpinner).StyleSet("marginLeft", 14),
 			hydrokit.New(hydrokit.TypeInput).
-				Prop("placeholder", "输入地名").Prop("value", "北京").On("change", "place").
+				Prop("placeholder", "输入地名").Prop("value", w.place).On("change", "place").
 				StyleSet("marginLeft", 14),
 		).StyleSet("marginBottom", 18),
 		hydrokit.Button("刷新").On("tap", "refresh").
