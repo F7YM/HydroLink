@@ -76,6 +76,8 @@ com.demo.weather.hpk                 ← zip 文件（.hpk 后缀，也是 zip�
 | `entry` | string | server.js 路径（默认 `server.js`） |
 | `apps` | item[] | HydroApp 注册，`{id, name}` |
 | `widgets` | item[] | HydroWidget 注册，`{id, name, refreshMs?}`（refreshMs 无则服务端按 View.refreshMs） |
+
+> **item id 形式（约定，当前不强制校验）**：`id` 是包内短标识，会进入 URL 路径（`/api/hydro/{package}/{surface}/{item}/...`），因此**必须是 URL 安全的**。约定形式：小写字母 / 数字 / `-` / `_` 的短 slug，如 `main`、`now`、`settings`、`hourly_forecast`（≤64 字符）；用户可读的名字放 `name`。同一 surface 内 id 必须唯一（apps 与 widgets 之间可以重复，因为 surface 不同）
 | `permissions` | string[] | 能力权限声明（§7 权限清单，未声明即不可调用） |
 
 ## 4. server.js 编程接口
@@ -275,6 +277,7 @@ curl -X POST 'http://127.0.0.1:9000/api/hydro/com.demo.weather/app/main/view?sha
 - v0.1（草案，2026-09-06）：首版规范。与桌面 HydroKit Go 实现同步演进；实现与本文档冲突时以本文档为准（需评审修订）。
 - v0.1.1（2026-09-06）：§5 通道实现定为**长轮询**（poll/respond，无 WebSocket 依赖）；§2 生命周期补充"启动即建 + 按需唤起"。
 - v0.2（2026-09-06）：**watch 端存储落地**（§6 请求上下文语义：`X-Hydro-Store` 上送快照 / `view.storage` 落盘，容器与 bundle 已实现）；**插件 WebUI 落地**（§9：`web/` 同源服务 + 桌面端遮罩层内嵌）；示例插件更新为 v0.2（名字=watch 端、备注=server 端 + WebUI 设置页）。
+- v0.2.5（2026-09-06）：文档明确 item id 形式（URL 安全 slug，仅约定不校验）；桌面插件列表移除安装时间展示。
 - v0.2.3（2026-09-06）：**页面导航进协议**——新增 `type:"nav"` 节点（back/open），容器移除硬编码返回栏，插件声明自己的导航（§4）；天气示例带头声明。
 - v0.2.2（2026-09-06）：滚动改为**插件声明**——容器移除整页滚动，HydroApp 根节点需为 `type:"scroll"`（§4）；示例天气根节点同步更新。
 - v0.2.1（2026-09-06）：示例组织调整——删除 greeting 示例；**天气示例从 Go 内嵌改为 JS 插件包**（`examples/com.demo.weather.hpk`，含 WebUI），内置插件移除（桌面端无内置插件，全部经安装流程；示例中"城市=服务端/省电模式=手表端"展示双端存储）。
