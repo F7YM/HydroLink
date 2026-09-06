@@ -1,7 +1,10 @@
 <import name="hydro-leaf" src="../../components/HydroLeaf/HydroLeaf"></import>
 <template>
   <div class="page">
-    <text class="back" onclick="goBack">‹</text>
+    <!-- 返回栏：独立一行，避免压住内容树，避开屏幕圆角 -->
+    <div class="header">
+      <text class="back" onclick="goBack">‹</text>
+    </div>
 
     <!-- 加载 / 错误 -->
     <div class="center" if="{{ loading && !errorText }}">
@@ -42,17 +45,21 @@
   background-color: #000;
   position: relative;
 }
+/* 默认按圆屏（circle）安全区留白；rect 屏在下方媒体查询里收紧 */
+.header {
+  width: 100%;
+  height: 108px;
+  flex-direction: row;
+  align-items: center;
+  padding-left: 40px;
+}
 .back {
-  position: absolute;
-  top: 10px;
-  left: 16px;
-  font-size: 42px;
+  font-size: 44px;
   color: rgba(255, 255, 255, 0.85);
-  z-index: 10;
 }
 .hscroll {
   position: absolute;
-  top: 0;
+  top: 108px;
   left: 0;
   right: 0;
   bottom: 0;
@@ -66,13 +73,19 @@
   position: absolute;
   left: 0;
   right: 0;
-  top: 40%;
+  top: 45%;
   flex-direction: column;
   align-items: center;
 }
 .spin { width: 56px; height: 56px; }
 .err { color: #ffb4ab; font-size: 24px; margin-bottom: 8px; }
 .hint { color: #666; font-size: 20px; }
+
+/* 方屏/圆角矩形：角上安全区小，头部收紧 */
+@media (shape: rect) {
+  .header { height: 72px; padding-left: 24px; }
+  .hscroll { top: 72px; }
+}
 </style>
 
 <script>
