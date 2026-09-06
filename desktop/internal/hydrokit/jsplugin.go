@@ -68,22 +68,38 @@ function _req(path, opts) {
 function _remote(method, path, body) {
   return _req(path, { method: method, body: body === undefined ? undefined : JSON.stringify(body) });
 }
+// watch-scope storage is request-contextual: reads come from the store
+// snapshot the container uploaded (msg.req.store), writes accumulate and
+// are flushed in the response's storage field, which the container
+// persists on the device.
+var __storeWatch = {};
+var __storeWrites = {};
 var kit = {
   storage: {
     getItem: function (k, opts) {
-      return _remote("POST", "/api/hydro/worker/store", { package: __PKG, op: "get", key: k, scope: (opts && opts.scope) || "server" }).then(function (d) {
+      var scope = (opts && opts.scope) || "server";
+      if (scope === "watch") {
+        return __storeWatch[k] === undefined ? Promise.resolve(null) : Promise.resolve(__storeWatch[k]);
+      }
+      return _remote("POST", "/api/hydro/worker/store", { package: __PKG, op: "get", key: k, scope: scope }).then(function (d) {
         if (d && d.error) throw new Error(d.error);
         return (d && d.found) ? d.value : null;
       });
     },
     setItem: function (k, v, opts) {
-      return _remote("POST", "/api/hydro/worker/store", { package: __PKG, op: "set", key: k, value: v, scope: (opts && opts.scope) || "server" });
+      var scope = (opts && opts.scope) || "server";
+      if (scope === "watch") { __storeWrites[k] = v; return Promise.resolve({ ok: true }); }
+      return _remote("POST", "/api/hydro/worker/store", { package: __PKG, op: "set", key: k, value: v, scope: scope });
     },
     removeItem: function (k, opts) {
-      return _remote("POST", "/api/hydro/worker/store", { package: __PKG, op: "remove", key: k, scope: (opts && opts.scope) || "server" });
+      var scope = (opts && opts.scope) || "server";
+      if (scope === "watch") { __storeWrites[k] = null; return Promise.resolve({ ok: true }); }
+      return _remote("POST", "/api/hydro/worker/store", { package: __PKG, op: "remove", key: k, scope: scope });
     },
     clear: function (opts) {
-      return _remote("POST", "/api/hydro/worker/store", { package: __PKG, op: "clear", scope: (opts && opts.scope) || "server" });
+      var scope = (opts && opts.scope) || "server";
+      if (scope === "watch") { __storeWrites = {}; return Promise.resolve({ ok: true }); }
+      return _remote("POST", "/api/hydro/worker/store", { package: __PKG, op: "clear", scope: scope });
     }
   },
   notify: function (n) {
@@ -124,8 +140,17 @@ var __announced = false;
       var msg = await r.json();
       if (msg && msg.req) {
         var req = msg.req;
+        __storeWatch = (req.req && req.req.store) || {};
+        __storeWrites = {};
         try {
           var view = await __plugin.view(req.surface, req.item, req.req || {});
+          var hasWrites = false;
+          for (var k in __storeWrites) { hasWrites = true; break; }
+          if (hasWrites) {
+            if (view == null) view = {};
+            if (typeof view.storage !== "object" || view.storage === null) view.storage = {};
+            for (var kk in __storeWrites) { view.storage[kk] = __storeWrites[kk]; }
+          }
           await _remote("POST", "/api/hydro/worker/respond", {
             package: __PKG, id: req.id, result: view == null ? null : view
           });

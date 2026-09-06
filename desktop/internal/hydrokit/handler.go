@@ -49,6 +49,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	pkg, surface, item, action := parts[0], parts[1], parts[2], parts[3]
 
 	req := Request{Trigger: triggerForAction(action), Params: map[string]string{}}
+	// The container uploads the device-side storage snapshot with each request.
+	if h := r.Header.Get("X-Hydro-Store"); h != "" {
+		var store map[string]any
+		if err := json.Unmarshal([]byte(h), &store); err == nil && store != nil {
+			req.Store = store
+		}
+	}
 	if q := r.URL.Query(); q != nil {
 		req.Screen = Screen{
 			Shape:      q.Get("shape"),

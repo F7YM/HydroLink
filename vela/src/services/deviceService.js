@@ -462,13 +462,37 @@ export default {
    * parsed body (the View JSON), routing over whatever transport the device
    * uses (interconnect / proxy / direct fetch).
    */
-  async hydro(host, port, path, method, body) {
+  async hydro(host, port, path, method, body, headers) {
     try {
-      const res = await apiRequest(host, port, path, method || 'POST', body)
+      const res = await apiRequest(host, port, path, method || 'POST', body, headers)
       return res.data
     } catch (e) {
       console.error('[deviceService] hydro request failed: ' + path, e)
       return null
+    }
+  },
+
+  /** Plugin watch-side storage (scope:'watch') — persisted on the device. */
+  _pluginStoreUri(pkg) {
+    return 'internal://files/hydro_store_' + String(pkg).replace(/[^A-Za-z0-9_.-]/g, '_') + '.json'
+  },
+
+  async readPluginStore(pkg) {
+    try {
+      const text = await readText(this._pluginStoreUri(pkg))
+      return text ? JSON.parse(text) : {}
+    } catch (e) {
+      return {}
+    }
+  },
+
+  async writePluginStore(pkg, obj) {
+    try {
+      await writeText(this._pluginStoreUri(pkg), JSON.stringify(obj || {}))
+      return true
+    } catch (e) {
+      console.error('[deviceService] writePluginStore failed', pkg, e)
+      return false
     }
   }
 }

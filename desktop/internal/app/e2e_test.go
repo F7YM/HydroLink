@@ -38,9 +38,9 @@ func TestJSRuntimeProductionChain(t *testing.T) {
   async view(surface, item, req) {
     if (surface !== 'app' || item !== 'main') return null
     if (req && req.trigger === 'event' && req.event && req.event.handler === 'setname') {
-      if (req.event.value) await kit.storage.setItem('name', req.event.value)
+      if (req.event.value) await kit.storage.setItem('name', req.event.value, { scope: 'watch' })
     }
-    const name = (await kit.storage.getItem('name')) || '世界'
+    const name = (await kit.storage.getItem('name', { scope: 'watch' })) || '世界'
     return {
       root: {
         type: 'column', style: { padding: 16 },
@@ -55,17 +55,23 @@ func TestJSRuntimeProductionChain(t *testing.T) {
 	manifest := `{
   "id": "com.example.greeting",
   "name": "示例问候",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "entry": "server.js",
   "apps": [{"id":"main","name":"问候"}],
   "widgets": [],
   "permissions": ["storage"]
-}`
+}
+`
+	manifest = strings.TrimSpace(manifest)
 	hpk := filepath.Join(t.TempDir(), "com.example.greeting.hpk")
 	{
 		var buf bytes.Buffer
 		zw := zip.NewWriter(&buf)
-		for name, content := range map[string]string{"manifest.json": manifest, "server.js": pluginJS} {
+		for name, content := range map[string]string{
+			"manifest.json":  manifest,
+			"server.js":      pluginJS,
+			"web/index.html": "<html><body>webui</body></html>",
+		} {
 			w, _ := zw.Create(name)
 			_, _ = w.Write([]byte(content))
 		}
@@ -122,18 +128,25 @@ setInterval(function () {}, 1000);
 	_ = marker
 
 	viewURL := ts.URL + "/api/hydro/com.example.greeting/app/main/view?shape=circle&width=466&dpr=2&dt=watch"
+	viewReq := func(store string) string {
+		req, _ := http.NewRequest(http.MethodPost, viewURL, nil)
+		if store != "" {
+			req.Header.Set("X-Hydro-Store", store)
+		}
+		rr := httptest.NewRecorder()
+		srv2.Handler().ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			return ""
+		}
+		return rr.Body.String()
+	}
 	deadline := time.Now().Add(15 * time.Second)
 	var body string
-	for time.Now().Before(deadline) {
-		rr := httptest.NewRecorder()
-		// use real client through the handler
-		req, _ := http.NewRequest(http.MethodPost, viewURL, nil)
-		srv2.Handler().ServeHTTP(rr, req)
-		if rr.Code == http.StatusOK {
-			body = rr.Body.String()
-			break
+	for time.Now().Before(deadline) && body == "" {
+		body = viewReq("")
+		if body == "" {
+			time.Sleep(300 * time.Millisecond)
 		}
-		time.Sleep(300 * time.Millisecond)
 	}
 	if body == "" {
 		t.Fatal("plugin view never returned 200")
@@ -156,8 +169,15 @@ setInterval(function () {}, 1000);
 		t.Fatalf("first text = %q (want 你好，世界！) body=%s", first, body)
 	}
 
-	// Event round-trip: input change=setname -> plugin stores -> next view
-	// reflects the new name (the real production flow).
+	// Watch-store upload: the container's snapshot rides the request header —
+	// the plugin reads it via kit.storage.getItem(..., {scope:'watch'}).
+	body = viewReq(`{"name":"表上名"}`)
+	if body == "" || !strings.Contains(body, "表上名") {
+		t.Fatalf("view with uploaded watch store failed: %s", body)
+	}
+
+	// Event round-trip: input change=setname -> watch store write -> the
+	// RESPONSE carries storage for the container to persist on the device.
 	evtURL := ts.URL + "/api/hydro/com.example.greeting/app/main/event"
 	evtBody := `{"event":{"handler":"setname","source":"change","value":"上海"}}`
 	req, _ := http.NewRequest(http.MethodPost, evtURL, bytes.NewBufferString(evtBody))
@@ -166,11 +186,27 @@ setInterval(function () {}, 1000);
 	if rr.Code != http.StatusOK {
 		t.Fatalf("event -> %d: %s", rr.Code, rr.Body.String())
 	}
+	var evtResp struct {
+		Storage map[string]any `json:"storage"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &evtResp); err != nil {
+		t.Fatalf("event resp json: %v — %s", err, rr.Body.String())
+	}
+	if evtResp.Storage["name"] != "上海" {
+		t.Fatalf("event storage = %+v, want name=上海", evtResp.Storage)
+	}
 	time.Sleep(400 * time.Millisecond) // let the worker re-enter the poll
-	req2, _ := http.NewRequest(http.MethodPost, viewURL, nil)
-	rr2 := httptest.NewRecorder()
-	srv2.Handler().ServeHTTP(rr2, req2)
-	if rr2.Code != http.StatusOK || !strings.Contains(rr2.Body.String(), "上海") {
-		t.Fatalf("view after event -> %d: %s", rr2.Code, rr2.Body.String())
+	body = viewReq(`{"name":"上海"}`)
+	if !strings.Contains(body, "上海") {
+		t.Fatalf("view after watch-store upload: %s", body)
+	}
+
+	// Plugin WebUI: web/ assets served under /api/hydro/webui/{pkg}/.
+	wreq, _ := http.NewRequest(http.MethodGet,
+		ts.URL+"/api/hydro/webui/com.example.greeting/index.html", nil)
+	wrr := httptest.NewRecorder()
+	srv2.Handler().ServeHTTP(wrr, wreq)
+	if wrr.Code != http.StatusOK || !strings.Contains(wrr.Body.String(), "webui") {
+		t.Fatalf("webui -> %d: %s", wrr.Code, wrr.Body.String())
 	}
 }

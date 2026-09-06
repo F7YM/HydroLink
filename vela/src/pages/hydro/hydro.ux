@@ -219,7 +219,8 @@ export default {
     _busy: false,
     _started: false,
     _inputItem: null,
-    _screen: null
+    _screen: null,
+    _watchStore: null
   },
 
   onInit() {
@@ -230,7 +231,13 @@ export default {
   // 屏幕信息同时用于请求参数(A) 和 media 解析(B)
   async _init() {
     this._screen = await this._readScreen()
+    // 插件手表端存储（scope:'watch'）：请求上送快照，响应落盘
+    this._watchStore = await deviceService.readPluginStore(this.plugin)
     await this.load()
+  },
+
+  _storeHeader() {
+    return { 'X-Hydro-Store': JSON.stringify(this._watchStore || {}) }
   },
 
   _readScreen() {
@@ -313,7 +320,7 @@ export default {
   async load() {
     this.loading = true
     this.errorText = ''
-    const view = await deviceService.hydro(this.host, this.port, this.path('view'), 'GET')
+    const view = await deviceService.hydro(this.host, this.port, this.path('view'), 'GET', null, this._storeHeader())
     this.loading = false
     if (!view || !view.root) {
       this.errorText = '加载失败，请检查服务端'
@@ -325,7 +332,7 @@ export default {
   },
 
   async refresh() {
-    const view = await deviceService.hydro(this.host, this.port, this.path('refresh'), 'GET')
+    const view = await deviceService.hydro(this.host, this.port, this.path('refresh'), 'GET', null, this._storeHeader())
     if (view && view.root) this._apply(view)
   },
 
@@ -339,8 +346,17 @@ export default {
       this.ui = root ? [build(root, false, ctx)] : []
       this.contentStyle = ''
     }
+    // 手表端存储写入：合并并持久化到设备本机
+    this._applyWatchStore(view)
     this.refreshMs = view.refreshMs || 0
     this._startTimer()
+  },
+
+  _applyWatchStore(view) {
+    if (!view || !view.storage || typeof view.storage !== 'object') return
+    const merged = Object.assign({}, this._watchStore || {}, view.storage)
+    this._watchStore = merged
+    deviceService.writePluginStore(this.plugin, merged)
   },
 
   // Vela 自定义组件 $emit 的 payload 包在 evt.detail 里（见组件事件文档/
@@ -372,7 +388,7 @@ export default {
     if (this._busy) return
     this._busy = true
     try {
-      const view = await deviceService.hydro(this.host, this.port, this.path('event'), 'POST', { event: ev })
+      const view = await deviceService.hydro(this.host, this.port, this.path('event'), 'POST', { event: ev }, this._storeHeader())
       if (view && view.root) this._apply(view)
     } catch (err) {
       console.warn('[hydro] event failed', err)

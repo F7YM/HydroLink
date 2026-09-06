@@ -45,6 +45,7 @@ type PluginInfo struct {
 	InstalledAt string       `json:"installedAt"`
 	Dir         string       `json:"dir"`
 	Builtin     bool         `json:"builtin"`
+	HasWeb      bool         `json:"hasWeb"`
 	Error       string       `json:"error,omitempty"`
 }
 
@@ -98,6 +99,9 @@ func (s *Store) ListPlugins() []PluginInfo {
 		info.Apps = orEmpty(m.Apps)
 		info.Widgets = orEmpty(m.Widgets)
 		info.Permissions = orEmpty(m.Permissions)
+		if _, err := os.Stat(filepath.Join(dir, id, "web", "index.html")); err == nil {
+			info.HasWeb = true
+		}
 		if st, err := os.Stat(filepath.Join(dir, id, ".installed_at")); err == nil {
 			info.InstalledAt = st.ModTime().Format("2006-01-02 15:04")
 		}

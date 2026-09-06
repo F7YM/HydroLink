@@ -144,6 +144,9 @@ func Icon(name string) *Node {
 type View struct {
 	RefreshMs int   `json:"refreshMs,omitempty"`
 	Root      *Node `json:"root"`
+	// Storage carries watch-side storage writes back to the container, which
+	// persists them on the device (docs/hydroplugin.md §6, scope:'watch').
+	Storage map[string]any `json:"storage,omitempty"`
 }
 
 func (v *View) JSON() ([]byte, error) { return json.Marshal(v) }

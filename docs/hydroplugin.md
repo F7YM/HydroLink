@@ -50,7 +50,8 @@ com.demo.weather.hpk                 ← zip 文件（.hpk 后缀，也是 zip�
 ├── assets/                          ← 可选：随包资源（.wasm、模型、图片、数据）
 │   ├── model.wasm
 │   └── data.json
-└── web/                             ← 可选：桌面端 UI 资源（后续里程碑，第一版忽略）
+└── web/                             ← 可选：插件 WebUI（设置页等；由 Kit 同源服务，
+                                         `web/index.html` 为入口，见 §9）
 ```
 
 ### 3.1 manifest.json 字段
@@ -206,7 +207,7 @@ await kit.storage.clear({ scope: 'server' })
 - 值：任意可 JSON 序列化的值（字符串/数字/布尔/对象），自动序列化
 - 语义类比 `localStorage`：同插件键值隔离、异步持久化（可 await）
 - 机制：`server` 端直接落盘宿主数据目录；`watch` 端经由 hydro 请求/响应协议同步——容器把手表端该插件的存储快照随请求上送（`req.storage`），响应里的 `storage` 提示字段由容器写入手的表端存储。插件代码层面无感知，`kit.storage` 接口两端一致
-- 实现状态：**`scope:'server'` 已可用**；`scope:'watch'` 返回"待容器协议里程碑接入"（当前版本 501，接口与语义已固定）
+- 实现状态：**两端均已可用**。watch 端实现为"请求上下文"语义——容器把插件的手表端存储快照随每个 hydro 请求上送（请求头 `X-Hydro-Store`，插件在 `req.store` 读到）；`kit.storage` 的 watch 写操作累积到当前视图返回值里（`view.storage`），容器收到后合并落盘到设备本机（Vela `@system.file`）。插件代码无感知，接口两端一致
 
 ## 7. 能力 API 与权限
 
@@ -238,7 +239,16 @@ const { add } = wasm.exports                           // 按需使用
 - 典型用途：性能关键算法、加密、模型推理（liteRT 模型运行时是新里程碑，与本法无关）
 - 纯 JS 先做到功能，需要性能再引入 WASM——**插件不必须带 wasm**
 
-## 9. 开发与调试
+## 9. 插件 WebUI（桌面端设置界面）
+
+插件的 `web/` 目录是它与用户交互的桌面界面——典型用途：**插件设置**、**向 HydroApp 同步信息**（写入存储 → 手表 App 下一次 view/refresh 呈现）。
+
+- **服务**：Kit 以 `GET /api/hydro/webui/{package}/{path}` 同源提供（`index.html` 为默认入口，路径防逃逸、仅限包内 `web/` 目录）；桌面端在插件 Tab 为含 `web/index.html` 的插件提供"界面"按钮，以遮罩层内嵌打开
+- **同源**：WebUI 页面与桌面应用同源（asset server 代理），直接 `fetch('/api/hydro/worker/*')` 即可调用 **kit 能力**（按插件 manifest 权限校验，如 `storage`/`notify`）
+- **同步到 HydroApp**：WebUI 写入 `kit.storage`（`scope:'server'`）后，手表 App（插件树的 `view()`）在下次渲染时读取即可生效——桌面写、手表读；手表输入走事件回写（§4/§6）
+- **示例**：`com.example.greeting` 的 `web/index.html`（备注设置 + 通知演示）——保存备注后，手表 App 显示"备注：…"一行
+
+## 10. 开发与调试
 
 1. **安装**：把 `xxx.hpk`（zip）解压到插件的安装目录（第一版：宿主持有目录下的 `plugins/{id}/`；界面化安装后续）
 2. **日志**：server.js 里 `console.log/error` → 出现在桌面端日志区与终端；Kit 每次 `/api/hydro` 请求也在终端打一行（含屏幕参数）
@@ -250,7 +260,7 @@ curl -X POST 'http://127.0.0.1:9000/api/hydro/com.demo.weather/app/main/view?sha
 
 4. **参考实现**：`desktop/internal/hydrokit/demo/`（Go 内嵌版 demo.Weather）产出同一棵树的 JSON，可作为树协议对照样例
 
-## 10. 第一版边界（明确不做）
+## 11. 第一版边界（明确不做）
 
 - ~~liteRT / 模型运行时~~（后续里程碑）
 - 安卓端实现（后续里程碑；同规范，WebView 宿主，能力 API 换安卓后端）
@@ -261,4 +271,5 @@ curl -X POST 'http://127.0.0.1:9000/api/hydro/com.demo.weather/app/main/view?sha
 ## 版本记录
 
 - v0.1（草案，2026-09-06）：首版规范。与桌面 HydroKit Go 实现同步演进；实现与本文档冲突时以本文档为准（需评审修订）。
-- v0.1.1（2026-09-06）：§5 通道实现定为**长轮询**（poll/respond，无 WebSocket 依赖）；§2 生命周期补充"启动即建 + 按需唤起"；§6 标注 watch 端存储实现状态（v1 仅 server 端，watch 接口已定、随容器协议里程碑接入）。
+- v0.1.1（2026-09-06）：§5 通道实现定为**长轮询**（poll/respond，无 WebSocket 依赖）；§2 生命周期补充"启动即建 + 按需唤起"。
+- v0.2（2026-09-06）：**watch 端存储落地**（§6 请求上下文语义：`X-Hydro-Store` 上送快照 / `view.storage` 落盘，容器与 bundle 已实现）；**插件 WebUI 落地**（§9：`web/` 同源服务 + 桌面端遮罩层内嵌）；示例插件更新为 v0.2（名字=watch 端、备注=server 端 + WebUI 设置页）。

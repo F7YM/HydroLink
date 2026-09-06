@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>示例问候 · 设置</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; }
+    body { font-family: system-ui, "Noto Sans CJK SC", sans-serif; background: #121318; color: #e8eaf0; padding: 24px; max-width: 520px; }
+    h1 { font-size: 18px; margin-bottom: 6px; }
+    p.hint { color: #9aa2b1; font-size: 12px; margin-bottom: 18px; }
+    label { display: block; font-size: 13px; color: #bac3ff; margin-bottom: 6px; }
+    input { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #3a3f4c; background: #1d1f27; color: #fff; font-size: 14px; margin-bottom: 12px; }
+    button { cursor: pointer; border: none; border-radius: 10px; padding: 10px 18px; font-size: 14px; font-weight: 700; background: #bac3ff; color: #00237c; margin-right: 8px; }
+    button.ghost { background: transparent; color: #bac3ff; border: 1px solid #3a3f4c; }
+    #msg { margin-top: 12px; font-size: 13px; color: #7ddc9a; min-height: 18px; white-space: pre-line; }
+    .card { background: #1d1f27; border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+  </style>
+</head>
+<body>
+  <h1>示例问候 · 设置</h1>
+  <p class="hint">WebUI 属于插件包（web/）。保存的备注（服务端存储）会显示在手表的"示例问候"App 里；名字存在手表端（watch 存储）。</p>
+
+  <div class="card">
+    <label>备注（服务端存储 → 同步到 HydroApp）</label>
+    <input id="note" placeholder="例如：今晚加班">
+    <button id="save">保存备注</button>
+  </div>
+
+  <div class="card">
+    <label>能力演示（notify 权限）</label>
+    <button id="beep" class="ghost">发一条系统通知</button>
+    <button id="refresh" class="ghost">重新读取</button>
+  </div>
+
+  <p id="msg"></p>
+
+  <script>
+    var PKG = 'com.example.greeting';
+    function show(t) { var m = document.getElementById('msg'); m.textContent = t; }
+    async function store(op, key, value) {
+      var r = await fetch('/api/hydro/worker/store', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ package: PKG, op: op, key: key, value: value })
+      });
+      return r.json();
+    }
+    async function load() {
+      var d = await store('get', 'note');
+      document.getElementById('note').value = (d && d.found) ? d.value : '';
+    }
+    document.getElementById('save').addEventListener('click', async function () {
+      var v = document.getElementById('note').value.trim();
+      await store('set', 'note', v);
+      show('已保存备注「' + v + '」—— 手表 App 下次打开/刷新即可看到。');
+    });
+    document.getElementById('beep').addEventListener('click', async function () {
+      var r = await fetch('/api/hydro/worker/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ package: PKG, title: '示例问候', text: '来自插件 WebUI 的通知' })
+      });
+      show('已发送通知。');
+    });
+    document.getElementById('refresh').addEventListener('click', load);
+    load();
+  </script>
+</body>
+</html>

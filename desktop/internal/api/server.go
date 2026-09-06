@@ -187,6 +187,12 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		path = strings.TrimSuffix(path, "/")
 	}
 
+	// Plugin WebUI assets are served from the plugin package's web/ dir.
+	if strings.HasPrefix(path, "/api/hydro/webui/") && r.Method == http.MethodGet {
+		s.handleWebUI(w, r)
+		return
+	}
+
 	// Worker channel is internal to the plugin runtime and is handled before
 	// the plugin dispatcher, so a plugin package named "worker" can never
 	// shadow it.

@@ -276,3 +276,57 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(v)
 }
+
+// ---- plugin WebUI (web/ assets) ----
+
+// handleWebUI serves a plugin's packaged web/ resources:
+//
+//	GET /api/hydro/webui/{package}/{path...}  (index.html default)
+//
+// The page is served same-origin through the desktop asset-server proxy, so
+// the plugin's UI can call /api/hydro/worker/* with its own package id (per
+// its manifest permissions).
+func (s *Server) handleWebUI(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+	rest := strings.TrimPrefix(path, "/api/hydro/webui/")
+	parts := strings.SplitN(rest, "/", 2)
+	if len(parts) == 0 || parts[0] == "" {
+		http.Error(w, "缺少插件 ID", http.StatusBadRequest)
+		return
+	}
+	id := parts[0]
+	rel := ""
+	if len(parts) == 2 {
+		rel = parts[1]
+	}
+	if rel == "" {
+		rel = "index.html"
+	}
+	data, err := s.store.ReadPluginFile(id, "web/"+rel)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	ct := webContentType(rel)
+	w.Header().Set("Content-Type", ct)
+	_, _ = w.Write(data)
+}
+
+func webContentType(name string) string {
+	switch {
+	case strings.HasSuffix(name, ".html"):
+		return "text/html; charset=utf-8"
+	case strings.HasSuffix(name, ".js"):
+		return "text/javascript; charset=utf-8"
+	case strings.HasSuffix(name, ".css"):
+		return "text/css; charset=utf-8"
+	case strings.HasSuffix(name, ".json"):
+		return "application/json; charset=utf-8"
+	case strings.HasSuffix(name, ".png"):
+		return "image/png"
+	case strings.HasSuffix(name, ".svg"):
+		return "image/svg+xml"
+	default:
+		return "application/octet-stream"
+	}
+}

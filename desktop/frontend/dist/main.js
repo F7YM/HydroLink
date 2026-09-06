@@ -266,9 +266,12 @@
             ${meta}
             <div class="chips">${stat}${apps}${wids}${perms}</div>
           </div>
-          ${p.builtin
-            ? `<span class="muted">内置</span>`
-            : `<button class="danger" data-pdel="${esc(p.id)}">卸载</button>`}
+          <div style="display:flex;gap:6px;align-items:center">
+            ${p.hasWeb ? `<button class="ok" data-pweb="${esc(p.id)}">界面</button>` : ""}
+            ${p.builtin
+              ? `<span class="muted">内置</span>`
+              : `<button class="danger" data-pdel="${esc(p.id)}">卸载</button>`}
+          </div>
         </div>`;
     }).join("");
     list.querySelectorAll("[data-pdel]").forEach((b) =>
@@ -276,6 +279,8 @@
         await api("UninstallPlugin", b.dataset.pdel);
         loadPlugins();
       }));
+    list.querySelectorAll("[data-pweb]").forEach((b) =>
+      b.addEventListener("click", () => openWebUI(b.dataset.pweb)));
     // Keep every installed JS plugin's worker alive for watch requests.
     if (plugins) {
       plugins.filter((p) => !p.builtin).forEach((p) => ensureWorker(p.id));
@@ -301,6 +306,18 @@
     setTimeout(() => { msg.textContent = ""; msg.style.color = ""; }, 4000);
     loadPlugins();
   });
+
+  // ---- plugin WebUI overlay (served same-origin via the asset proxy) ----
+  function openWebUI(id) {
+    $("webuiTitle").textContent = "插件界面 · " + id;
+    $("webuiFrame").src = "/api/hydro/webui/" + encodeURIComponent(id) + "/index.html";
+    $("webuiModal").classList.remove("hidden");
+  }
+  function closeWebUI() {
+    $("webuiModal").classList.add("hidden");
+    $("webuiFrame").src = "about:blank";
+  }
+  $("webuiClose").addEventListener("click", closeWebUI);
 
   function refresh() {
     loadStatus();

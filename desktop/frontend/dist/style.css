@@ -403,3 +403,24 @@ input::placeholder { color: var(--md-outline); }
   color: var(--md-on-secondary-container);
   font-weight: 700;
 }
+
+/* ---------- Plugin WebUI overlay ---------- */
+
+.webui-modal { padding: 20px; }
+.webui-card {
+  width: min(860px, 94vw);
+  height: min(620px, 86vh);
+  display: flex; flex-direction: column;
+  padding: 0; overflow: hidden;
+}
+.webui-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--md-surface-container-high);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.webui-title { font-size: 13px; font-weight: 700; color: var(--md-on-surface-var); }
+.webui-frame {
+  flex: 1; border: none; width: 100%;
+  background: #121318;
+}

@@ -39,6 +39,10 @@ type Request struct {
 	Event   Event             `json:"event,omitempty"`
 	Params  map[string]string `json:"params,omitempty"`
 	Screen  Screen            `json:"screen,omitempty"`
+	// Store is the device-side (watch) storage snapshot the container uploads
+	// with every request (header X-Hydro-Store). Plugins read it for
+	// scope:'watch' kit.storage reads; writes go back in View.Storage.
+	Store map[string]any `json:"store,omitempty"`
 }
 
 // Host is the set of capabilities HydroKit exposes to a plugin. Milestone 1
