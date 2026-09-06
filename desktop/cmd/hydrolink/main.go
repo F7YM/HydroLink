@@ -27,10 +27,9 @@ func main() {
 	if listenPort == 0 {
 		listenPort = 9000
 	}
-	if *port != 0 && *port != cfg.LastPort {
-		cfg.LastPort = listenPort
-		_ = st.SaveConfig(cfg)
-	}
+	// NOTE: a -port flag only overrides THIS run. It is deliberately NOT
+	// persisted to cfg.LastPort — only a manual GUI port change updates the
+	// remembered port, so ad-hoc runs never change the default.
 
 	addr := fmt.Sprintf("0.0.0.0:%d", listenPort)
 	log.Printf("HydroLink desktop server v%s (api_level %d)", api.Version, api.APILevel)
