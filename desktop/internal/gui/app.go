@@ -58,14 +58,14 @@ func (a *App) Shutdown(ctx context.Context) {
 
 // Status is the snapshot shown on the status tab.
 type Status struct {
-	Version        string              `json:"version"`
-	APILevel       int                 `json:"apiLevel"`
-	Port           int                 `json:"port"`
-	IP             string              `json:"ip"`
-	DataDir        string              `json:"dataDir"`
-	AcceptAll      bool                `json:"acceptAll"`
-	EncryptionKey  string              `json:"encryptionKey"`
-	TrustedCount   int                 `json:"trustedCount"`
+	Version        string                `json:"version"`
+	APILevel       int                   `json:"apiLevel"`
+	Port           int                   `json:"port"`
+	IP             string                `json:"ip"`
+	DataDir        string                `json:"dataDir"`
+	AcceptAll      bool                  `json:"acceptAll"`
+	EncryptionKey  string                `json:"encryptionKey"`
+	TrustedCount   int                   `json:"trustedCount"`
 	TrustedDevices []store.TrustedDevice `json:"trustedDevices"`
 }
 
@@ -137,6 +137,65 @@ func (a *App) AddCommand(name, command string) error {
 // RemoveCommand deletes a quick command by index.
 func (a *App) RemoveCommand(index int) error {
 	return a.st.RemoveCommand(index)
+}
+
+// ---- HydroPlugins ----
+
+// builtinPlugins is the static list of in-process Go plugins (runtime demo).
+func builtinPlugins() []store.PluginInfo {
+	return []store.PluginInfo{{
+		ID:      "com.demo.weather",
+		Name:    "示例天气",
+		Version: "0.1.0",
+		Entry:   "内置（Go）",
+		Apps:    []store.PluginItem{{ID: "main", Name: "天气"}},
+		Widgets: []store.PluginItem{{ID: "now", Name: "当前天气", RefreshMs: 60000}},
+		Builtin: true,
+	}}
+}
+
+// GetPlugins returns the installed plugins plus the built-in ones.
+func (a *App) GetPlugins() []store.PluginInfo {
+	out := builtinPlugins()
+	out = append(out, a.st.ListPlugins()...)
+	return out
+}
+
+// InstallPlugin opens a file picker for an .hpk/.zip package, validates it and
+// installs it. Returns ErrPluginCanceled (store.ErrPluginCanceled) when the
+// user cancels the dialog.
+func (a *App) InstallPlugin() (store.PluginInfo, error) {
+	if a.ctx == nil {
+		return store.PluginInfo{}, fmt.Errorf("窗口尚未就绪")
+	}
+	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "选择 HydroPlugin 安装包",
+		Filters: []runtime.FileFilter{{
+			DisplayName: "HydroPlugin 安装包",
+			Pattern:     "*.hpk;*.zip",
+		}},
+	})
+	if err != nil {
+		return store.PluginInfo{}, err
+	}
+	if path == "" {
+		return store.PluginInfo{}, store.ErrPluginCanceled
+	}
+	info, err := a.st.InstallPlugin(path)
+	if err != nil {
+		return store.PluginInfo{}, err
+	}
+	a.srv.AddLog(fmt.Sprintf("已安装插件: %s v%s", info.ID, info.Version), "success")
+	return info, nil
+}
+
+// UninstallPlugin removes an installed plugin package.
+func (a *App) UninstallPlugin(id string) error {
+	if err := a.st.UninstallPlugin(id); err != nil {
+		return err
+	}
+	a.srv.AddLog("已卸载插件: "+id, "info")
+	return nil
 }
 
 // Settings holds the editable server settings.

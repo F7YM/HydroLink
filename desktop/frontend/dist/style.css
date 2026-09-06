@@ -383,3 +383,23 @@ input::placeholder { color: var(--md-outline); }
 .btn.danger-solid::after { background: #690005; }
 
 .modal-text { white-space: pre-line; }
+
+/* ---------- HydroPlugin tab ---------- */
+
+.card-actions {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 8px; flex-wrap: wrap;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.tag {
+  background: var(--md-surface-container);
+  color: var(--md-on-surface-var);
+  border-radius: 8px; padding: 1px 8px;
+  font-size: 11px; font-weight: 600;
+}
+.tag.permission { background: rgba(186, 195, 255, 0.14); color: #bac3ff; }
+.badge.builtin {
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
+  font-weight: 700;
+}

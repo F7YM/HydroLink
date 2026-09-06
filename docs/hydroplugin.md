@@ -182,18 +182,23 @@ HydroKit 路由（Go HTTP 服务）        ← 平台中立，与现有实现一
 - 节点 `media` 覆盖块：`{ "style": {...}, "media": { "<shape>": {...} } }`，容器按当前形状合并（shape 键：`circle`/`rect`/`pill`，后写覆盖先写）
 - 写法参考：demo 的根节点 `media.circle.padding=24`、`media.pill.padding=12`
 
-## 6. 存储 API（类 localStorage）
+## 6. 存储 API（手表端 / 服务端 二选一）
 
-Worker 里没有 `localStorage`，Kit 提供等价接口，**数据持久化在宿主端数据目录**（桌面：用户配置目录；安卓：应用数据目录——后续里程碑），应用重启后仍在：
+Worker 里没有 `localStorage`，Kit 提供等价接口，且**存储位置可选**：
+
+- `scope: 'server'`（默认）：存**服务端**——宿主应用数据目录（桌面：用户配置目录；安卓：应用数据目录），随宿主持久化
+- `scope: 'watch'`：存**手表端**——手表本机存储（Vela `@system.file` 的数据存储目录，参考 [Vela 数据存储文档](https://iot.mi.com/vela/quickapp/zh/features/data/file.html)），数据随手表设备走
 
 ```js
-await kit.storage.setItem('place', '上海')   // 任意可 JSON 序列化的值
-const v = await kit.storage.getItem('place') // '上海'；不存在返回 null
-await kit.storage.removeItem('place')
-await kit.storage.clear()
+await kit.storage.setItem('place', '上海', { scope: 'watch' })   // 手表端
+const v = await kit.storage.getItem('place', { scope: 'watch' }) // '上海'；不存在返回 null
+await kit.storage.removeItem('place', { scope: 'watch' })
+await kit.storage.clear({ scope: 'server' })
 ```
 
-语义类比 `localStorage`：同插件键值隔离；`setItem` 会持久化（异步，可 await）；支持字符串/数字/布尔/对象（自动序列化）。
+- 值：任意可 JSON 序列化的值（字符串/数字/布尔/对象），自动序列化
+- 语义类比 `localStorage`：同插件键值隔离、异步持久化（可 await）
+- 机制：`server` 端直接落盘宿主数据目录；`watch` 端经由 hydro 请求/响应协议同步——容器把手表端该插件的存储快照随请求上送（`req.storage`），响应里的 `storage` 提示字段由容器写入手的表端存储。插件代码层面无感知，`kit.storage` 接口两端一致
 
 ## 7. 能力 API 与权限
 

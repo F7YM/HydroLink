@@ -7,7 +7,7 @@
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
   let activeTab = "status";
-  const tabTitles = { status: "状态", pair: "配对", commands: "命令", settings: "设置", logs: "日志" };
+  const tabTitles = { status: "状态", pair: "配对", commands: "命令", plugins: "插件", settings: "设置", logs: "日志" };
 
   function switchTab(name) {
     activeTab = name;
@@ -174,11 +174,67 @@
     list.scrollTop = list.scrollHeight;
   }
 
+  // ---- plugins ----
+  async function loadPlugins() {
+    const plugins = await api("GetPlugins");
+    const list = $("pluginList");
+    $("pluginCount").textContent = plugins ? plugins.length : 0;
+    if (!plugins || plugins.length === 0) {
+      list.innerHTML = `<p class="empty">暂无插件，点击上方按钮安装 .hpk</p>`;
+      return;
+    }
+    list.innerHTML = plugins.map((p, i) => {
+      const apps = (p.apps || []).map((a) => `<span class="tag">app ${esc(a.id)}</span>`).join("");
+      const wids = (p.widgets || []).map((w) => `<span class="tag">widget ${esc(w.id)}</span>`).join("");
+      const perms = (p.permissions || []).map((x) => `<span class="tag permission">${esc(x)}</span>`).join("");
+      const meta = p.error
+        ? `<span class="sub" style="color:var(--md-error)">${esc(p.error)}</span>`
+        : `<span class="sub">${esc(p.id)} · v${esc(p.version)} · ${esc(p.entry)}${p.installedAt ? " · " + esc(p.installedAt) : ""}</span>`;
+      return `
+        <div class="item">
+          <div class="meta">
+            <span class="name">${esc(p.name || p.id)}${p.builtin ? ' <span class="badge builtin">内置</span>' : ""}</span>
+            ${meta}
+            <div class="chips">${apps}${wids}${perms}</div>
+          </div>
+          ${p.builtin
+            ? `<span class="muted">内置</span>`
+            : `<button class="danger" data-pdel="${esc(p.id)}">卸载</button>`}
+        </div>`;
+    }).join("");
+    list.querySelectorAll("[data-pdel]").forEach((b) =>
+      b.addEventListener("click", async () => {
+        await api("UninstallPlugin", b.dataset.pdel);
+        loadPlugins();
+      }));
+  }
+
+  $("pluginInstall").addEventListener("click", async () => {
+    const msg = $("pluginMsg");
+    msg.textContent = "";
+    try {
+      const app = B();
+      const info = await app.InstallPlugin();
+      if (info && info.id) {
+        msg.textContent = `已安装 ${info.name || info.id} v${info.version}`;
+        msg.style.color = "var(--md-primary)";
+      }
+    } catch (e) {
+      const text = String(e && e.message ? e.message : e);
+      if (text.includes("canceled")) { msg.textContent = ""; return; }
+      msg.textContent = text;
+      msg.style.color = "var(--md-error)";
+    }
+    setTimeout(() => { msg.textContent = ""; msg.style.color = ""; }, 4000);
+    loadPlugins();
+  });
+
   function refresh() {
     loadStatus();
     loadSettings();
     loadPending();
     loadCommands();
+    loadPlugins();
     loadLogs();
   }
 
