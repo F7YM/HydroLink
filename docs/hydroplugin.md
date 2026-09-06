@@ -151,7 +151,11 @@ module.exports = {
 ```
 
 - 返回值整体为 `{ "root": Node, "refreshMs": 0 }`；返回 `null` 表示"无变更"
-- **Widget 的表面形态**：`/api/hydro/{pkg}/widget/{item}/...` 与 app 表面同一套协议/容器渲染。手表上的呈现：HydroApps 启动器展示插件注册的**组件**条目（"组件"行），点击后由同一个 hydro 容器页渲染 widget 树并用其 `refreshMs` 轮询；widget 视图像 app 一样应包含导航节点（协议 §4 约定）
+- **Widget 的表面形态（卡片树）**：`/api/hydro/{pkg}/widget/{item}/...` 与 app 表面同一套路由/事件，但**渲染约束不同**——widget 树是"卡片树"：
+  - 允许节点：`column` / `row` / `text` / `icon` / `image` / `spinner` / `badge` / `button`；**禁用** `nav` / `scroll` / `input` / `switch`
+  - **卡片本身不跳转**（点卡片无动作）；`button` 可声明 `props.action:"open"` + `surface/item` → 点击跳转到该插件的 HydroApp（`/pages/hydro`），其余按钮/事件照常 POST 到 `.../event`
+  - 手表呈现：**设备信息页的"组件"卡片区**（音乐卡下方独立卡片，每个 widget 一张），按 `refreshMs` 轮询刷新（`/refresh`）；插件即使**只有 widget 没有 app** 也独立可用（卡片就是它的全部表面）
+  - HydroApps 启动器只列应用（widget 的唯一入口是设备信息页卡片）
 - **滚动由插件声明**：HydroApp 的根节点应为 `type:"scroll"`（容器只给树的纵向滚动容器，`scroll-y` + 回弹；根为其他类型时内容按流动布局，超高部分会被裁）。`scroll` 节点在树内嵌套位置当前按普通 column 处理（后续支持嵌套滚动）
 - **页面导航是插件的一部分**：协议节点 `type:"nav"`，`props`: `action:"back"|"open"`、`label`（默认 `‹`/`›`）、`surface`/`item`（仅 open 用，跳转到**同一插件**的另一表面/条目）。容器负责渲染与执行动作（back→返回、open→推入 hydro 页）；HydroApp 应包含导航节点，否则用户无法退出页面（容器只在加载/错误兜底态提供"‹ 返回"）
 - `view` 可以 `async`——Kit 等 Promise 完成
@@ -279,6 +283,7 @@ curl -X POST 'http://127.0.0.1:9000/api/hydro/com.demo.weather/app/main/view?sha
 - v0.1.1（2026-09-06）：§5 通道实现定为**长轮询**（poll/respond，无 WebSocket 依赖）；§2 生命周期补充"启动即建 + 按需唤起"。
 - v0.2（2026-09-06）：**watch 端存储落地**（§6 请求上下文语义：`X-Hydro-Store` 上送快照 / `view.storage` 落盘，容器与 bundle 已实现）；**插件 WebUI 落地**（§9：`web/` 同源服务 + 桌面端遮罩层内嵌）；示例插件更新为 v0.2（名字=watch 端、备注=server 端 + WebUI 设置页）。
 - v0.2.6（2026-09-06）：**Widget 表面落地**（手表呈现）——HydroApps 启动器新增"组件"条目，hydro 容器以 `surface=widget` 渲染并轮询 `refreshMs`；示例组件视图补导航节点。
+- v0.2.7（2026-09-06）：**Widget 卡片化**——按反馈迭代：组件入口从启动器行改为**设备信息页卡片区**（音乐卡下方独立卡片，卡片不跳转；`button action:'open'` 可跳转 HydroApp；widget 树定义"卡片树"白名单，禁用 nav/scroll/input/switch）；启动器只列应用；示例对齐（v0.2.4）。
 - v0.2.5（2026-09-06）：文档明确 item id 形式（URL 安全 slug，仅约定不校验）；桌面插件列表移除安装时间展示。
 - v0.2.3（2026-09-06）：**页面导航进协议**——新增 `type:"nav"` 节点（back/open），容器移除硬编码返回栏，插件声明自己的导航（§4）；天气示例带头声明。
 - v0.2.2（2026-09-06）：滚动改为**插件声明**——容器移除整页滚动，HydroApp 根节点需为 `type:"scroll"`（§4）；示例天气根节点同步更新。

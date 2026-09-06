@@ -1,3 +1,4 @@
+<import name="hydro-leaf" src="../../components/HydroLeaf/HydroLeaf"></import>
 <template>
   <div class="page-container">
     <!-- Header -->
@@ -144,6 +145,22 @@
               onclick="onMusicNext"
             >
               <image class="music-btn-icon" src="/common/icons/skip-next-custom.png"></image>
+            </div>
+          </div>
+        </div>
+
+        <!-- 组件卡片区（Widget 表面：独立卡片，音乐卡下方；卡片本身不跳转，按钮可跳转 HydroApp） -->
+        <div if="{{ hasWidgets }}" class="widgets-area">
+          <text class="widgets-title">组件</text>
+          <div for="{{ (wi, wc) in widgetCards }}" class="widget-card">
+            <text class="wcard-name">{{ wc.name }}</text>
+            <div for="{{ (i1, l1) in wc.ui }}" style="width: 100%">
+              <hydro-leaf if="{{ !l1.c }}" leaf="{{ l1 }}" @hydrotap="onCardTap" @change="onCardChange"></hydro-leaf>
+              <div if="{{ l1.c }}" class="wrow" style="{{ l1.s }}">
+                <div for="{{ (i2, l2) in l1.kids }}" style="width: 100%">
+                  <hydro-leaf leaf="{{ l2 }}" @hydrotap="onCardTap" @change="onCardChange"></hydro-leaf>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -379,6 +396,33 @@
   text-overflow: ellipsis;
   max-width: 260px;
 }
+
+/* ---- Widget Cards (组件卡片区) ---- */
+.widgets-area {
+  width: 400px;
+  margin-top: 16px;
+  flex-direction: column;
+}
+.widgets-title {
+  font-size: 22px;
+  font-weight: bold;
+  color: #888;
+  margin: 0 0 8px 10px;
+}
+.widget-card {
+  background-color: #2e323c;
+  border-radius: 28px;
+  padding: 16px 24px 18px 24px;
+  margin-bottom: 10px;
+  flex-direction: column;
+}
+.wcard-name {
+  font-size: 20px;
+  font-weight: bold;
+  color: #9aa2b1;
+  margin-bottom: 8px;
+}
+.wrow { flex-direction: row; align-items: center; }
 .music-controls {
   flex-direction: row;
   justify-content: center;
@@ -596,6 +640,92 @@ function getBatteryIcon(percent, charging) {
   return `battery-${tens}-custom`
 }
 
+// ---- 组件卡（Widget 表面）构建函数 ----
+const CARD_ICONS = {
+  play: '/common/icons/play-custom.png',
+  pause: '/common/icons/pause-custom.png',
+  next: '/common/icons/skip-next-custom.png',
+  prev: '/common/icons/skip-previous-custom.png',
+  music: '/common/icons/music-circle-custom.png',
+  lock: '/common/icons/lock-custom.png',
+  gauge: '/common/icons/gauge-custom.png',
+  battery: '/common/icons/battery-custom.png',
+  laptop: '/common/icons/laptop.png',
+  desktop: '/common/icons/desktop.png',
+  mobile: '/common/icons/mobile.png'
+}
+
+function cssVal(v) {
+  return typeof v === 'number' ? v + 'px' : String(v)
+}
+function toCss(o) {
+  if (!o || typeof o !== 'object') return ''
+  const parts = []
+  Object.keys(o).forEach((k) => {
+    const v = o[k]
+    if (v === null || v === undefined) return
+    parts.push((k === 'weight' ? 'font-weight' : k.replace(/([A-Z])/g, '-$1').toLowerCase()) + ': ' + cssVal(v))
+  })
+  return parts.join('; ')
+}
+
+// 卡片叶子：白名单（无 nav/scroll/input/switch）；button 支持 action:'open' 跳转 HydroApp
+function buildCardLeaf(n, plugin) {
+  const p = n.props || {}
+  const type = n.type || ''
+  const isText = type === 'text'
+  const isBtn = type === 'button'
+  const isBadge = type === 'badge'
+  const isSpin = type === 'spinner'
+  const isIcon = type === 'icon'
+  const isImg = type === 'image'
+  const open = p.action === 'open'
+  let st = toCss(n.style)
+  if (isText && !(n.style && typeof n.style.color === 'string')) {
+    st = 'color: #FFFFFF; ' + st
+  }
+  return {
+    c: false,
+    t: type,
+    s: st,
+    v: (type === 'input' ? (p.value || '') : (p.text || '')),
+    label: p.label || '',
+    placeholder: p.placeholder || '',
+    chk: !!(p.checked),
+    src: p.src || '',
+    iconSrc: isIcon ? (CARD_ICONS[p.name] || '') : '',
+    tap: (n.events && n.events.tap) || '',
+    change: (n.events && n.events.change) || '',
+    openAction: open ? 'open' : '',
+    openSurface: p.surface || 'app',
+    openItem: p.item || '',
+    plugin: plugin || '',
+    isText: isText,
+    isBtn: isBtn,
+    isSw: false,
+    isBadge: isBadge,
+    isSpin: isSpin,
+    isIcon: isIcon,
+    isImg: isImg,
+    isInput: false,
+    isNav: false,
+    isOther: !(isText || isBtn || isBadge || isSpin || isIcon || isImg)
+  }
+}
+
+function buildCard(n, plugin) {
+  if (!n) return null
+  const hasKids = !!(n.children && n.children.length)
+  if (hasKids) {
+    return {
+      c: true,
+      s: 'width: 100%; flex-direction: ' + (n.type === 'row' ? 'row' : 'column') + '; ' + toCss(n.style),
+      kids: n.children.map((c) => buildCardLeaf(c, plugin))
+    }
+  }
+  return buildCardLeaf(n, plugin)
+}
+
 export default {
   public: {
     deviceId: '',
@@ -616,7 +746,9 @@ export default {
     musicArtist: '',
     musicPlaying: false,
     pressedKey: '',
-    releasedKey: ''
+    releasedKey: '',
+    hasWidgets: false,
+    widgetCards: []
   },
 
   onInit() {
@@ -627,6 +759,7 @@ export default {
   onDestroy() {
     if (this._timeInterval) clearInterval(this._timeInterval)
     this.stopMusicPoll()
+    this.stopWidgetPoll()
   },
 
   async onShow() {
@@ -635,10 +768,122 @@ export default {
     await this.fetchStatus()
     this.fetchMusic()
     this.startMusicPoll()
+    this.loadWidgets()
   },
 
   onHide() {
     this.stopMusicPoll()
+    this.stopWidgetPoll()
+  },
+
+  // ---- 组件卡片（Widget 表面）----
+  async loadWidgets() {
+    this.stopWidgetPoll()
+    const host = this.device.host || ''
+    const port = this.device.port || 0
+    this.widgetCards = []
+    this.hasWidgets = false
+    if (!host) return
+    try {
+      const data = await deviceService.hydro(host, port, '/api/hydro/list', 'GET')
+      if (!data || !data.plugins) return
+      const cards = []
+      for (const plugin of data.plugins) {
+        for (const w of (plugin.widgets || [])) {
+          const pid = plugin.package.id
+          const view = await deviceService.hydro(host, port,
+            '/api/hydro/' + pid + '/widget/' + w.id + '/view', 'GET')
+          if (view && view.root) {
+            cards.push({
+              plugin: pid,
+              id: w.id,
+              name: w.name || w.id,
+              refreshMs: view.refreshMs || w.refreshMs || 0,
+              ui: (view.root.children || []).map((c) => buildCard(c, pid))
+            })
+          }
+        }
+      }
+      this.widgetCards = cards
+      this.hasWidgets = cards.length > 0
+      this._startWidgetPoll()
+    } catch (e) {
+      console.error('[deviceInfo] loadWidgets failed', e)
+    }
+  },
+
+  _startWidgetPoll() {
+    this.stopWidgetPoll()
+    this._widgetTimers = []
+    this.widgetCards.forEach((card) => {
+      if (card.refreshMs > 0) {
+        this._widgetTimers.push(setInterval(() => this._refreshWidget(card.plugin, card.id), card.refreshMs))
+      }
+    })
+  },
+
+  stopWidgetPoll() {
+    if (this._widgetTimers) {
+      this._widgetTimers.forEach((t) => clearInterval(t))
+      this._widgetTimers = []
+    }
+  },
+
+  async _refreshWidget(pkg, id) {
+    const host = this.device.host || ''
+    const port = this.device.port || 0
+    if (!host) return
+    const view = await deviceService.hydro(host, port,
+      '/api/hydro/' + pkg + '/widget/' + id + '/refresh', 'GET')
+    if (!view || !view.root) return
+    const idx = this.widgetCards.findIndex((c) => c.plugin === pkg && c.id === id)
+    if (idx >= 0) {
+      this.widgetCards.splice(idx, 1, Object.assign({}, this.widgetCards[idx], {
+        ui: (view.root.children || []).map((c) => buildCard(c, pkg))
+      }))
+    }
+  },
+
+  _unwrap(evt) {
+    return evt && evt.detail !== undefined && evt.detail !== null ? evt.detail : evt
+  },
+
+  // 卡片不默认跳转；仅按钮(action:'open')跳转 HydroApp；其余事件照常上报
+  onCardTap(evt) {
+    const leaf = this._unwrap(evt)
+    if (!leaf) return
+    if (leaf.openAction === 'open') {
+      router.push({
+        uri: '/pages/hydro',
+        params: {
+          plugin: leaf.plugin || '',
+          surface: leaf.openSurface || 'app',
+          item: leaf.openItem || '',
+          host: this.device.host || '',
+          port: String(this.device.port || 0),
+          deviceId: this.deviceId || ''
+        }
+      })
+      return
+    }
+    if (leaf.tap) {
+      deviceService.hydro(this.device.host || '', this.device.port || 0,
+        '/api/hydro/' + leaf.plugin + '/widget/' + this.widgetIdOfLeaf(leaf) + '/event',
+        'POST', { event: { handler: leaf.tap, source: 'tap' } })
+    }
+  },
+
+  onCardChange(evt) {
+    const leaf = this._unwrap(evt)
+    if (!leaf || !leaf.change) return
+    deviceService.hydro(this.device.host || '', this.device.port || 0,
+      '/api/hydro/' + leaf.plugin + '/widget/' + this.widgetIdOfLeaf(leaf) + '/event',
+      'POST', { event: { handler: leaf.change, source: 'change' } })
+  },
+
+  widgetIdOfLeaf(leaf) {
+    const card = this.widgetCards.find((c) => c.plugin === leaf.plugin)
+    return card ? card.id : ''
   },
 
   updateTime() {

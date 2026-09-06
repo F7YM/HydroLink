@@ -38,18 +38,7 @@
             <text class="app-name">{{ app.name || app.id }}</text>
             <text class="chevron">›</text>
           </div>
-          <div
-            for="{{ (wi, w) in plugin.widgets }}"
-            class="widget-row pressable {{ pressedKey === 'widget_' + pi + '_' + wi ? 'is-down press-down' : '' }} {{ releasedKey === 'widget_' + pi + '_' + wi ? 'press-up' : '' }}"
-            ontouchstart="pressDown('widget_' + pi + '_' + wi)"
-            ontouchend="pressRelease('widget_' + pi + '_' + wi)"
-            ontouchcancel="pressCancel('widget_' + pi + '_' + wi)"
-            onclick="openWidget(plugin.package.id, w.id, w.name)"
-          >
-            <text class="app-name">{{ w.name || w.id }}</text>
-            <text class="widget-tag">组件</text>
-            <text class="chevron">›</text>
-          </div>
+
         </div>
       </div>
     </scroll>
@@ -94,15 +83,7 @@
   background-color: #2e323c; border-radius: 42px;
   flex-direction: row; justify-content: space-between; align-items: center;
   padding: 0 24px; margin-bottom: 8px;
-}
-.widget-row {
-  width: 100%; height: 66px;
-  background-color: #23262e; border-radius: 33px;
-  flex-direction: row; align-items: center;
-  padding: 0 24px; margin-bottom: 8px;
-}
-.widget-tag { font-size: 18px; color: #9aa2b1; margin-right: 8px; }
-.app-name { font-size: 26px; font-weight: bold; color: #fff; }
+}.app-name { font-size: 26px; font-weight: bold; color: #fff; }
 .chevron { font-size: 30px; color: #888; }
 
 .pressable { transform-origin: 50% 50%; transform: scale(1); opacity: 1; }
@@ -167,10 +148,9 @@ export default {
       this.errorText = '加载失败，请检查服务端'
       return
     }
-    this.plugins = data.plugins.filter((p) =>
-      (p.apps && p.apps.length > 0) || (p.widgets && p.widgets.length > 0))
+    this.plugins = data.plugins.filter((p) => p.apps && p.apps.length > 0)
     if (this.plugins.length === 0) {
-      this.emptyText = '暂无 HydroApps / 组件'
+      this.emptyText = '暂无 HydroApps'
     }
   },
 
@@ -181,20 +161,6 @@ export default {
         plugin: packageId,
         surface: 'app',
         item: appId,
-        host: this.host || '',
-        port: String(this.port || 0),
-        deviceId: this.deviceId || ''
-      }
-    })
-  },
-
-  openWidget(packageId, widgetId, widgetName) {
-    router.push({
-      uri: '/pages/hydro',
-      params: {
-        plugin: packageId,
-        surface: 'widget',
-        item: widgetId,
         host: this.host || '',
         port: String(this.port || 0),
         deviceId: this.deviceId || ''
