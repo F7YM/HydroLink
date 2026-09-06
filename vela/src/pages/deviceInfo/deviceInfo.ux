@@ -151,7 +151,7 @@
 
         <!-- 组件卡片区（Widget 表面：独立卡片，音乐卡下方；卡片本身不跳转，按钮可跳转 HydroApp） -->
         <div if="{{ hasWidgets }}" class="widgets-area">
-          <text class="widgets-title">组件</text>
+          <text class="widgets-title">HydroWidget</text>
           <div for="{{ (wi, wc) in widgetCards }}" class="widget-card">
             <text class="wcard-name">{{ wc.name }}</text>
             <div for="{{ (i1, l1) in wc.ui }}" style="width: 100%">
@@ -410,6 +410,7 @@
   margin: 0 0 8px 10px;
 }
 .widget-card {
+  width: 100%;
   background-color: #2e323c;
   border-radius: 28px;
   padding: 16px 24px 18px 24px;
