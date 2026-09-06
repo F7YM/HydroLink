@@ -25,13 +25,13 @@
               <!-- L2 容器 -->
               <div if="{{ l2.c }}" style="{{ l2.s }}">
                 <div for="{{ (i3, l3) in l2.kids }}" style="{{ l3.grow ? 'flex-grow: 1' : '' }}">
-                  <hydro-leaf leaf="{{ l3 }}" onhydrotap="leafTap" onchange="leafChange" onhydroinput="leafInput"></hydro-leaf>
+                  <hydro-leaf leaf="{{ l3 }}" @hydrotap="leafTap" @change="leafChange" @hydroinput="leafInput"></hydro-leaf>
                 </div>
               </div>
-              <hydro-leaf if="{{ !l2.c }}" leaf="{{ l2 }}" onhydrotap="leafTap" onchange="leafChange" onhydroinput="leafInput"></hydro-leaf>
+              <hydro-leaf if="{{ !l2.c }}" leaf="{{ l2 }}" @hydrotap="leafTap" @change="leafChange" @hydroinput="leafInput"></hydro-leaf>
             </div>
           </div>
-          <hydro-leaf if="{{ !l1.c }}" leaf="{{ l1 }}" onhydrotap="leafTap" onchange="leafChange" onhydroinput="leafInput"></hydro-leaf>
+          <hydro-leaf if="{{ !l1.c }}" leaf="{{ l1 }}" @hydrotap="leafTap" @change="leafChange" @hydroinput="leafInput"></hydro-leaf>
         </div>
       </div>
     </scroll>
