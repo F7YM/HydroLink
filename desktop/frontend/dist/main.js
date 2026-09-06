@@ -198,9 +198,15 @@
     });
   }
 
-  async function ensureWorker(id) {
+  async function ensureWorker(id, version) {
     const cur = workers[id];
-    if (cur && (cur.worker || cur.starting)) return;
+    // 版本变化：终止旧 worker，用新代码重建（插件重装/更新后即时生效）
+    if (cur && cur.worker && version && cur.version === version) return;
+    if (cur && cur.worker) {
+      try { cur.worker.terminate(); } catch (e) {}
+      delete workers[id];
+    }
+    if (cur && cur.starting) return; // 正在拉取新 bundle，等待完成
     try {
       const app = B();
       if (!app || !app.GetPluginBundle) throw new Error("Wails 绑定未就绪");
@@ -212,7 +218,7 @@
       if (!bundle) throw new Error("插件代码为空");
       const blob = new Blob([bundle], { type: "text/javascript" });
       const w = new Worker(URL.createObjectURL(blob));
-      const entry = { worker: w, status: "启动中" };
+      const entry = { worker: w, status: "启动中", version: version };
       workers[id] = entry;
       w.onmessage = (e) => {
         if (!workers[id]) return;
@@ -292,7 +298,7 @@
           delete workers[id];
         }
       });
-      plugins.filter((p) => !p.builtin).forEach((p) => ensureWorker(p.id));
+      plugins.filter((p) => !p.builtin).forEach((p) => ensureWorker(p.id, p.version));
     }
   }
 
