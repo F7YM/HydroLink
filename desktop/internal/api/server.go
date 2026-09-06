@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"hydrolink-desktop/internal/hydrokit"
 	"hydrolink-desktop/internal/store"
 	"hydrolink-desktop/internal/system"
 )
@@ -48,6 +49,14 @@ type Server struct {
 	// /api/hydro/...). This keeps the route surface fixed as plugins grow.
 	hydro http.Handler
 
+	// worker is the HydroKit plugin-worker channel (optional; mounted under
+	// /api/hydro/worker/...). Handled before the hydro dispatcher so worker
+	// endpoints never collide with plugin routes.
+	worker http.Handler
+
+	// workerBridge is the WorkerBridge used by JS plugins (for wake events).
+	workerBridge *hydrokit.WorkerBridge
+
 	// pairCallback, when set, is invoked for every NEW pending pairing
 	// request (used by the desktop GUI for popups/notifications).
 	pairCallback func(deviceID, deviceName string)
@@ -67,6 +76,23 @@ func (s *Server) SetPairCallback(fn func(deviceID, deviceName string)) {
 // /api/hydro/... (see the "hydro" field).
 func (s *Server) SetHydroHandler(h http.Handler) {
 	s.hydro = h
+}
+
+// SetWorkerHandler mounts the plugin-worker channel under
+// /api/hydro/worker/... (see the "worker" field).
+func (s *Server) SetWorkerHandler(h http.Handler) {
+	s.worker = h
+}
+
+// SetWorkerBridge records the WorkerBridge backing JS plugins (GUI uses it to
+// hook wake events).
+func (s *Server) SetWorkerBridge(b *hydrokit.WorkerBridge) {
+	s.workerBridge = b
+}
+
+// WorkerBridge returns the bridge backing JS plugins (nil when unset).
+func (s *Server) WorkerBridge() *hydrokit.WorkerBridge {
+	return s.workerBridge
 }
 
 // AddLog appends a log entry (kept for the desktop GUI) and mirrors it to
@@ -159,6 +185,14 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	// Strip trailing slash (except root)
 	if len(path) > 1 && strings.HasSuffix(path, "/") {
 		path = strings.TrimSuffix(path, "/")
+	}
+
+	// Worker channel is internal to the plugin runtime and is handled before
+	// the plugin dispatcher, so a plugin package named "worker" can never
+	// shadow it.
+	if s.worker != nil && strings.HasPrefix(path, "/api/hydro/worker/") {
+		s.worker.ServeHTTP(w, r)
+		return
 	}
 
 	// Delegate HydroKit plugin API to its own dispatcher.

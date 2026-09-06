@@ -53,6 +53,12 @@ var ErrPluginCanceled = errors.New("canceled")
 
 var pluginIDRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{1,120}$`)
 
+// NewIn creates a new Store rooted at an explicit directory (tests, embedded
+// runtimes). Callers are responsible for directory creation.
+func NewIn(dir string) *Store {
+	return &Store{dir: dir}
+}
+
 // PluginsDir returns the directory where plugin packages are installed
 // (one subdirectory per plugin id).
 func (s *Store) PluginsDir() string {
@@ -213,6 +219,82 @@ func (s *Store) UninstallPlugin(id string) error {
 		return fmt.Errorf("插件不存在: %s", id)
 	}
 	return os.RemoveAll(target)
+}
+
+// GetPluginManifest reads and parses plugins/{id}/manifest.json.
+func (s *Store) GetPluginManifest(id string) (*PluginManifest, error) {
+	raw, err := os.ReadFile(filepath.Join(s.PluginsDir(), id, "manifest.json"))
+	if err != nil {
+		return nil, err
+	}
+	var m PluginManifest
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return nil, fmt.Errorf("manifest.json: %w", err)
+	}
+	if m.ID == "" {
+		m.ID = id
+	}
+	return &m, nil
+}
+
+// ---- plugin key-value storage (server scope) ----
+
+// PluginKVFile returns the storage file path for a plugin's server-scope KV.
+func (s *Store) PluginKVFile(id string) string {
+	return filepath.Join(s.dir, "plugins-storage", id+".json")
+}
+
+// LoadPluginKV loads the plugin's server-scope key-value map (missing file
+// returns an empty map).
+func (s *Store) LoadPluginKV(id string) (map[string]any, error) {
+	raw, err := os.ReadFile(s.PluginKVFile(id))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return map[string]any{}, nil
+		}
+		return nil, err
+	}
+	kv := map[string]any{}
+	if err := json.Unmarshal(raw, &kv); err != nil {
+		return nil, err
+	}
+	return kv, nil
+}
+
+// SavePluginKV persists the plugin's server-scope key-value map.
+func (s *Store) SavePluginKV(id string, kv map[string]any) error {
+	if !pluginIDRe.MatchString(id) {
+		return fmt.Errorf("无效的插件 ID: %q", id)
+	}
+	if err := os.MkdirAll(filepath.Dir(s.PluginKVFile(id)), 0o755); err != nil {
+		return err
+	}
+	data, err := json.Marshal(kv)
+	if err != nil {
+		return err
+	}
+	tmp := s.PluginKVFile(id) + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, s.PluginKVFile(id))
+}
+
+// ReadPluginFile reads a file from inside a plugin package, refusing paths
+// that escape the plugin directory.
+func (s *Store) ReadPluginFile(id, rel string) ([]byte, error) {
+	clean := filepath.Clean(filepath.FromSlash(rel))
+	if clean == "." || filepath.IsAbs(clean) ||
+		strings.HasPrefix(clean, ".."+string(filepath.Separator)) || clean == ".." {
+		return nil, fmt.Errorf("非法路径: %s", rel)
+	}
+	root := filepath.Join(s.PluginsDir(), id)
+	full := filepath.Join(root, clean)
+	if filepath.Dir(full) != root &&
+		!strings.HasPrefix(filepath.Dir(full), root+string(filepath.Separator)) {
+		return nil, fmt.Errorf("非法路径: %s", rel)
+	}
+	return os.ReadFile(full)
 }
 
 // ---- zip helpers ----

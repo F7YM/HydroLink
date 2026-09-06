@@ -47,11 +47,11 @@ type Store struct {
 
 	dir string
 
-	trustedFile   string
-	commandsFile  string
-	configFile    string
-	rejectedFile  string
-	pendingFile   string
+	trustedFile  string
+	commandsFile string
+	configFile   string
+	rejectedFile string
+	pendingFile  string
 }
 
 // New returns a Store rooted at the platform-appropriate data directory

@@ -175,6 +175,49 @@
   }
 
   // ---- plugins ----
+  // Dedicated WebWorker per installed plugin: it long-polls the Kit worker
+  // channel and executes the plugin's server.js (blob worker from the bundle
+  // returned by GetPluginBundle).
+  const workers = {}; // id -> { worker, status }
+
+  function workerStatus(id) {
+    const e = workers[id];
+    return e ? e.status : "未启动";
+  }
+
+  function updateWorkerTags() {
+    document.querySelectorAll("[data-pw]").forEach((el) => {
+      el.textContent = workerStatus(el.dataset.pw);
+    });
+  }
+
+  async function ensureWorker(id) {
+    const cur = workers[id];
+    if (cur && cur.worker) return;
+    try {
+      const app = B();
+      const bundle = await app.GetPluginBundle(id);
+      if (!bundle) throw new Error("无法获取插件代码");
+      const blob = new Blob([bundle], { type: "text/javascript" });
+      const w = new Worker(URL.createObjectURL(blob));
+      workers[id] = { worker: w, status: "启动中" };
+      w.onmessage = (e) => {
+        if (!workers[id]) return;
+        if (e.data && e.data.type === "ready") workers[id].status = "在线";
+        else if (e.data && e.data.type === "error") workers[id].status = "错误";
+        updateWorkerTags();
+      };
+      w.onerror = () => {
+        if (workers[id]) { workers[id].status = "错误"; updateWorkerTags(); }
+      };
+      updateWorkerTags();
+    } catch (e) {
+      console.error("worker start failed", id, e);
+      workers[id] = { worker: null, status: "错误" };
+      updateWorkerTags();
+    }
+  }
+
   async function loadPlugins() {
     const plugins = await api("GetPlugins");
     const list = $("pluginList");
@@ -190,12 +233,15 @@
       const meta = p.error
         ? `<span class="sub" style="color:var(--md-error)">${esc(p.error)}</span>`
         : `<span class="sub">${esc(p.id)} · v${esc(p.version)} · ${esc(p.entry)}${p.installedAt ? " · " + esc(p.installedAt) : ""}</span>`;
+      const stat = p.builtin
+        ? ""
+        : `<span class="tag" data-pw="${esc(p.id)}">${esc(workerStatus(p.id))}</span>`;
       return `
         <div class="item">
           <div class="meta">
             <span class="name">${esc(p.name || p.id)}${p.builtin ? ' <span class="badge builtin">内置</span>' : ""}</span>
             ${meta}
-            <div class="chips">${apps}${wids}${perms}</div>
+            <div class="chips">${stat}${apps}${wids}${perms}</div>
           </div>
           ${p.builtin
             ? `<span class="muted">内置</span>`
@@ -207,6 +253,10 @@
         await api("UninstallPlugin", b.dataset.pdel);
         loadPlugins();
       }));
+    // Keep every installed JS plugin's worker alive for watch requests.
+    if (plugins) {
+      plugins.filter((p) => !p.builtin).forEach((p) => ensureWorker(p.id));
+    }
   }
 
   $("pluginInstall").addEventListener("click", async () => {
@@ -288,6 +338,7 @@
 
   if (window.runtime && window.runtime.EventsOn) {
     window.runtime.EventsOn("pair:request", (pair) => showPairModal(pair || {}));
+    window.runtime.EventsOn("plugins:wake", (id) => { if (id) ensureWorker(String(id)); });
   }
 
   refresh();

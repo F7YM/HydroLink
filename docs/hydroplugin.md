@@ -32,8 +32,8 @@ HydroLink 桌面应用（Wails WebView）
 - **可用**：`async/await`、`Promise`、`WebAssembly`（可选 WASM）、Kit 提供的 API（见 §6、§7）
 - **不可用**：DOM、Node.js 核心模块（`fs`/`http`/`net`/`os`…）、`localStorage`（存储用 Kit 的 `storage` API，见 §6）
 - **网络**：插件可 `fetch` 外网与本机服务（受 §7 权限约束）；对外服务所需的"被调用"通道由 Kit 提供（见 §5），插件无需自建监听
-- **生命周期**：随应用运行；**按需唤起**——手表打开插件应用时，若对应 Worker 未启动，Kit 自动启动它
-- **headless 限制**：`cmd/hydrolink`（无 GUI）没有 WebView，不运行 JS 插件，只运行 Go 内嵌插件（会打印跳过提示）
+- **生命周期**：随应用运行；**按需唤起**——应用启动时创建全部已安装插件的 Worker；若某插件 Worker 未运行而请求到达，Kit 通知宿主拉起它（本次请求返回"Worker 离线"，重试即成功）
+- **headless 限制**：`cmd/hydrolink`（无 GUI）没有 WebView，不运行 JS 插件（其请求返回离线错误），只运行 Go 内嵌插件（启动日志会打印跳过提示）
 
 ### 2.2 文档就是运行环境约定
 
@@ -161,20 +161,26 @@ Vela 手表 / 任意客户端
    ▼
 HydroKit 路由（Go HTTP 服务）        ← 平台中立，与现有实现一致
    │  插件为 JS 插件时：
-   │  ① 若该插件 Worker 未启动 → 通知空壳页启动（按需唤起）
-   │  ② 把请求打包为消息，沿该插件的通道发给 Worker
-   │  （Worker 启动时主动 WebSocket 连入 Kit：ws://127.0.0.1:{port}/hydro/worker/ws?package={id}）
+   │  ① 若该插件 Worker 未启动 → 通知宿主拉起它（按需唤起；本次请求返回"离线"）
+   │  ② 把请求打包为消息，放入该插件的待取队列
+   │  （Worker 启动时对 Kit 长轮询：GET /api/hydro/worker/poll?package={id}）
    │  ③ Worker 运行 server.js → 返回树 JSON
-   │  ④ Kit 沿原通道收结果 → 完成 HTTP 响应
+   │  ④ Worker POST /api/hydro/worker/respond 回传 → Kit 完成 HTTP 响应
    ▼
 客户端拿到组件树（Vela 渲染；桌面 Web 表面后续里程碑）
 ```
 
 要点：
 
-- **Worker 不能监听端口**，因此通道由 Worker 主动发起（WebSocket），Kit 反向复用推送请求——空壳页不参与消息中转，只负责创建 Worker/展示 UI
+- **Worker 不能监听端口**，因此通道由 Worker 主动发起（**长轮询**）：Worker 持续 `poll` 拉取待处理请求、`respond` 回传结果——仅用标准 `fetch`，不依赖 WebSocket，安卓 WebView 与桌面 WebView 行为一致
+- **Kit 内部端点**（`/api/hydro/worker/`，均为 Kit 运行时专用，插件无需感知）：
+  - `GET /poll?package=`：请求队列长轮询（25s 窗口）
+  - `POST /respond`：回传 view 结果或错误
+  - `POST /store`：`kit.storage`（§6，权限 `storage`）
+  - `POST /notify`、`/music`、`/lock`、`/commands`：能力 API（§7，按清单权限校验）
+  - `GET /asset?package=&path=`：插件包内文件（`kit.loadWasm`/图片，防目录逃逸）
 - 各插件 **Worker 相互隔离**（一个插件一个 Worker，崩溃不影响其他插件与应用）
-- 命令式 API（`notify` 等，§7）由 Worker 侧直连 Kit 的服务接口（同一条通道或本机 HTTP），不需要二次中转
+- Worker 引导脚本由 Kit 生成（`GetPluginBundle`：CommonJS shim + `kit` 全局 + 轮询泵），前端用 Blob Worker 实例化，前端不参与消息转发
 
 ### 5.2 多屏适配
 
@@ -199,6 +205,7 @@ await kit.storage.clear({ scope: 'server' })
 - 值：任意可 JSON 序列化的值（字符串/数字/布尔/对象），自动序列化
 - 语义类比 `localStorage`：同插件键值隔离、异步持久化（可 await）
 - 机制：`server` 端直接落盘宿主数据目录；`watch` 端经由 hydro 请求/响应协议同步——容器把手表端该插件的存储快照随请求上送（`req.storage`），响应里的 `storage` 提示字段由容器写入手的表端存储。插件代码层面无感知，`kit.storage` 接口两端一致
+- 实现状态：**`scope:'server'` 已可用**；`scope:'watch'` 返回"待容器协议里程碑接入"（当前版本 501，接口与语义已固定）
 
 ## 7. 能力 API 与权限
 
@@ -253,3 +260,4 @@ curl -X POST 'http://127.0.0.1:9000/api/hydro/com.demo.weather/app/main/view?sha
 ## 版本记录
 
 - v0.1（草案，2026-09-06）：首版规范。与桌面 HydroKit Go 实现同步演进；实现与本文档冲突时以本文档为准（需评审修订）。
+- v0.1.1（2026-09-06）：§5 通道实现定为**长轮询**（poll/respond，无 WebSocket 依赖）；§2 生命周期补充"启动即建 + 按需唤起"；§6 标注 watch 端存储实现状态（v1 仅 server 端，watch 接口已定、随容器协议里程碑接入）。

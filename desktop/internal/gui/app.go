@@ -10,6 +10,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"hydrolink-desktop/internal/api"
+	"hydrolink-desktop/internal/hydrokit"
 	"hydrolink-desktop/internal/store"
 )
 
@@ -32,6 +33,13 @@ func (a *App) Startup(ctx context.Context) {
 	a.srv.AddLog("桌面端已启动", "success")
 	// Popup + system notification on every new pairing request.
 	a.srv.SetPairCallback(a.onPairRequest)
+	// Plugin workers live in this webview; when a request arrives for an
+	// offline JS plugin, ask the frontend to spawn its worker.
+	if b := a.srv.WorkerBridge(); b != nil {
+		b.SetOnNeedWake(func(pkg string) {
+			runtime.EventsEmit(ctx, "plugins:wake", pkg)
+		})
+	}
 }
 
 // onPairRequest fires whenever the API server records a new pending pair.
@@ -196,6 +204,25 @@ func (a *App) UninstallPlugin(id string) error {
 	}
 	a.srv.AddLog("已卸载插件: "+id, "info")
 	return nil
+}
+
+// GetPluginBundle returns the self-contained WebWorker script (bootstrap +
+// the plugin's server.js) for a package, ready to run via Blob Worker.
+func (a *App) GetPluginBundle(id string) (string, error) {
+	m, err := a.st.GetPluginManifest(id)
+	if err != nil {
+		return "", err
+	}
+	entry := m.Entry
+	if entry == "" {
+		entry = "server.js"
+	}
+	code, err := a.st.ReadPluginFile(id, entry)
+	if err != nil {
+		return "", fmt.Errorf("读取入口 %s 失败: %v", entry, err)
+	}
+	base := fmt.Sprintf("http://127.0.0.1:%d", a.port)
+	return string(hydrokit.WorkerBundle(id, string(code), base)), nil
 }
 
 // Settings holds the editable server settings.

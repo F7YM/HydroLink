@@ -9,9 +9,9 @@ import (
 
 // ShellResult carries the outcome of a shell command execution.
 type ShellResult struct {
-	Success    bool
-	ExitCode   int
-	Output     string
+	Success  bool
+	ExitCode int
+	Output   string
 }
 
 // RunCommand executes a command through the platform shell and returns its
