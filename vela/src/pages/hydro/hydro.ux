@@ -16,7 +16,7 @@
     </div>
 
     <!-- 组件树（容器最多三层嵌套，叶子由 hydro-leaf 渲染） -->
-    <scroll class="hscroll" scroll-y="true" show="{{ !loading && !errorText }}">
+    <scroll class="hscroll" scroll-y="true" bounces="true" show="{{ !loading && !errorText }}">
       <div class="safe {{ safeClass }}">
       <div class="content" style="{{ contentStyle }}">
         <div for="{{ (i1, l1) in ui }}" style="{{ l1.grow ? 'flex-grow: 1' : '' }}">

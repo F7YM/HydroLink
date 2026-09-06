@@ -19,8 +19,11 @@
     <div class="center-area" if="{{ errorText }}">
       <text class="err">{{ errorText }}</text>
     </div>
+    <div class="center-area" if="{{ emptyText }}">
+      <text class="empty-text">{{ emptyText }}</text>
+    </div>
 
-    <scroll class="scroll-area" scroll-y="true" show="{{ !loading && !errorText }}">
+    <scroll class="scroll-area" scroll-y="true" bounces="true" show="{{ !loading && !errorText && !emptyText }}">
       <div class="list">
         <div for="{{ (pi, plugin) in plugins }}">
           <text class="plugin-name">{{ plugin.package.name || plugin.package.id }}</text>
@@ -67,6 +70,7 @@
 .spin { width: 56px; height: 56px; }
 .hint { color: #888; font-size: 20px; margin-top: 8px; }
 .err { color: #ffb4ab; font-size: 24px; }
+.empty-text { color: #9aa2b1; font-size: 24px; }
 .scroll-area { position: absolute; top: 90px; bottom: 0; left: 0; right: 0; }
 .list { width: 100%; flex-direction: column; padding: 10px 20px 30px; }
 .plugin-name {
@@ -114,6 +118,7 @@ export default {
     plugins: [],
     loading: true,
     errorText: '',
+    emptyText: '',
     pressedKey: '',
     releasedKey: ''
   },
@@ -136,6 +141,7 @@ export default {
   async load() {
     this.loading = true
     this.errorText = ''
+    this.emptyText = ''
     const data = await deviceService.hydro(this.host, this.port, '/api/hydro/list', 'GET')
     this.loading = false
     if (!data || !data.plugins) {
@@ -144,7 +150,7 @@ export default {
     }
     this.plugins = data.plugins.filter((p) => p.apps && p.apps.length > 0)
     if (this.plugins.length === 0) {
-      this.errorText = '暂无 HydroApps'
+      this.emptyText = '暂无 HydroApps'
     }
   },
 
