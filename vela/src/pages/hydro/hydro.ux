@@ -124,8 +124,7 @@ function toCssStyle(obj) {
   return parts.join('; ')
 }
 
-// 按屏幕上下文合并节点的 media 覆盖：base style < shape 键 < narrow 键
-// （media 键：circle/rect/pill 形状键 + narrow 宽度类键，见协议文档）
+// 按屏幕形状合并且节点的 media 覆盖：base style < 形状键（circle/rect/pill）
 function resolveStyle(n, ctx) {
   const style = Object.assign({}, n.style || {})
   const media = n.media
@@ -135,7 +134,6 @@ function resolveStyle(n, ctx) {
     Object.keys(m).forEach((k) => { style[k] = m[k] })
   }
   if (ctx.shape && media[ctx.shape]) apply(media[ctx.shape])
-  if (ctx.narrow && media.narrow) apply(media.narrow)
   return style
 }
 
@@ -261,16 +259,8 @@ export default {
     return v
   },
 
-  // 屏幕 DP 宽 < 180 视为窄屏（手环/胶囊屏）；dpr 缺失时按物理宽近似
-  _isNarrow() {
-    const sc = this._screen
-    if (!sc) return false
-    if (sc.dpr > 0 && sc.width > 0) return sc.width / sc.dpr < 180
-    return sc.width > 0 && sc.width < 340
-  },
-
   _screenCtx() {
-    return { shape: this._screen ? this._screen.shape : '', narrow: this._isNarrow() }
+    return { shape: this._screen ? this._screen.shape : '' }
   },
 
   onDestroy() {

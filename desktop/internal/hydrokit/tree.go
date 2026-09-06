@@ -18,13 +18,12 @@
 //     Request.Screen and may build different trees per screen.
 //
 //   - A node may also declare declarative style overrides via "media", keyed
-//     by screen shape (circle/rect/pill) or the width class "narrow" (screen
-//     width < 180dp, dp = width/dpr). The container merges them over the base
-//     style in this priority (later wins per property): base style < shape
-//     key < narrow key. Unknown keys are ignored.
+//     by screen shape (circle/rect/pill). The container merges them over the
+//     base style, later keys winning per property: base style < shape key.
+//     Unknown keys are ignored.
 //
 //     { "type":"text", "style":{"fontSize":28},
-//     "media":{"pill":{"fontSize":22},"narrow":{"fontSize":20}} }
+//     "media":{"circle":{"fontSize":26},"pill":{"fontSize":22}} }
 package hydrokit
 
 import "encoding/json"
@@ -97,7 +96,7 @@ func (n *Node) On(event, handler string) *Node {
 }
 
 // MediaSet adds per-screen style overrides under a match tag (circle/rect/
-// pill/narrow); it merges into any existing overrides for that tag.
+// pill); it merges into any existing overrides for that tag.
 func (n *Node) MediaSet(tag string, style map[string]any) *Node {
 	if n.Media == nil {
 		n.Media = map[string]map[string]any{}

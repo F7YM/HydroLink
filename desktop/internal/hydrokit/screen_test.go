@@ -73,8 +73,8 @@ func TestNodeMediaJSONRoundtrip(t *testing.T) {
 		Style: map[string]any{"fontSize": 28, "color": "#FFFFFF"},
 		Props: map[string]any{"text": "hi"},
 		Media: map[string]map[string]any{
-			"pill":   {"fontSize": 22},
-			"narrow": {"fontSize": 20, "color": "#D6DCE8"},
+			"circle": {"fontSize": 26},
+			"pill":   {"fontSize": 22, "color": "#D6DCE8"},
 		},
 	}
 	data, err := json.Marshal(n)
@@ -92,21 +92,21 @@ func TestNodeMediaJSONRoundtrip(t *testing.T) {
 	if string(data) != string(data2) {
 		t.Fatalf("roundtrip mismatch:\n%s\n%s", data, data2)
 	}
-	if _, ok := back.Media["narrow"]["fontSize"].(float64); !ok {
-		t.Fatalf("narrow.fontSize type = %T, want float64", back.Media["narrow"]["fontSize"])
+	if _, ok := back.Media["circle"]["fontSize"].(float64); !ok {
+		t.Fatalf("circle.fontSize type = %T, want float64", back.Media["circle"]["fontSize"])
 	}
 }
 
 func TestMediaSetHelper(t *testing.T) {
-	n := New(TypeText).MediaSet("pill", map[string]any{"fontSize": 22})
-	n.MediaSet("pill", map[string]any{"color": "#FFF"}).MediaSet("narrow", map[string]any{"fontSize": 20})
-	if len(n.Media["pill"]) != 2 {
-		t.Fatalf("pill media = %+v, want 2 keys", n.Media["pill"])
+	n := New(TypeText).MediaSet("circle", map[string]any{"fontSize": 26})
+	n.MediaSet("circle", map[string]any{"color": "#FFF"}).MediaSet("pill", map[string]any{"fontSize": 22})
+	if len(n.Media["circle"]) != 2 {
+		t.Fatalf("circle media = %+v, want 2 keys", n.Media["circle"])
 	}
-	if n.Media["pill"]["fontSize"] != 22 || n.Media["pill"]["color"] != "#FFF" {
+	if n.Media["circle"]["fontSize"] != 26 || n.Media["circle"]["color"] != "#FFF" {
+		t.Fatalf("circle media = %+v", n.Media["circle"])
+	}
+	if n.Media["pill"]["fontSize"] != 22 {
 		t.Fatalf("pill media = %+v", n.Media["pill"])
-	}
-	if n.Media["narrow"]["fontSize"] != 20 {
-		t.Fatalf("narrow media = %+v", n.Media["narrow"])
 	}
 }
