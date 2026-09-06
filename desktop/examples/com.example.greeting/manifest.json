@@ -1,9 +1,0 @@
-{
-  "id": "com.example.greeting",
-  "name": "示例问候",
-  "version": "0.2.0",
-  "entry": "server.js",
-  "apps": [{ "id": "main", "name": "问候" }],
-  "widgets": [],
-  "permissions": ["storage", "notify"]
-}

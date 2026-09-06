@@ -1,0 +1,9 @@
+{
+  "id": "com.demo.weather",
+  "name": "示例天气",
+  "version": "0.2.0",
+  "entry": "server.js",
+  "apps": [{ "id": "main", "name": "天气" }],
+  "widgets": [{ "id": "now", "name": "当前天气", "refreshMs": 60000 }],
+  "permissions": ["storage", "notify"]
+}

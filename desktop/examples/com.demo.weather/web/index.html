@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>示例问候 · 设置</title>
+  <title>示例天气 · 设置</title>
   <style>
     * { box-sizing: border-box; margin: 0; }
     body { font-family: system-ui, "Noto Sans CJK SC", sans-serif; background: #121318; color: #e8eaf0; padding: 24px; max-width: 520px; }
@@ -11,6 +11,7 @@
     p.hint { color: #9aa2b1; font-size: 12px; margin-bottom: 18px; }
     label { display: block; font-size: 13px; color: #bac3ff; margin-bottom: 6px; }
     input { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #3a3f4c; background: #1d1f27; color: #fff; font-size: 14px; margin-bottom: 12px; }
+    .row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
     button { cursor: pointer; border: none; border-radius: 10px; padding: 10px 18px; font-size: 14px; font-weight: 700; background: #bac3ff; color: #00237c; margin-right: 8px; }
     button.ghost { background: transparent; color: #bac3ff; border: 1px solid #3a3f4c; }
     #msg { margin-top: 12px; font-size: 13px; color: #7ddc9a; min-height: 18px; white-space: pre-line; }
@@ -18,26 +19,26 @@
   </style>
 </head>
 <body>
-  <h1>示例问候 · 设置</h1>
-  <p class="hint">WebUI 属于插件包（web/）。保存的备注（服务端存储）会显示在手表的"示例问候"App 里；名字存在手表端（watch 存储）。</p>
+  <h1>示例天气 · 设置</h1>
+  <p class="hint">WebUI 属于插件包（web/）。城市存服务端（scope:'server'）——保存后手表"示例天气"App 下次打开/刷新即同步；手表端的输入（城市）同样写回。省电模式存手表端（scope:'watch'，设备本机偏好），在手表上切换。</p>
 
   <div class="card">
-    <label>备注（服务端存储 → 同步到 HydroApp）</label>
-    <input id="note" placeholder="例如：今晚加班">
-    <button id="save">保存备注</button>
+    <label>城市（同步到手表 App）</label>
+    <input id="place" placeholder="例如：北京">
+    <button id="save">保存城市</button>
   </div>
 
   <div class="card">
     <label>能力演示（notify 权限）</label>
-    <button id="beep" class="ghost">发一条系统通知</button>
-    <button id="refresh" class="ghost">重新读取</button>
+    <button id="beep" class="ghost">发系统通知</button>
   </div>
 
   <p id="msg"></p>
 
   <script>
-    var PKG = 'com.example.greeting';
-    function show(t) { var m = document.getElementById('msg'); m.textContent = t; }
+    var PKG = 'com.demo.weather';
+    function show(t) { document.getElementById('msg').textContent = t; }
+    function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
     async function store(op, key, value) {
       var r = await fetch('/api/hydro/worker/store', {
         method: 'POST',
@@ -47,19 +48,20 @@
       return r.json();
     }
     async function load() {
-      var d = await store('get', 'note');
-      document.getElementById('note').value = (d && d.found) ? d.value : '';
+      var d = await store('get', 'place');
+      document.getElementById('place').value = (d && d.found) ? d.value : '';
     }
     document.getElementById('save').addEventListener('click', async function () {
-      var v = document.getElementById('note').value.trim();
-      await store('set', 'note', v);
-      show('已保存备注「' + v + '」—— 手表 App 下次打开/刷新即可看到。');
+      var v = document.getElementById('place').value.trim();
+      if (!v) { show('城市不能为空'); return; }
+      await store('set', 'place', v);
+      show('已保存城市「' + v + '」—— 手表 App 下次打开/刷新生效。');
     });
     document.getElementById('beep').addEventListener('click', async function () {
-      var r = await fetch('/api/hydro/worker/notify', {
+      await fetch('/api/hydro/worker/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ package: PKG, title: '示例问候', text: '来自插件 WebUI 的通知' })
+        body: JSON.stringify({ package: PKG, title: 'HydroLink', text: '来自插件 WebUI 的通知' })
       });
       show('已发送通知。');
     });

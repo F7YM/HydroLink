@@ -33,7 +33,7 @@ HydroLink 桌面应用（Wails WebView）
 - **不可用**：DOM、Node.js 核心模块（`fs`/`http`/`net`/`os`…）、`localStorage`（存储用 Kit 的 `storage` API，见 §6）
 - **网络**：插件可 `fetch` 外网与本机服务（受 §7 权限约束）；对外服务所需的"被调用"通道由 Kit 提供（见 §5），插件无需自建监听
 - **生命周期**：随应用运行；**按需唤起**——应用启动时创建全部已安装插件的 Worker；若某插件 Worker 未运行而请求到达，Kit 通知宿主拉起它（本次请求返回"Worker 离线"，重试即成功）
-- **headless 限制**：`cmd/hydrolink`（无 GUI）没有 WebView，不运行 JS 插件（其请求返回离线错误），只运行 Go 内嵌插件（启动日志会打印跳过提示）
+- **headless 限制**：`cmd/hydrolink`（无 GUI）没有 WebView，不运行 JS 插件（注册仍生效、请求返回离线错误；所有插件目前均为 JS 形态）
 
 ### 2.2 文档就是运行环境约定
 
@@ -246,7 +246,7 @@ const { add } = wasm.exports                           // 按需使用
 - **服务**：Kit 以 `GET /api/hydro/webui/{package}/{path}` 同源提供（`index.html` 为默认入口，路径防逃逸、仅限包内 `web/` 目录）；桌面端在插件 Tab 为含 `web/index.html` 的插件提供"界面"按钮，以遮罩层内嵌打开
 - **同源**：WebUI 页面与桌面应用同源（asset server 代理），直接 `fetch('/api/hydro/worker/*')` 即可调用 **kit 能力**（按插件 manifest 权限校验，如 `storage`/`notify`）
 - **同步到 HydroApp**：WebUI 写入 `kit.storage`（`scope:'server'`）后，手表 App（插件树的 `view()`）在下次渲染时读取即可生效——桌面写、手表读；手表输入走事件回写（§4/§6）
-- **示例**：`com.example.greeting` 的 `web/index.html`（备注设置 + 通知演示）——保存备注后，手表 App 显示"备注：…"一行
+- **示例**：`com.demo.weather`（随源码分发：`desktop/examples/com.demo.weather.hpk`）的 `web/index.html`——城市设置（服务端存储，保存后手表 App 副标题同步）+ 通知演示
 
 ## 10. 开发与调试
 
@@ -258,7 +258,7 @@ const { add } = wasm.exports                           // 按需使用
 curl -X POST 'http://127.0.0.1:9000/api/hydro/com.demo.weather/app/main/view?shape=circle&width=466&height=466&dpr=2&dt=watch'
 ```
 
-4. **参考实现**：`desktop/internal/hydrokit/demo/`（Go 内嵌版 demo.Weather）产出同一棵树的 JSON，可作为树协议对照样例
+4. **参考实现**：随源码分发的示例插件 `desktop/examples/com.demo.weather/`（与旧 Go 内嵌版同构的 JS 版：`view()` 产出同一棵树/事件/多屏 media），可直接安装对照
 
 ## 11. 第一版边界（明确不做）
 
@@ -273,3 +273,4 @@ curl -X POST 'http://127.0.0.1:9000/api/hydro/com.demo.weather/app/main/view?sha
 - v0.1（草案，2026-09-06）：首版规范。与桌面 HydroKit Go 实现同步演进；实现与本文档冲突时以本文档为准（需评审修订）。
 - v0.1.1（2026-09-06）：§5 通道实现定为**长轮询**（poll/respond，无 WebSocket 依赖）；§2 生命周期补充"启动即建 + 按需唤起"。
 - v0.2（2026-09-06）：**watch 端存储落地**（§6 请求上下文语义：`X-Hydro-Store` 上送快照 / `view.storage` 落盘，容器与 bundle 已实现）；**插件 WebUI 落地**（§9：`web/` 同源服务 + 桌面端遮罩层内嵌）；示例插件更新为 v0.2（名字=watch 端、备注=server 端 + WebUI 设置页）。
+- v0.2.1（2026-09-06）：示例组织调整——删除 greeting 示例；**天气示例从 Go 内嵌改为 JS 插件包**（`examples/com.demo.weather.hpk`，含 WebUI），内置插件移除（桌面端无内置插件，全部经安装流程；示例中"城市=服务端/省电模式=手表端"展示双端存储）。

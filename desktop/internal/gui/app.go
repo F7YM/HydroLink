@@ -150,24 +150,9 @@ func (a *App) RemoveCommand(index int) error {
 
 // ---- HydroPlugins ----
 
-// builtinPlugins is the static list of in-process Go plugins (runtime demo).
-func builtinPlugins() []store.PluginInfo {
-	return []store.PluginInfo{{
-		ID:      "com.demo.weather",
-		Name:    "示例天气",
-		Version: "0.1.0",
-		Entry:   "内置（Go）",
-		Apps:    []store.PluginItem{{ID: "main", Name: "天气"}},
-		Widgets: []store.PluginItem{{ID: "now", Name: "当前天气", RefreshMs: 60000}},
-		Builtin: true,
-	}}
-}
-
-// GetPlugins returns the installed plugins plus the built-in ones.
+// GetPlugins returns every installed plugin.
 func (a *App) GetPlugins() []store.PluginInfo {
-	out := builtinPlugins()
-	out = append(out, a.st.ListPlugins()...)
-	return out
+	return a.st.ListPlugins()
 }
 
 // InstallPlugin opens a file picker for an .hpk/.zip package, validates it and

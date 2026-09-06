@@ -17,9 +17,11 @@ import (
 )
 
 // TestJSRuntimeProductionChain boots the real NewServer wiring (isolated
-// XDG_CONFIG_HOME), installs a plugin package, starts a Node process running
-// the REAL WorkerBundle against the real server, and drives a view through it.
-// This is the production-equivalent chain minus the webview host.
+// XDG_CONFIG_HOME), installs the SHIPPED weather example package from
+// desktop/examples/com.demo.weather (manifest/server.js/web), starts a Node
+// process running the REAL WorkerBundle against the real server, and drives
+// the production flow: view, watch-store upload, event -> server-storage
+// write, re-view, widget surface and the plugin WebUI.
 func TestJSRuntimeProductionChain(t *testing.T) {
 	nodePath, err := exec.LookPath("node")
 	if err != nil {
@@ -27,53 +29,35 @@ func TestJSRuntimeProductionChain(t *testing.T) {
 	}
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
-	_, st, err := NewServer() // first boot: plugin not installed yet
+	// The shipped example package is the artifact under test.
+	exampleDir, err := filepath.Abs(filepath.Join("..", "..", "examples", "com.demo.weather"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(exampleDir, "manifest.json")); err != nil {
+		t.Skipf("example package missing: %v", err)
+	}
+
+	_, st, err := NewServer()
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
 
-	// Install the greeting plugin (same layout as examples/com.example.greeting).
-	pluginJS := `module.exports = {
-  manifest() { return { package: { id: 'com.example.greeting', name: '示例问候', version: '0.1.0' }, apps: [{ id: 'main', name: '问候' }], widgets: [] } },
-  async view(surface, item, req) {
-    if (surface !== 'app' || item !== 'main') return null
-    if (req && req.trigger === 'event' && req.event && req.event.handler === 'setname') {
-      if (req.event.value) await kit.storage.setItem('name', req.event.value, { scope: 'watch' })
-    }
-    const name = (await kit.storage.getItem('name', { scope: 'watch' })) || '世界'
-    return {
-      root: {
-        type: 'column', style: { padding: 16 },
-        children: [
-          { type: 'text', props: { text: '你好，' + name + '！' }, style: { fontSize: 30, color: '#FFFFFF' } },
-          { type: 'input', props: { placeholder: '输入名字', value: name }, events: { change: 'setname' } }
-        ]
-      }
-    }
-  }
-}`
-	manifest := `{
-  "id": "com.example.greeting",
-  "name": "示例问候",
-  "version": "0.2.0",
-  "entry": "server.js",
-  "apps": [{"id":"main","name":"问候"}],
-  "widgets": [],
-  "permissions": ["storage"]
-}
-`
-	manifest = strings.TrimSpace(manifest)
-	hpk := filepath.Join(t.TempDir(), "com.example.greeting.hpk")
+	// Package the example dir into an .hpk exactly like the release flow.
+	hpk := filepath.Join(t.TempDir(), "com.demo.weather.hpk")
 	{
 		var buf bytes.Buffer
 		zw := zip.NewWriter(&buf)
-		for name, content := range map[string]string{
-			"manifest.json":  manifest,
-			"server.js":      pluginJS,
-			"web/index.html": "<html><body>webui</body></html>",
-		} {
-			w, _ := zw.Create(name)
-			_, _ = w.Write([]byte(content))
+		for _, name := range []string{"manifest.json", "server.js", "web/index.html"} {
+			data, err := os.ReadFile(filepath.Join(exampleDir, name))
+			if err != nil {
+				t.Fatalf("read example %s: %v", name, err)
+			}
+			w, err := zw.Create(name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, _ = w.Write(data)
 		}
 		_ = zw.Close()
 		if err := os.WriteFile(hpk, buf.Bytes(), 0o644); err != nil {
@@ -84,8 +68,7 @@ func TestJSRuntimeProductionChain(t *testing.T) {
 		t.Fatalf("install: %v", err)
 	}
 
-	// NewServer ran before the install, so (like a real app) boot again to
-	// register the newly installed plugin from disk.
+	// Boot again so the newly installed plugin registers (like a real app).
 	srv2, _, err := NewServer()
 	if err != nil {
 		t.Fatalf("NewServer (2nd): %v", err)
@@ -93,23 +76,19 @@ func TestJSRuntimeProductionChain(t *testing.T) {
 	ts := httptest.NewServer(srv2.Handler())
 	defer ts.Close()
 
-	// Read the entry and build the real bundle, as GetPluginBundle does.
-	code, err := st.ReadPluginFile("com.example.greeting", "server.js")
+	code, err := st.ReadPluginFile("com.demo.weather", "server.js")
 	if err != nil {
 		t.Fatalf("read entry: %v", err)
 	}
-	bundle := hydrokit.WorkerBundle("com.example.greeting", string(code), ts.URL)
+	bundle := hydrokit.WorkerBundle("com.demo.weather", string(code), ts.URL)
 
 	dir := t.TempDir()
 	bundlePath := filepath.Join(dir, "bundle.js")
 	if err := os.WriteFile(bundlePath, bundle, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	marker := filepath.Join(dir, "marker.log")
 	runnerPath := filepath.Join(dir, "runner.js")
-	runner := `global.postMessage = function (m) {
-  require("fs").appendFileSync(process.env.MARKER, JSON.stringify(m) + "\n");
-};
+	runner := `global.postMessage = function () {};
 new Function(require("fs").readFileSync(process.argv[2], "utf8"))();
 setInterval(function () {}, 1000);
 `
@@ -117,96 +96,97 @@ setInterval(function () {}, 1000);
 		t.Fatal(err)
 	}
 	cmd := exec.Command(nodePath, runnerPath, bundlePath)
-	cmd.Env = append(os.Environ(), "MARKER="+marker)
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = cmd.Process.Kill() }()
 
-	// The worker's first poll registers instantly; the ready marker only
-	// appears after the first idle window, so skip waiting for it.
-	_ = marker
-
-	viewURL := ts.URL + "/api/hydro/com.example.greeting/app/main/view?shape=circle&width=466&dpr=2&dt=watch"
-	viewReq := func(store string) string {
+	viewURL := ts.URL + "/api/hydro/com.demo.weather/app/main/view"
+	viewReq := func(store string) *httptest.ResponseRecorder {
 		req, _ := http.NewRequest(http.MethodPost, viewURL, nil)
 		if store != "" {
 			req.Header.Set("X-Hydro-Store", store)
 		}
 		rr := httptest.NewRecorder()
 		srv2.Handler().ServeHTTP(rr, req)
-		if rr.Code != http.StatusOK {
-			return ""
-		}
-		return rr.Body.String()
+		return rr
 	}
+
+	// The worker connects on its first poll; retry until the app view answers.
+	var rr *httptest.ResponseRecorder
 	deadline := time.Now().Add(15 * time.Second)
-	var body string
-	for time.Now().Before(deadline) && body == "" {
-		body = viewReq("")
-		if body == "" {
-			time.Sleep(300 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		rr = viewReq("")
+		if rr.Code == http.StatusOK {
+			break
 		}
+		if rr == nil {
+			break
+		}
+		time.Sleep(300 * time.Millisecond)
 	}
-	if body == "" {
-		t.Fatal("plugin view never returned 200")
+	if rr == nil || rr.Code != http.StatusOK {
+		t.Fatalf("view -> %d: %s", rr.Code, rr.Body.String())
 	}
-	var v struct {
-		Root struct {
-			Children []struct {
-				Props map[string]any `json:"props"`
-			} `json:"children"`
-		} `json:"root"`
-	}
-	if err := json.Unmarshal([]byte(body), &v); err != nil {
-		t.Fatalf("view json: %v (%s)", err, body)
-	}
-	first := ""
-	if len(v.Root.Children) > 0 {
-		first, _ = v.Root.Children[0].Props["text"].(string)
-	}
-	if first != "你好，世界！" {
-		t.Fatalf("first text = %q (want 你好，世界！) body=%s", first, body)
+	if !strings.Contains(rr.Body.String(), "示例天气") {
+		t.Fatalf("view body missing title: %s", rr.Body.String())
 	}
 
-	// Watch-store upload: the container's snapshot rides the request header —
-	// the plugin reads it via kit.storage.getItem(..., {scope:'watch'}).
-	body = viewReq(`{"name":"表上名"}`)
-	if body == "" || !strings.Contains(body, "表上名") {
-		t.Fatalf("view with uploaded watch store failed: %s", body)
+	// Watch-store upload: the snapshot rides X-Hydro-Store; the plugin reads
+	// powerSave from the watch scope (device-local preference).
+	rr = viewReq(`{"powerSave":false}`)
+	if rr.Code != http.StatusOK || !strings.Contains(rr.Body.String(), `"checked":false`) {
+		t.Fatalf("view with uploaded watch store -> %d: %s", rr.Code, rr.Body.String())
 	}
 
-	// Event round-trip: input change=setname -> watch store write -> the
-	// RESPONSE carries storage for the container to persist on the device.
-	evtURL := ts.URL + "/api/hydro/com.example.greeting/app/main/event"
-	evtBody := `{"event":{"handler":"setname","source":"change","value":"上海"}}`
-	req, _ := http.NewRequest(http.MethodPost, evtURL, bytes.NewBufferString(evtBody))
-	rr := httptest.NewRecorder()
-	srv2.Handler().ServeHTTP(rr, req)
-	if rr.Code != http.StatusOK {
-		t.Fatalf("event -> %d: %s", rr.Code, rr.Body.String())
-	}
-	var evtResp struct {
-		Storage map[string]any `json:"storage"`
-	}
-	if err := json.Unmarshal(rr.Body.Bytes(), &evtResp); err != nil {
-		t.Fatalf("event resp json: %v — %s", err, rr.Body.String())
-	}
-	if evtResp.Storage["name"] != "上海" {
-		t.Fatalf("event storage = %+v, want name=上海", evtResp.Storage)
+	// Event (place=深圳) -> plugin writes SERVER storage; the re-view (no
+	// upload) shows it — the cross-device sync path.
+	evtBody := `{"event":{"handler":"place","source":"change","value":"深圳"}}`
+	ereq, _ := http.NewRequest(http.MethodPost, ts.URL+"/api/hydro/com.demo.weather/app/main/event",
+		bytes.NewBufferString(evtBody))
+	er := httptest.NewRecorder()
+	srv2.Handler().ServeHTTP(er, ereq)
+	if er.Code != http.StatusOK {
+		t.Fatalf("event -> %d: %s", er.Code, er.Body.String())
 	}
 	time.Sleep(400 * time.Millisecond) // let the worker re-enter the poll
-	body = viewReq(`{"name":"上海"}`)
-	if !strings.Contains(body, "上海") {
-		t.Fatalf("view after watch-store upload: %s", body)
+	rr = viewReq("")
+	if rr.Code != http.StatusOK || !strings.Contains(rr.Body.String(), "深圳 · 23°C 晴") {
+		t.Fatalf("view after event -> %d: %s", rr.Code, rr.Body.String())
 	}
 
-	// Plugin WebUI: web/ assets served under /api/hydro/webui/{pkg}/.
-	wreq, _ := http.NewRequest(http.MethodGet,
-		ts.URL+"/api/hydro/webui/com.example.greeting/index.html", nil)
-	wrr := httptest.NewRecorder()
-	srv2.Handler().ServeHTTP(wrr, wreq)
-	if wrr.Code != http.StatusOK || !strings.Contains(wrr.Body.String(), "webui") {
-		t.Fatalf("webui -> %d: %s", wrr.Code, wrr.Body.String())
+	// Event (toggle) -> WATCH write -> the response carries storage for the
+	// container to persist on the device.
+	toggleBody := `{"event":{"handler":"toggle","source":"change"}}`
+	treq, _ := http.NewRequest(http.MethodPost, ts.URL+"/api/hydro/com.demo.weather/app/main/event",
+		bytes.NewBufferString(toggleBody))
+	tr := httptest.NewRecorder()
+	srv2.Handler().ServeHTTP(tr, treq)
+	if tr.Code != http.StatusOK {
+		t.Fatalf("toggle -> %d: %s", tr.Code, tr.Body.String())
+	}
+	var trResp struct {
+		Storage map[string]any `json:"storage"`
+	}
+	if err := json.Unmarshal(tr.Body.Bytes(), &trResp); err != nil {
+		t.Fatalf("toggle resp json: %v — %s", err, tr.Body.String())
+	}
+	if _, ok := trResp.Storage["powerSave"]; !ok {
+		t.Fatalf("toggle storage = %+v, want powerSave", trResp.Storage)
+	}
+
+	// Widget surface + plugin WebUI.
+	wr2 := httptest.NewRecorder()
+	srv2.Handler().ServeHTTP(wr2, httptest.NewRequest(http.MethodPost,
+		ts.URL+"/api/hydro/com.demo.weather/widget/now/view", nil))
+	if wr2.Code != http.StatusOK || !strings.Contains(wr2.Body.String(), "23°C") {
+		t.Fatalf("widget view -> %d: %s", wr2.Code, wr2.Body.String())
+	}
+	ureq, _ := http.NewRequest(http.MethodGet,
+		ts.URL+"/api/hydro/webui/com.demo.weather/index.html", nil)
+	ur := httptest.NewRecorder()
+	srv2.Handler().ServeHTTP(ur, ureq)
+	if ur.Code != http.StatusOK || !strings.Contains(ur.Body.String(), "示例天气") {
+		t.Fatalf("webui -> %d: %s", ur.Code, ur.Body.String())
 	}
 }

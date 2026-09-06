@@ -8,7 +8,6 @@ import (
 
 	"hydrolink-desktop/internal/api"
 	"hydrolink-desktop/internal/hydrokit"
-	"hydrolink-desktop/internal/hydrokit/demo"
 	"hydrolink-desktop/internal/store"
 )
 
@@ -23,15 +22,11 @@ func NewServer() (*api.Server, *store.Store, error) {
 	}
 	srv := api.New(st)
 
-	// HydroKit: register bundled plugins, then JS plugins from disk.
+	// HydroKit: register JS plugins from disk (the weather demo ships as an
+	// installable plugin package: desktop/examples/com.demo.weather.hpk).
 	bridge := hydrokit.NewWorkerBridge()
 	bridge.Logf = func(format string, args ...any) { log.Printf(format, args...) }
 	rt := hydrokit.NewRuntime(nil)
-	for _, p := range []hydrokit.Plugin{demo.NewWeather()} {
-		if err := rt.Register(p); err != nil {
-			return nil, nil, fmt.Errorf("hydrokit: %w", err)
-		}
-	}
 	for _, info := range st.ListPlugins() {
 		if info.Error != "" {
 			log.Printf("hydrokit: skip plugin %s: %s", info.ID, info.Error)
