@@ -165,7 +165,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	if s.hydro != nil && (strings.HasPrefix(path, "/api/hydro/") || path == "/api/hydro") {
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		s.hydro.ServeHTTP(rec, r)
-		s.AddLog(fmt.Sprintf("hydro %s %s -> %d", r.Method, strings.TrimPrefix(path, "/api/hydro"), rec.status), "info")
+		s.AddLog(fmt.Sprintf("hydro %s %s -> %d", r.Method, strings.TrimPrefix(r.URL.RequestURI(), "/api/hydro"), rec.status), "info")
 		return
 	}
 
