@@ -30,9 +30,11 @@
       <text class="btn-text ghost-text">{{ leaf.v || leaf.placeholder || '点击输入' }}</text>
     </div>
 
-    <!-- 页面导航（协议节点 type:"nav"：action=back/open） -->
-    <div if="{{ leaf.isNav }}" class="nav" style="{{ leaf.s }}" onclick="emitNav">
-      <text class="nav-text">{{ leaf.navLabel }}</text>
+    <!-- 页面导航（协议节点 type:"nav"：action=back/open）。
+         Vela 的 text-align 只对 text 生效：节点样式直接落在文字上，
+         div 只负责撑满与布局（flex:1） -->
+    <div if="{{ leaf.isNav }}" class="nav" onclick="emitNav">
+      <text class="nav-text" style="{{ leaf.s }}">{{ leaf.navLabel }}</text>
     </div>
 
     <!-- 未知类型占位 -->
@@ -78,7 +80,7 @@
   animation-timing-function: linear;
   animation-iteration-count: infinite;
 }
-.nav { padding: 6px 0; align-items: center; }
+.nav { padding: 6px 0; align-items: center; flex: 1; }
 .nav-text { font-size: 28px; color: #ffffff; }
 .icon-img { width: 28px; height: 28px; }
 .img { width: 120px; height: 120px; }
