@@ -33,7 +33,7 @@ module.exports = {
 
     return {
       root: {
-        type: 'column',
+        type: 'scroll',
         style: { padding: 16 },
         media: { circle: { padding: 24 }, rect: { padding: 20 }, pill: { padding: 12 } },
         children: [
