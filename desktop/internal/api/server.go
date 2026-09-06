@@ -163,7 +163,9 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 
 	// Delegate HydroKit plugin API to its own dispatcher.
 	if s.hydro != nil && (strings.HasPrefix(path, "/api/hydro/") || path == "/api/hydro") {
-		s.hydro.ServeHTTP(w, r)
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		s.hydro.ServeHTTP(rec, r)
+		s.AddLog(fmt.Sprintf("hydro %s %s -> %d", r.Method, strings.TrimPrefix(path, "/api/hydro"), rec.status), "info")
 		return
 	}
 
@@ -507,6 +509,17 @@ func (s *Server) withTrusted(w http.ResponseWriter, r *http.Request, block func(
 }
 
 // ---- Helpers ----
+
+// statusRecorder captures the status code a handler writes so callers can log it.
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (r *statusRecorder) WriteHeader(code int) {
+	r.status = code
+	r.ResponseWriter.WriteHeader(code)
+}
 
 func (s *Server) addCors(w http.ResponseWriter) {
 	h := w.Header()

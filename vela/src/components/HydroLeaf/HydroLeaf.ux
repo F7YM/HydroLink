@@ -85,13 +85,14 @@
 export default {
   props: ['leaf'],
   emitTap() {
-    if (this.leaf && this.leaf.tap) this.$emit('tap', this.leaf)
+    // 'tap' 是 Vela 的手势保留名，$emit('tap') 收不上去，改用非保留名
+    if (this.leaf && this.leaf.tap) this.$emit('hydrotap', this.leaf)
   },
   emitChange() {
     if (this.leaf && this.leaf.change) this.$emit('change', this.leaf)
   },
   emitOpenInput() {
-    if (this.leaf && this.leaf.change) this.$emit('openinput', this.leaf)
+    if (this.leaf && this.leaf.change) this.$emit('hydroinput', this.leaf)
   }
 }
 </script>
