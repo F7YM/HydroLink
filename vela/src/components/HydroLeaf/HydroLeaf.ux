@@ -17,17 +17,17 @@
     <switch if="{{ leaf.isSw }}" style="{{ leaf.s }}" checked="{{ leaf.chk }}" @change="emitChange"></switch>
 
     <!-- spinner -->
-    <image if="{{ leaf.isSpin }}" class="spin-img" src="/common/icons/progress-activity.png"></image>
+    <image if="{{ leaf.isSpin }}" class="spin-img" style="{{ leaf.s }}" src="/common/icons/progress-activity.png"></image>
 
     <!-- icon (已知内置图标) / 未知不显示 -->
-    <image if="{{ leaf.isIcon && leaf.iconSrc }}" class="icon-img" src="{{ leaf.iconSrc }}"></image>
+    <image if="{{ leaf.isIcon && leaf.iconSrc }}" class="icon-img" style="{{ leaf.s }}" src="{{ leaf.iconSrc }}"></image>
 
     <!-- image -->
-    <image if="{{ leaf.isImg }}" class="img" src="{{ leaf.src }}"></image>
+    <image if="{{ leaf.isImg }}" class="img" style="{{ leaf.s }}" src="{{ leaf.src }}"></image>
 
     <!-- input: 点击弹出键盘输入 -->
-    <div if="{{ leaf.isInput }}" class="btn ghost" onclick="emitOpenInput">
-      <text class="btn-text">{{ leaf.v || leaf.placeholder || '点击输入' }}</text>
+    <div if="{{ leaf.isInput }}" class="btn ghost" style="{{ leaf.s }}" onclick="emitOpenInput">
+      <text class="btn-text ghost-text">{{ leaf.v || leaf.placeholder || '点击输入' }}</text>
     </div>
 
     <!-- 未知类型占位 -->
@@ -37,7 +37,6 @@
 
 <style>
 .hydro-leaf {
-  width: 100%;
   flex-direction: row;
   align-items: center;
   justify-content: flex-start;
@@ -53,7 +52,10 @@
   background-color: transparent;
   border-width: 2px;
   border-style: solid;
-  border-color: #666;
+  border-color: #5a6270;
+}
+.ghost-text {
+  color: #bac3ff;
 }
 .btn-text { color: #00237c; font-size: 24px; font-weight: bold; }
 .badge {
@@ -62,7 +64,7 @@
   align-items: center;
   justify-content: center;
 }
-.badge-text { font-size: 20px; }
+.badge-text { color: #ffffff; font-size: 20px; }
 .spin-img {
   width: 40px; height: 40px;
   transform-origin: 20px 20px;

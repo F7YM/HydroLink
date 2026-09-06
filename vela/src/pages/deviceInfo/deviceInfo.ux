@@ -96,7 +96,7 @@
             onclick="onHydroApps"
           >
             <div class="control-circle">
-              <image class="control-icon" src="/common/icons/mobile.png"></image>
+              <image class="control-icon" src="/common/icons/apps.png"></image>
             </div>
             <text class="control-label">HydroApps</text>
           </div>

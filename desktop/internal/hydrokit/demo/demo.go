@@ -47,32 +47,44 @@ func (w *Weather) appRoot(req hydrokit.Request) *hydrokit.Node {
 		return hydrokit.New(hydrokit.TypeRow).Add(c...)
 	}
 	return hydrokit.Column(
-		hydrokit.Text(title).StyleSet("fontSize", 28).StyleSet("weight", 700),
-		hydrokit.Text("北京 · 23°C 晴"),
+		hydrokit.Text(title).
+			StyleSet("fontSize", 28).StyleSet("fontWeight", 700).StyleSet("color", "#FFFFFF").
+			StyleSet("marginBottom", 4),
+		hydrokit.Text("北京 · 23°C 晴").
+			StyleSet("fontSize", 22).StyleSet("color", "#D6DCE8").
+			StyleSet("marginBottom", 16),
 		row(
-			hydrokit.Icon("wb_sunny").StyleSet("size", 24),
-			hydrokit.Text("23°C").StyleSet("fontSize", 40).StyleSet("weight", 700),
-		),
+			hydrokit.Text("23°C").
+				StyleSet("fontSize", 44).StyleSet("fontWeight", 700).StyleSet("color", "#FFFFFF"),
+		).StyleSet("marginBottom", 6),
 		row(
-			hydrokit.Icon("battery"),
-			hydrokit.Text("电量 87%"),
-		),
+			hydrokit.Icon("battery").StyleSet("width", 26).StyleSet("height", 26),
+			hydrokit.Text("电量 87%").
+				StyleSet("fontSize", 22).StyleSet("color", "#D6DCE8").
+				StyleSet("marginLeft", 10),
+		).StyleSet("marginBottom", 14),
 		row(
-			hydrokit.Text("省电模式"),
+			hydrokit.Text("省电模式").StyleSet("fontSize", 22).StyleSet("color", "#D6DCE8"),
 			hydrokit.New(hydrokit.TypeSwitch).Prop("checked", true).On("change", "toggle"),
-		),
+		).StyleSet("marginBottom", 16).StyleSet("justifyContent", "space-between"),
 		row(
-			hydrokit.New(hydrokit.TypeBadge).Prop("label", "beta").StyleSet("backgroundColor", "#434659"),
-			hydrokit.New(hydrokit.TypeSpinner),
-			hydrokit.New(hydrokit.TypeInput).Prop("placeholder", "输入地名").Prop("value", "北京").On("change", "place"),
-		),
-		hydrokit.Button("刷新").On("tap", "refresh"),
-	).StyleSet("padding", 16).StyleSet("gap", 8)
+			hydrokit.New(hydrokit.TypeBadge).Prop("label", "beta").
+				StyleSet("backgroundColor", "#434659"),
+			hydrokit.New(hydrokit.TypeSpinner).StyleSet("marginLeft", 14),
+			hydrokit.New(hydrokit.TypeInput).
+				Prop("placeholder", "输入地名").Prop("value", "北京").On("change", "place").
+				StyleSet("marginLeft", 14),
+		).StyleSet("marginBottom", 18),
+		hydrokit.Button("刷新").On("tap", "refresh").
+			StyleSet("backgroundColor", "#BAC3FF").StyleSet("marginBottom", 4),
+	).StyleSet("padding", 16)
 }
 
 func (w *Weather) widgetRoot(req hydrokit.Request) *hydrokit.Node {
 	return hydrokit.Column(
-		hydrokit.Icon("wb_sunny").StyleSet("size", 18),
-		hydrokit.Text("23°C"),
-	).StyleSet("padding", 8).StyleSet("gap", 4)
+		hydrokit.Icon("battery").StyleSet("width", 18).StyleSet("height", 18),
+		hydrokit.Text("23°C").
+			StyleSet("fontSize", 24).StyleSet("fontWeight", 700).StyleSet("color", "#FFFFFF").
+			StyleSet("marginTop", 2),
+	).StyleSet("padding", 8)
 }
