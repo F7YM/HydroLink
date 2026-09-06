@@ -18,11 +18,27 @@ type Event struct {
 	Value   any    `json:"value,omitempty"`
 }
 
+// Screen describes the display of the device requesting a view. The hydro
+// container reports it (device.getInfo on Vela) as query params, so plugins
+// can adapt trees per screen shape/size:
+//
+//	?shape=circle&width=480&height=480&dpr=2&dt=watch
+//
+// Shape values are normalized: rect | circle | pill.
+type Screen struct {
+	Shape      string  `json:"shape,omitempty"`
+	Width      int     `json:"width,omitempty"`
+	Height     int     `json:"height,omitempty"`
+	DPR        float64 `json:"dpr,omitempty"`
+	DeviceType string  `json:"deviceType,omitempty"`
+}
+
 // Request carries why a view is being requested.
 type Request struct {
-	Trigger string `json:"trigger"`
-	Event   Event  `json:"event,omitempty"`
+	Trigger string            `json:"trigger"`
+	Event   Event             `json:"event,omitempty"`
 	Params  map[string]string `json:"params,omitempty"`
+	Screen  Screen            `json:"screen,omitempty"`
 }
 
 // Host is the set of capabilities HydroKit exposes to a plugin. Milestone 1

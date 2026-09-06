@@ -61,7 +61,7 @@ func uniqueItems(kind string, items []Item) error {
 }
 
 // HasApp / HasWidget report whether an item id is registered for a surface.
-func (m Manifest) HasApp(id string) bool   { return findItem(m.Apps, id) }
+func (m Manifest) HasApp(id string) bool    { return findItem(m.Apps, id) }
 func (m Manifest) HasWidget(id string) bool { return findItem(m.Widgets, id) }
 
 func findItem(items []Item, id string) bool {

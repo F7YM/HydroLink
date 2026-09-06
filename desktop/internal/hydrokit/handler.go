@@ -3,6 +3,7 @@ package hydrokit
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -48,6 +49,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	pkg, surface, item, action := parts[0], parts[1], parts[2], parts[3]
 
 	req := Request{Trigger: triggerForAction(action), Params: map[string]string{}}
+	if q := r.URL.Query(); q != nil {
+		req.Screen = Screen{
+			Shape:      q.Get("shape"),
+			Width:      atoiDefault(q.Get("width"), 0),
+			Height:     atoiDefault(q.Get("height"), 0),
+			DPR:        atofDefault(q.Get("dpr"), 0),
+			DeviceType: q.Get("dt"),
+		}
+	}
 	if action == "event" {
 		if err := decodeEvent(r, &req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -87,7 +97,7 @@ func decodeEvent(r *http.Request, req *Request) error {
 	}
 	defer r.Body.Close()
 	var body struct {
-		Event Event            `json:"event"`
+		Event  Event             `json:"event"`
 		Params map[string]string `json:"params"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -99,4 +109,20 @@ func decodeEvent(r *http.Request, req *Request) error {
 	}
 	req.Trigger = TriggerEvent
 	return nil
+}
+
+func atoiDefault(s string, def int) int {
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return def
+	}
+	return n
+}
+
+func atofDefault(s string, def float64) float64 {
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return def
+	}
+	return f
 }

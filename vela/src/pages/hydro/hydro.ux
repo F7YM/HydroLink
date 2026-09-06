@@ -90,6 +90,7 @@
 
 <script>
 import router from '@system.router'
+import device from '@system.device'
 import deviceService from '../../services/deviceService.js'
 
 // 已知内置图标 -> 本地资源（其余未知图标不显示）
@@ -123,8 +124,23 @@ function toCssStyle(obj) {
   return parts.join('; ')
 }
 
+// 按屏幕上下文合并节点的 media 覆盖：base style < shape 键 < narrow 键
+// （media 键：circle/rect/pill 形状键 + narrow 宽度类键，见协议文档）
+function resolveStyle(n, ctx) {
+  const style = Object.assign({}, n.style || {})
+  const media = n.media
+  if (!media || typeof media !== 'object' || !ctx) return style
+  const apply = (m) => {
+    if (!m || typeof m !== 'object') return
+    Object.keys(m).forEach((k) => { style[k] = m[k] })
+  }
+  if (ctx.shape && media[ctx.shape]) apply(media[ctx.shape])
+  if (ctx.narrow && media.narrow) apply(media.narrow)
+  return style
+}
+
 // 节点 -> 叶子渲染条目（容器由模板展开）
-function buildLeaf(n, inRow) {
+function buildLeaf(n, inRow, ctx) {
   const p = n.props || {}
   const type = n.type || ''
   const isText = type === 'text'
@@ -136,9 +152,10 @@ function buildLeaf(n, inRow) {
   const isImg = type === 'image'
   const isInput = type === 'input'
   const iconSrc = isIcon ? (ICON_MAP[p.name] || '') : ''
+  const st = resolveStyle(n, ctx)
   // 容器默认主题：文本未指定颜色时用白色（Vela 默认文本色是灰的）
-  let s = toCssStyle(n.style)
-  if (isText && !(n.style && typeof n.style.color === 'string')) {
+  let s = toCssStyle(st)
+  if (isText && !(st && typeof st.color === 'string')) {
     s = 'color: #FFFFFF; ' + s
   }
   return {
@@ -168,7 +185,7 @@ function buildLeaf(n, inRow) {
   }
 }
 
-function build(n, inRow) {
+function build(n, inRow, ctx) {
   if (!n) return null
   const hasKids = !!(n.children && n.children.length)
   if (hasKids) {
@@ -177,11 +194,11 @@ function build(n, inRow) {
     const dir = n.type === 'row' ? 'row' : 'column'
     return {
       c: true,
-      s: 'width: 100%; flex-direction: ' + dir + '; ' + toCssStyle(n.style),
-      kids: n.children.map((c) => build(c, n.type === 'row'))
+      s: 'width: 100%; flex-direction: ' + dir + '; ' + toCssStyle(resolveStyle(n, ctx)),
+      kids: n.children.map((c) => build(c, n.type === 'row', ctx))
     }
   }
-  return buildLeaf(n, inRow)
+  return buildLeaf(n, inRow, ctx)
 }
 
 export default {
@@ -203,11 +220,57 @@ export default {
     _timer: null,
     _busy: false,
     _started: false,
-    _inputItem: null
+    _inputItem: null,
+    _screen: null
   },
 
   onInit() {
-    this.load()
+    this._init()
+  },
+
+  // 先取屏幕信息（形状/分辨率/DPR），再加载视图；
+  // 屏幕信息同时用于请求参数(A) 和 media 解析(B)
+  async _init() {
+    this._screen = await this._readScreen()
+    await this.load()
+  },
+
+  _readScreen() {
+    const empty = { shape: '', width: 0, height: 0, dpr: 0, deviceType: '' }
+    return new Promise((resolve) => {
+      try {
+        device.getInfo({
+          success: (d) => resolve({
+            shape: this._normShape(d.screenShape),
+            width: Number(d.screenWidth) || 0,
+            height: Number(d.screenHeight) || 0,
+            dpr: Number(d.screenDensity) || 0,
+            deviceType: d.deviceType || ''
+          }),
+          fail: () => resolve(empty)
+        })
+      } catch (e) {
+        resolve(empty)
+      }
+    })
+  },
+
+  _normShape(s) {
+    const v = String(s || '').toLowerCase()
+    if (v === 'pill-shaped' || v === 'pillshape') return 'pill'
+    return v
+  },
+
+  // 屏幕 DP 宽 < 180 视为窄屏（手环/胶囊屏）；dpr 缺失时按物理宽近似
+  _isNarrow() {
+    const sc = this._screen
+    if (!sc) return false
+    if (sc.dpr > 0 && sc.width > 0) return sc.width / sc.dpr < 180
+    return sc.width > 0 && sc.width < 340
+  },
+
+  _screenCtx() {
+    return { shape: this._screen ? this._screen.shape : '', narrow: this._isNarrow() }
   },
 
   onDestroy() {
@@ -245,7 +308,16 @@ export default {
   },
 
   path(action) {
-    return '/api/hydro/' + this.plugin + '/' + this.surface + '/' + this.item + '/' + action
+    let p = '/api/hydro/' + this.plugin + '/' + this.surface + '/' + this.item + '/' + action
+    const sc = this._screen
+    if (sc && sc.shape) {
+      p += '?shape=' + encodeURIComponent(sc.shape) +
+        '&width=' + sc.width +
+        '&height=' + sc.height +
+        '&dpr=' + sc.dpr +
+        '&dt=' + encodeURIComponent(sc.deviceType || '')
+    }
+    return p
   },
 
   async load() {
@@ -269,11 +341,12 @@ export default {
 
   _apply(view) {
     const root = view.root
+    const ctx = this._screenCtx()
     if (root && root.children && root.children.length) {
-      this.ui = root.children.map((c) => build(c, false))
-      this.contentStyle = root.style ? toCssStyle(root.style) : ''
+      this.ui = root.children.map((c) => build(c, false, ctx))
+      this.contentStyle = root ? toCssStyle(resolveStyle(root, ctx)) : ''
     } else {
-      this.ui = root ? [build(root)] : []
+      this.ui = root ? [build(root, false, ctx)] : []
       this.contentStyle = ''
     }
     this.refreshMs = view.refreshMs || 0

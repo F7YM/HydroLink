@@ -79,13 +79,17 @@ func (w *Weather) appRoot(req hydrokit.Request) *hydrokit.Node {
 	return hydrokit.Column(
 		hydrokit.Text(title).
 			StyleSet("fontSize", 28).StyleSet("fontWeight", 700).StyleSet("color", "#FFFFFF").
-			StyleSet("marginBottom", 4),
+			StyleSet("marginBottom", 4).
+			MediaSet("pill", map[string]any{"fontSize": 22}).
+			MediaSet("narrow", map[string]any{"fontSize": 22}),
 		hydrokit.Text(subtitle).
 			StyleSet("fontSize", 22).StyleSet("color", "#D6DCE8").
-			StyleSet("marginBottom", 16),
+			StyleSet("marginBottom", 16).
+			MediaSet("narrow", map[string]any{"fontSize": 18}),
 		row(
 			hydrokit.Text("23°C").
-				StyleSet("fontSize", 44).StyleSet("fontWeight", 700).StyleSet("color", "#FFFFFF"),
+				StyleSet("fontSize", 44).StyleSet("fontWeight", 700).StyleSet("color", "#FFFFFF").
+				MediaSet("narrow", map[string]any{"fontSize": 36}),
 		).StyleSet("marginBottom", 6),
 		row(
 			hydrokit.Icon("battery").StyleSet("width", 26).StyleSet("height", 26),
@@ -107,7 +111,10 @@ func (w *Weather) appRoot(req hydrokit.Request) *hydrokit.Node {
 		).StyleSet("marginBottom", 18),
 		hydrokit.Button("刷新").On("tap", "refresh").
 			StyleSet("backgroundColor", "#BAC3FF").StyleSet("marginBottom", 4),
-	).StyleSet("padding", 16)
+	).StyleSet("padding", 16).
+		MediaSet("circle", map[string]any{"padding": 24}).
+		MediaSet("pill", map[string]any{"padding": 12}).
+		MediaSet("narrow", map[string]any{"padding": 8})
 }
 
 func (w *Weather) widgetRoot(req hydrokit.Request) *hydrokit.Node {
