@@ -261,7 +261,7 @@
       const perms = (p.permissions || []).map((x) => `<span class="tag permission">${esc(x)}</span>`).join("");
       const meta = p.error
         ? `<span class="sub" style="color:var(--md-error)">${esc(p.error)}</span>`
-        : `<span class="sub">${esc(p.id)} · v${esc(p.version)} · ${esc(p.entry)}${p.installedAt ? " · " + esc(p.installedAt) : ""}</span>`;
+        : `<span class="sub">${esc(p.id)} · v${esc(p.version)} · ${esc(p.entry)}</span>`;
       return `
         <div class="item">
           <div class="meta">

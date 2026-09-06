@@ -11,7 +11,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"time"
 )
 
 // PluginManifest mirrors docs/hydroplugin.md §3.1.
@@ -42,7 +41,6 @@ type PluginInfo struct {
 	Apps        []PluginItem `json:"apps"`
 	Widgets     []PluginItem `json:"widgets"`
 	Permissions []string     `json:"permissions"`
-	InstalledAt string       `json:"installedAt"`
 	Dir         string       `json:"dir"`
 	Builtin     bool         `json:"builtin"`
 	HasWeb      bool         `json:"hasWeb"`
@@ -101,9 +99,6 @@ func (s *Store) ListPlugins() []PluginInfo {
 		info.Permissions = orEmpty(m.Permissions)
 		if _, err := os.Stat(filepath.Join(dir, id, "web", "index.html")); err == nil {
 			info.HasWeb = true
-		}
-		if st, err := os.Stat(filepath.Join(dir, id, ".installed_at")); err == nil {
-			info.InstalledAt = st.ModTime().Format("2006-01-02 15:04")
 		}
 		if info.Name == "" {
 			info.Name = id
@@ -206,9 +201,6 @@ func (s *Store) InstallPlugin(zipPath string) (PluginInfo, error) {
 	if _, err := os.Stat(filepath.Join(tmp, m.Entry)); err != nil {
 		return PluginInfo{}, fmt.Errorf("解压后缺少入口文件 %s", m.Entry)
 	}
-	if err := os.WriteFile(filepath.Join(tmp, ".installed_at"), []byte{}, 0o644); err != nil {
-		return PluginInfo{}, err
-	}
 	if err := os.Rename(tmp, target); err != nil {
 		return PluginInfo{}, fmt.Errorf("安装失败: %v", err)
 	}
@@ -220,7 +212,6 @@ func (s *Store) InstallPlugin(zipPath string) (PluginInfo, error) {
 		Apps:        apps,
 		Widgets:     widgets,
 		Permissions: orEmpty(m.Permissions),
-		InstalledAt: time.Now().Format("2006-01-02 15:04"),
 		Dir:         target,
 	}, nil
 }
