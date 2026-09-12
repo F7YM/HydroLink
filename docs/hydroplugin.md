@@ -307,7 +307,11 @@ env.hydro_log(ptr, len)               # 可选，调试输出（进桌面端日�
 ### 8.3 打包与工具链
 
 - zip 内放 `plugin.wasm`（+ 可选 `assets/`），清单写 `"runtime": "wasm"`、`"entry": "plugin.wasm"`
-- SDK/示例：`desktop/examples/wasm-fixture/`（Rust，零依赖，最小 ABI 实现）——`cargo build --release --target wasm32-unknown-unknown`
+- SDK/示例：
+  - `desktop/examples/wasm-fixture/`（Rust，零依赖，最小 ABI 实现）
+  - `desktop/examples/deskbuddy/`（完整插件：纯函数 view + 调参 WebUI + 单测）
+  - 打包脚本：`bash desktop/examples/deskbuddy/pack.sh [--test]`（编译 wasm → 收集 `web/` → 产出 `.hpk`）
+  - **纯函数便于测试**：`cargo test` 直接喂 JSON 上下文断言产出树/effects，无需任何宿主（宿主侧另有 node + Go 的端到端测试兜底）
 - 语言任选，只要产出符合 ABI 的 wasm：Rust（推荐，体积最小）、AssemblyScript、TinyGo；Go 1.24+ 也可用 `GOOS=wasip1` + `//go:wasmexport`（需宿主提供 WASI 导入桩）
 - `server.js` 里同样可以用 `kit.loadWasm('assets/x.wasm')` 加载**辅助** wasm（性能关键算法、模型）——那是 JS 插件的可选手段，与本节"WASM 插件"不同
 
@@ -346,6 +350,7 @@ curl -X POST 'http://127.0.0.1:9000/api/hydro/com.demo.weather/app/main/view?sha
 - v0.1.1（2026-09-06）：§5 通道实现定为**长轮询**（poll/respond，无 WebSocket 依赖）；§2 生命周期补充"启动即建 + 按需唤起"。
 - v0.2（2026-09-06）：**watch 端存储落地**（§6 请求上下文语义：`X-Hydro-Store` 上送快照 / `view.storage` 落盘，容器与 bundle 已实现）；**插件 WebUI 落地**（§9：`web/` 同源服务 + 桌面端遮罩层内嵌）；示例插件更新为 v0.2（名字=watch 端、备注=server 端 + WebUI 设置页）。
 - v0.2.6（2026-09-06）：**Widget 表面落地**（手表呈现）——HydroApps 启动器新增"组件"条目，hydro 容器以 `surface=widget` 渲染并轮询 `refreshMs`；示例组件视图补导航节点。
+- v0.3.2（2026-09-06）：示例插件的**单元测试与打包脚本**（`pack.sh`，纯函数 ABI 可直接 cargo test）；桌搭插件补齐调参 WebUI 与自适应几何（见 §9/§8）。
 - v0.3.1（2026-09-06）：**`progress` 叶子与全屏背景层**——新增 `type:"progress"`（horizontal/arc，§4）；根节点的 background* 样式提升到整页容器（全屏背景，避开安全区限制）。
 - v0.3（2026-09-06）：**WASM 插件（一等公民）**——清单 `runtime:"wasm"` + `entry:*.wasm`；ABI v1（JSON over linear memory 纯函数 + effects 列表，§8）；宿主 WorkerBundle 增加 WASM 加载与调用路径；上下文端点 `/api/hydro/worker/context`（权限门控）；Rust 夹具与 node 端到端测试；§8 重写。
 - v0.2.7（2026-09-06）：**Widget 卡片化**——按反馈迭代：组件入口从启动器行改为**设备信息页卡片区**（音乐卡下方独立卡片，卡片不跳转；`button action:'open'` 可跳转 HydroApp；widget 树定义"卡片树"白名单，禁用 nav/scroll/input/switch）；启动器只列应用；示例对齐（v0.2.4）。

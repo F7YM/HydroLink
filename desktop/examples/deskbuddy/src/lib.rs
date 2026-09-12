@@ -224,3 +224,108 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
     });
     envelope(tree.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Calls the pure ABI function with a context JSON and parses the envelope.
+    fn view(ctx: &str) -> Value {
+        let bytes = ctx.as_bytes();
+        let ptr = hydro_view(bytes.as_ptr(), bytes.len());
+        assert!(!ptr.is_null(), "hydro_view returned null");
+        let len = unsafe { std::ptr::read_unaligned(ptr as *const u32) } as usize;
+        let payload = unsafe { std::slice::from_raw_parts(ptr.add(4), len) };
+        serde_json::from_slice(payload).expect("envelope payload is not valid JSON")
+    }
+
+    fn arcs(tree: &Value) -> Vec<&Value> {
+        tree["root"]["children"]
+            .as_array()
+            .expect("children")
+            .iter()
+            .filter(|c| c["props"]["variant"] == "arc")
+            .collect()
+    }
+
+    #[test]
+    fn renders_clock_track_and_two_arcs() {
+        let t = view(r#"{
+            "time":{"hour":9,"minute":41},
+            "screen":{},
+            "system":{"cpu":12.5,"memPercent":63.2},
+            "music":{"hasMedia":true,"title":"Feel Something","artist":"Jaymes Young",
+                     "artUrl":"http://s/api/music/art"},
+            "server":{"base":"http://192.168.1.5:9000"},
+            "req":{"screen":{"width":466,"height":466},"event":{}}
+        }"#);
+        assert_eq!(t["refreshMs"], 3000);
+        let a = arcs(&t);
+        assert_eq!(a.len(), 2, "expected CPU + RAM arcs");
+        assert_eq!(a[0]["props"]["percent"].as_f64().unwrap(), 13.0); // cpu rounded
+        assert_eq!(a[1]["props"]["percent"].as_f64().unwrap(), 63.0); // mem rounded
+        let texts: Vec<String> = t["root"]["children"].as_array().unwrap().iter()
+            .filter_map(|c| c["props"]["text"].as_str().map(|s| s.to_string()))
+            .collect();
+        assert!(texts.contains(&"09:41".to_string()), "clock missing: {:?}", texts);
+        assert!(texts.contains(&"Feel Something".to_string()));
+        assert!(texts.contains(&"Jaymes Young".to_string()));
+    }
+
+    #[test]
+    fn geometry_adapts_and_defaults_without_screen_info() {
+        let with = view(r#"{"req":{"screen":{"width":466,"height":466}},"music":{"hasMedia":false}}"#);
+        let a = arcs(&with);
+        assert_eq!(a[0]["style"]["radius"].as_f64().unwrap(), 224.0, "466px circle -> radius 224");
+        assert_eq!(a[0]["style"]["height"].as_f64().unwrap(), 480.0, "canvas maps to designWidth 480");
+        let without = view(r#"{"music":{"hasMedia":false}}"#);
+        assert_eq!(arcs(&without)[0]["style"]["radius"].as_f64().unwrap(), 208.0);
+        assert_eq!(arcs(&without)[0]["style"]["width"].as_f64().unwrap(), 480.0);
+    }
+
+    #[test]
+    fn settings_are_applied_and_clamped() {
+        let t = view(r#"{"music":{"hasMedia":false},
+            "req":{"screen":{"width":466,"height":466}},
+            "storage":{"edgeGap":40,"arcSpan":90,"stroke":30,"colors":"split"}}"#);
+        let a = arcs(&t);
+        assert_eq!(a[0]["style"]["radius"].as_f64().unwrap(), 199.0); // 240 - 40*480/466
+        assert_eq!(a[0]["style"]["totalAngle"].as_f64().unwrap(), 90.0);
+        // stroke is clamped to ≤24 physical px, then scaled to design px
+        assert_eq!(a[0]["style"]["strokeWidth"].as_f64().unwrap(), 25.0); // round(24*480/466)
+        assert_eq!(a[0]["style"]["color"], "#BAC3FF");
+        assert_eq!(a[1]["style"]["color"], "#7ADFA0");
+    }
+
+    #[test]
+    fn background_follows_settings_and_media_state() {
+        let with = view(r#"{"music":{"hasMedia":true,"title":"x"},
+            "server":{"base":"http://host:9000"},
+            "req":{"screen":{"width":466,"height":466}},
+            "storage":{"blur":12,"dim":0.5}}"#);
+        let bg = with["root"]["style"]["backgroundImage"].as_str().unwrap_or("");
+        assert!(bg.starts_with("http://host:9000/api/music/art?"), "bg: {bg}");
+        assert!(bg.contains("size=466") && bg.contains("blur=12") && bg.contains("dim=0.5"), "bg: {bg}");
+        let without = view(r#"{"music":{"hasMedia":false},"server":{"base":"http://host:9000"}}"#);
+        assert!(without["root"]["style"]["backgroundImage"].is_null(), "no media -> no background image");
+        let texts: Vec<String> = without["root"]["children"].as_array().unwrap().iter()
+            .filter_map(|c| c["props"]["text"].as_str().map(|s| s.to_string()))
+            .collect();
+        assert!(texts.iter().any(|t| t.contains("无正在播放")), "placeholder missing: {:?}", texts);
+    }
+
+    #[test]
+    fn cover_tap_emits_music_and_storage_effects() {
+        let t = view(r#"{"time":{"unix":1700000000},"music":{"hasMedia":true,"title":"x"},
+            "req":{"event":{"handler":"toggle"}}}"#);
+        let e = t["effects"].as_array().expect("effects");
+        assert_eq!(e.len(), 2);
+        assert_eq!(e[0]["op"], "music");
+        assert_eq!(e[0]["action"], "playpause");
+        assert_eq!(e[1]["op"], "storage");
+        assert_eq!(e[1]["key"], "lastToggleAt");
+        // unrelated events emit nothing
+        let idle = view(r#"{"music":{"hasMedia":true,"title":"x"},"req":{"event":{"handler":"other"}}}"#);
+        assert_eq!(idle["effects"].as_array().unwrap().len(), 0);
+    }
+}
