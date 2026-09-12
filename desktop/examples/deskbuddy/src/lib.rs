@@ -59,6 +59,16 @@ fn setting_str(ctx: &Value, key: &str, default: &str) -> String {
     }
 }
 
+/// 曲目指纹（djb2）：用于给图片 URL 加缓存键，切歌后 URL 变化才能刷新。
+fn track_key(ctx: &Value) -> String {
+    let seed = format!("{}|{}", text(ctx, &["music", "title"]), text(ctx, &["music", "artist"]));
+    let mut h: u64 = 5381;
+    for b in seed.as_bytes() {
+        h = h.wrapping_mul(33) ^ (*b as u64);
+    }
+    format!("{:x}", h)
+}
+
 fn text(v: &Value, path: &[&str]) -> String {
     let mut cur = v;
     for k in path {
@@ -110,6 +120,7 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
     let blur = setting(&ctx, "blur", 26.0).clamp(0.0, 60.0);
     let dim = setting(&ctx, "dim", 0.3).clamp(0.05, 1.0);
     let colors = setting_str(&ctx, "colors", "gray");
+    let bars = setting_str(&ctx, "bars", "arc"); // arc（贴边弧线）| bar（直条备选）
 
     let edge_gap = if screen_w > 0.0 { gap_phys * scale } else { gap_phys * 2.0 };
     let radius = cx - edge_gap;
@@ -131,12 +142,13 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
     } else if !server_base.is_empty() {
         let size = if screen_w > 0.0 { screen_w.round() as i64 } else { 466 };
         format!(
-            "{}/api/music/art?size={}&blur={}&dim={}",
+            "{}/api/music/art?size={}&blur={}&dim={}&k={}",
             server_base.trim_end_matches('/'),
             size,
             blur.round() as i64,
             // keep two decimals for dim
-            (dim * 100.0).round() / 100.0
+            (dim * 100.0).round() / 100.0,
+            track_key(&ctx)
         )
     } else {
         art_blur
@@ -153,6 +165,30 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
 
 
     // 弧条：0°=12 点方向、顺时针；左侧弧以 270°（9 点）为中心，右侧以 90°（3 点）
+    // 直条备选：轨道 + 填充两个 box（不依赖 progress 组件）
+    let bar = |value: f64, side: &str, color: &str| -> Vec<Value> {
+        let (left, right) = if side == "left" { (12.0, 0.0) } else { (0.0, 12.0) };
+        let pct = value.clamp(0.0, 100.0).round();
+        vec![
+            json!({
+                "type": "box",
+                "style": {
+                    "position": "absolute", "top": 120, "bottom": 120,
+                    "left": left, "right": right, "width": 10,
+                    "borderRadius": 5, "backgroundColor": "rgba(255,255,255,0.14)"
+                }
+            }),
+            json!({
+                "type": "box",
+                "style": {
+                    "position": "absolute", "bottom": 120, "left": left, "right": right,
+                    "width": 10, "height": format!("{}%", pct),
+                    "borderRadius": 5, "backgroundColor": color
+                }
+            })
+        ]
+    };
+
     let arc = |value: f64, start: i64, color: &str| {
         json!({
             "type": "progress",
@@ -172,13 +208,21 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
         })
     };
 
-    let cover = if has_media && !art_url.is_empty() {
+    let cover_src = if !server_base.is_empty() {
+        let size = if screen_w > 0.0 { screen_w.round() as i64 } else { 466 };
+        format!("{}/api/music/art?size={}&k={}",
+            server_base.trim_end_matches('/'), size, track_key(&ctx))
+    } else {
+        art_url.clone()
+    };
+
+    let cover = if has_media && !cover_src.is_empty() {
         json!({
             "type": "row",
             "style": { "justifyContent": "center", "marginTop": 18 },
             "children": [{
                 "type": "image",
-                "props": { "src": art_url },
+                "props": { "src": cover_src },
                 "events": { "tap": "toggle" },
                 "style": { "width": 200, "height": 200, "borderRadius": 16 }
             }]
@@ -191,35 +235,45 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
         })
     };
 
+    let color_left = if colors == "split" { "#BAC3FF" } else { "#C8CDD8" };
+    let color_right = if colors == "split" { "#7ADFA0" } else { "#C8CDD8" };
+    let mut sides: Vec<Value> = Vec::new();
+    if bars == "bar" {
+        sides.extend(bar(cpu, "left", color_left));
+        sides.extend(bar(mem, "right", color_right));
+    } else {
+        sides.push(arc(cpu, 240, color_left));
+        sides.push(arc(mem, 60, color_right));
+    }
+
+    let mut children: Vec<Value> = sides;
+    children.push(json!({
+        "type": "text",
+        "props": { "text": clock },
+        "style": { "fontSize": 44, "fontWeight": 700, "color": "#FFFFFF",
+                   "textAlign": "center", "width": "100%" }
+    }));
+    children.push(json!({
+        "type": "text",
+        "props": { "text": if title.is_empty() { "HydroLink".to_string() } else { title } },
+        "style": { "fontSize": 30, "fontWeight": 700, "color": "#FFFFFF",
+                   "textAlign": "center", "width": "100%", "marginTop": 10 }
+    }));
+    children.push(json!({
+        "type": "text",
+        "props": { "text": artist },
+        "style": { "fontSize": 22, "color": "#B9C0CC",
+                   "textAlign": "center", "width": "100%", "marginTop": 4 }
+    }));
+    children.push(cover);
+
     let tree = json!({
         "refreshMs": 3000,
         "effects": effects,
         "root": {
             "type": "scroll",
             "style": root_style,
-            "children": [
-                arc(cpu, 240, if colors == "split" { "#BAC3FF" } else { "#C8CDD8" }),
-                arc(mem, 60, if colors == "split" { "#7ADFA0" } else { "#C8CDD8" }),
-                {
-                    "type": "text",
-                    "props": { "text": clock },
-                    "style": { "fontSize": 44, "fontWeight": 700, "color": "#FFFFFF",
-                               "textAlign": "center", "width": "100%" }
-                },
-                {
-                    "type": "text",
-                    "props": { "text": if title.is_empty() { "HydroLink".to_string() } else { title } },
-                    "style": { "fontSize": 30, "fontWeight": 700, "color": "#FFFFFF",
-                               "textAlign": "center", "width": "100%", "marginTop": 10 }
-                },
-                {
-                    "type": "text",
-                    "props": { "text": artist },
-                    "style": { "fontSize": 22, "color": "#B9C0CC",
-                               "textAlign": "center", "width": "100%", "marginTop": 4 }
-                },
-                cover
-            ]
+            "children": children
         }
     });
     envelope(tree.to_string())
@@ -312,6 +366,34 @@ mod tests {
             .filter_map(|c| c["props"]["text"].as_str().map(|s| s.to_string()))
             .collect();
         assert!(texts.iter().any(|t| t.contains("无正在播放")), "placeholder missing: {:?}", texts);
+    }
+
+    #[test]
+    fn art_urls_change_with_the_track() {
+        // 回归：切歌必须换 URL，否则封面/背景会被 WebView 缓存住不刷新
+        let a = view(r#"{"music":{"hasMedia":true,"title":"A","artist":"X"},
+            "server":{"base":"http://h:9000"},"req":{"screen":{"width":466,"height":466}}}"#);
+        let b = view(r#"{"music":{"hasMedia":true,"title":"B","artist":"X"},
+            "server":{"base":"http://h:9000"},"req":{"screen":{"width":466,"height":466}}}"#);
+        let bg_a = a["root"]["style"]["backgroundImage"].as_str().unwrap_or("");
+        let bg_b = b["root"]["style"]["backgroundImage"].as_str().unwrap_or("");
+        assert!(bg_a.contains("&k="), "background lacks a cache key: {bg_a}");
+        assert_ne!(bg_a, bg_b, "background URL must change when the track changes");
+        let cover_a = a["root"]["children"].as_array().unwrap().iter()
+            .find_map(|c| c["children"].as_array().and_then(|k| k.first())
+                .and_then(|im| im["props"]["src"].as_str().map(|s| s.to_string())))
+            .unwrap_or_default();
+        assert!(cover_a.contains("&k="), "cover lacks a cache key: {cover_a}");
+    }
+
+    #[test]
+    fn bars_setting_switches_to_box_bars() {
+        let t = view(r#"{"music":{"hasMedia":false},"storage":{"bars":"bar"},
+            "req":{"screen":{"width":466,"height":466}}}"#);
+        let kids = t["root"]["children"].as_array().unwrap();
+        assert_eq!(arcs(&t).len(), 0, "no arc nodes in bar mode");
+        let boxes = kids.iter().filter(|c| c["type"] == "box").count();
+        assert_eq!(boxes, 4, "expect 2 tracks + 2 fills");
     }
 
     #[test]

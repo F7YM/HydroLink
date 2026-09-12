@@ -35,6 +35,9 @@
     <progress if="{{ leaf.isProgress }}" class="leaf-progress" style="{{ leaf.s }}"
       percent="{{ leaf.percent }}" type="{{ leaf.variant }}"></progress>
 
+    <!-- 空盒子（协议节点 type:"box"：纯样式块，用于进度条/分隔线/占位） -->
+    <div if="{{ leaf.isBox }}" class="leaf-box" style="{{ leaf.s }}"></div>
+
     <!-- 页面导航（协议节点 type:"nav"：action=back/open）。
          样式作用于容器 div（Vela 文本元素上 width 行为不可靠）；
          居中由插件在 style/media 里用 justifyContent 声明（div 是 flex 容器） -->
@@ -86,6 +89,7 @@
   animation-iteration-count: infinite;
 }
 .leaf-progress { width: 100%; }
+.leaf-box { width: 100%; height: 8px; }
 .nav { padding: 6px 0; align-items: center; }
 .nav-text { font-size: 28px; color: #ffffff; }
 .icon-img { width: 28px; height: 28px; }

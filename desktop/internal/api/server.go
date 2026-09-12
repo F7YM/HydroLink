@@ -81,6 +81,9 @@ func (s *Server) SetPairCallback(fn func(deviceID, deviceName string)) {
 
 // SetHydroHandler mounts the HydroKit plugin API dispatcher under
 // /api/hydro/... (see the "hydro" field).
+//
+// Responses carry Cache-Control: no-store because plugin views change with
+// host state (music tracks, CPU/RAM) and clients poll the same URL.
 func (s *Server) SetHydroHandler(h http.Handler) {
 	s.hydro = h
 }
@@ -228,6 +231,11 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	if s.worker != nil && strings.HasPrefix(path, "/api/hydro/worker/") {
 		s.worker.ServeHTTP(w, r)
 		return
+	}
+
+	// Bare /api/hydro must not be cached by any intermediate (watch WebView).
+	if strings.HasPrefix(path, "/api/hydro") {
+		w.Header().Set("Cache-Control", "no-store")
 	}
 
 	// Delegate HydroKit plugin API to its own dispatcher.

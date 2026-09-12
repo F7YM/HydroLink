@@ -125,8 +125,13 @@ const ICON_MAP = {
   mobile: '/common/icons/mobile.png'
 }
 
-function cssVal(v) {
-  return typeof v === 'number' ? v + 'px' : String(v)
+// 数值单位：角度类（startAngle/totalAngle…）补 deg，其余补 px；
+// 字符串原样透传（调用方可自带单位，如 "240deg"）
+function cssVal(key, v) {
+  if (typeof v === 'number') {
+    return /angle$/i.test(key) ? v + 'deg' : v + 'px'
+  }
+  return String(v)
 }
 function toCssStyle(obj) {
   if (!obj || typeof obj !== 'object') return ''
@@ -136,7 +141,7 @@ function toCssStyle(obj) {
     if (v === null || v === undefined) return
     // Vela 用 font-weight；协议里允许简写 weight
     const prop = k === 'weight' ? 'font-weight' : k.replace(/([A-Z])/g, '-$1').toLowerCase()
-    parts.push(prop + ': ' + cssVal(v))
+    parts.push(prop + ': ' + cssVal(k, v))
   })
   return parts.join('; ')
 }
@@ -168,6 +173,7 @@ function buildLeaf(n, inRow, ctx) {
   const isInput = type === 'input'
   const isNav = type === 'nav'
   const isProgress = type === 'progress'
+  const isBox = type === 'box'
   const iconSrc = isIcon ? (ICON_MAP[p.name] || '') : ''
   const st = resolveStyle(n, ctx)
   // 容器默认主题：文本未指定颜色时用白色（Vela 默认文本色是灰的）
@@ -200,13 +206,14 @@ function buildLeaf(n, inRow, ctx) {
     isInput: isInput,
     isNav: isNav,
     isProgress: isProgress,
+    isBox: isBox,
     percent: (typeof p.percent === 'number' ? p.percent : parseFloat(p.percent) || 0),
     variant: p.variant === 'arc' ? 'arc' : 'horizontal',
     navAction: p.action || '',
     navLabel: p.label || (p.action === 'open' ? '›' : '‹'),
     navSurface: p.surface || 'app',
     navItem: p.item || '',
-    isOther: !(isText || isBtn || isSw || isBadge || isSpin || isIcon || isImg || isInput || isNav || isProgress)
+    isOther: !(isText || isBtn || isSw || isBadge || isSpin || isIcon || isImg || isInput || isNav || isProgress || isBox)
   }
 }
 
@@ -338,14 +345,19 @@ export default {
   path(action) {
     let p = '/api/hydro/' + this.plugin + '/' + this.surface + '/' + this.item + '/' + action
     const sc = this._screen
+    // 递增序号：轮询/事件用同一路径，避免 WebView 或中间层缓存 GET 响应
+    // （否则切歌、CPU 变化等宿主状态更新不会反映到界面）
+    this._seq = (this._seq || 0) + 1
+    let q = '_=' + this._seq
     if (sc && sc.shape) {
-      p += '?shape=' + encodeURIComponent(sc.shape) +
+      q = 'shape=' + encodeURIComponent(sc.shape) +
         '&width=' + sc.width +
         '&height=' + sc.height +
         '&dpr=' + sc.dpr +
-        '&dt=' + encodeURIComponent(sc.deviceType || '')
+        '&dt=' + encodeURIComponent(sc.deviceType || '') +
+        '&' + q
     }
-    return p
+    return p + '?' + q
   },
 
   async load() {
