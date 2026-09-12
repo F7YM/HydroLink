@@ -1,6 +1,6 @@
 <import name="hydro-leaf" src="../../components/HydroLeaf/HydroLeaf"></import>
 <template>
-  <div class="page">
+  <div class="page" style="{{ pageStyle }}">
 
     <!-- 加载 / 错误（头部下方垂直居中，不与返回栏重叠） -->
     <div class="center-area" if="{{ loading && !errorText }}">
@@ -167,6 +167,7 @@ function buildLeaf(n, inRow, ctx) {
   const isImg = type === 'image'
   const isInput = type === 'input'
   const isNav = type === 'nav'
+  const isProgress = type === 'progress'
   const iconSrc = isIcon ? (ICON_MAP[p.name] || '') : ''
   const st = resolveStyle(n, ctx)
   // 容器默认主题：文本未指定颜色时用白色（Vela 默认文本色是灰的）
@@ -198,11 +199,14 @@ function buildLeaf(n, inRow, ctx) {
     isImg: isImg,
     isInput: isInput,
     isNav: isNav,
+    isProgress: isProgress,
+    percent: (typeof p.percent === 'number' ? p.percent : parseFloat(p.percent) || 0),
+    variant: p.variant === 'arc' ? 'arc' : 'horizontal',
     navAction: p.action || '',
     navLabel: p.label || (p.action === 'open' ? '›' : '‹'),
     navSurface: p.surface || 'app',
     navItem: p.item || '',
-    isOther: !(isText || isBtn || isSw || isBadge || isSpin || isIcon || isImg || isInput || isNav)
+    isOther: !(isText || isBtn || isSw || isBadge || isSpin || isIcon || isImg || isInput || isNav || isProgress)
   }
 }
 
@@ -245,7 +249,8 @@ export default {
     _screen: null,
     _watchStore: null,
     safeClass: '',
-    rootScroll: false
+    rootScroll: false,
+    pageStyle: ''
   },
 
   onInit() {
@@ -366,9 +371,21 @@ export default {
     const root = view.root
     this.rootScroll = !!(root && root.type === 'scroll')
     const ctx = this._screenCtx()
+    // 根节点的背景样式提升到整页容器（全屏背景层，不受安全区内边距限制）
+    const rootStyle = root ? resolveStyle(root, ctx) : {}
+    const bgKeys = ['backgroundImage', 'backgroundSize', 'backgroundPosition', 'backgroundRepeat', 'backgroundColor']
+    const pageBg = {}
+    const contentStyle = Object.assign({}, rootStyle)
+    bgKeys.forEach((k) => {
+      if (rootStyle[k] !== undefined) {
+        pageBg[k] = rootStyle[k]
+        delete contentStyle[k]
+      }
+    })
+    this.pageStyle = toCssStyle(pageBg)
     if (root && root.children && root.children.length) {
       this.ui = root.children.map((c) => build(c, false, ctx))
-      this.contentStyle = root ? toCssStyle(resolveStyle(root, ctx)) : ''
+      this.contentStyle = toCssStyle(contentStyle)
     } else {
       this.ui = root ? [build(root, false, ctx)] : []
       this.contentStyle = ''

@@ -30,6 +30,11 @@
       <text class="btn-text ghost-text">{{ leaf.v || leaf.placeholder || '点击输入' }}</text>
     </div>
 
+    <!-- 进度条（协议节点 type:"progress"：props.percent 0-100，props.variant arc|bar）
+         Vela progress 的 percent/type 是属性；颜色/粗细/弧参数走 style -->
+    <progress if="{{ leaf.isProgress }}" class="leaf-progress" style="{{ leaf.s }}"
+      percent="{{ leaf.percent }}" type="{{ leaf.variant }}"></progress>
+
     <!-- 页面导航（协议节点 type:"nav"：action=back/open）。
          样式作用于容器 div（Vela 文本元素上 width 行为不可靠）；
          居中由插件在 style/media 里用 justifyContent 声明（div 是 flex 容器） -->
@@ -80,6 +85,7 @@
   animation-timing-function: linear;
   animation-iteration-count: infinite;
 }
+.leaf-progress { width: 100%; }
 .nav { padding: 6px 0; align-items: center; }
 .nav-text { font-size: 28px; color: #ffffff; }
 .icon-img { width: 28px; height: 28px; }

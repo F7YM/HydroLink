@@ -140,7 +140,7 @@ module.exports = {
 
 ```json
 {
-  "type": "column | row | scroll | card | text | icon | image | spinner | badge | button | switch | input",
+  "type": "column | row | scroll | card | text | icon | image | spinner | badge | button | switch | input | nav | progress",
   "style": { "fontSize": 28, "color": "#FFFFFF", "marginBottom": 8, "...": "CSS 驼峰属性" },
   "children": [ ... ],                  // 仅容器节点
   "events": { "tap": "refresh", "change": "toggle" },  // 用户交互 → 下一次 view() 的 req.event.handler
@@ -150,6 +150,8 @@ module.exports = {
 }
 ```
 
+- **`progress`（进度条）**：`props.percent`（0-100）、`props.variant`（`horizontal` 默认 / `arc`）；颜色与几何走 `style`：`color`、`layerColor`、`strokeWidth`，弧线另支持 `startAngle`/`totalAngle`/`radius`/`centerX`/`centerY`（对应 Vela `progress` 组件）。位置用 `position:absolute` + `top/left/right/bottom`（Vela 支持 relative|absolute）
+- **全屏背景层**：根节点的 `backgroundImage`/`backgroundSize`/`backgroundPosition`/`backgroundColor` 会被容器提升到**整页容器**（铺满全屏，不受圆屏安全区内边距影响）；其余样式仍作用于内容层。示例：`{"type":"scroll","style":{"backgroundImage":"http://host:9000/api/music/art?size=466&blur=26&dim=0.3","backgroundSize":"cover","padding":16}}`
 - 返回值整体为 `{ "root": Node, "refreshMs": 0 }`；返回 `null` 表示"无变更"
 - **Widget 的表面形态（卡片树）**：`/api/hydro/{pkg}/widget/{item}/...` 与 app 表面同一套路由/事件，但**渲染约束不同**——widget 树是"卡片树"：
   - 允许节点：`column` / `row` / `text` / `icon` / `image` / `spinner` / `badge` / `button`；**禁用** `nav` / `scroll` / `input` / `switch`
@@ -344,6 +346,7 @@ curl -X POST 'http://127.0.0.1:9000/api/hydro/com.demo.weather/app/main/view?sha
 - v0.1.1（2026-09-06）：§5 通道实现定为**长轮询**（poll/respond，无 WebSocket 依赖）；§2 生命周期补充"启动即建 + 按需唤起"。
 - v0.2（2026-09-06）：**watch 端存储落地**（§6 请求上下文语义：`X-Hydro-Store` 上送快照 / `view.storage` 落盘，容器与 bundle 已实现）；**插件 WebUI 落地**（§9：`web/` 同源服务 + 桌面端遮罩层内嵌）；示例插件更新为 v0.2（名字=watch 端、备注=server 端 + WebUI 设置页）。
 - v0.2.6（2026-09-06）：**Widget 表面落地**（手表呈现）——HydroApps 启动器新增"组件"条目，hydro 容器以 `surface=widget` 渲染并轮询 `refreshMs`；示例组件视图补导航节点。
+- v0.3.1（2026-09-06）：**`progress` 叶子与全屏背景层**——新增 `type:"progress"`（horizontal/arc，§4）；根节点的 background* 样式提升到整页容器（全屏背景，避开安全区限制）。
 - v0.3（2026-09-06）：**WASM 插件（一等公民）**——清单 `runtime:"wasm"` + `entry:*.wasm`；ABI v1（JSON over linear memory 纯函数 + effects 列表，§8）；宿主 WorkerBundle 增加 WASM 加载与调用路径；上下文端点 `/api/hydro/worker/context`（权限门控）；Rust 夹具与 node 端到端测试；§8 重写。
 - v0.2.7（2026-09-06）：**Widget 卡片化**——按反馈迭代：组件入口从启动器行改为**设备信息页卡片区**（音乐卡下方独立卡片，卡片不跳转；`button action:'open'` 可跳转 HydroApp；widget 树定义"卡片树"白名单，禁用 nav/scroll/input/switch）；启动器只列应用；示例对齐（v0.2.4）。
 - v0.2.5（2026-09-06）：文档明确 item id 形式（URL 安全 slug，仅约定不校验）；桌面插件列表移除安装时间展示。
