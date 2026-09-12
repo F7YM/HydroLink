@@ -238,6 +238,11 @@ func (a *App) GetPluginBundle(id, base string) (string, error) {
 	if entry == "" {
 		entry = "server.js"
 	}
+	// WASM plugins: the worker gets a generic host bundle and fetches
+	// plugin.wasm itself through the package-asset endpoint.
+	if m.Runtime == store.RuntimeWasm {
+		return string(hydrokit.WasmBundle(id, entry, base)), nil
+	}
 	code, err := a.st.ReadPluginFile(id, entry)
 	if err != nil {
 		return "", fmt.Errorf("读取入口 %s 失败: %v", entry, err)

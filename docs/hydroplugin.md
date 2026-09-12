@@ -235,18 +235,79 @@ await kit.storage.clear({ scope: 'server' })
 
 **信任边界（重要）**：插件代码以与桌面应用同等的用户身份运行（可访问本机服务、数据目录）。**安装第三方插件 = 信任其代码**。第一版只对单个用户本机自装场景提供，插件市场/签名/沙箱加固是后续里程碑。
 
-## 8. WASM（可选）
+## 8. 插件运行时：JS 与 WASM（ABI v1）
 
-- 随包分发：`assets/*.wasm`（打包在 zip 内，发布后不可变）
-- `server.js` 通过标准 `WebAssembly.instantiate` 加载（Worker 支持）；Kit 提供等价便捷方法：
+插件清单用 `runtime` 声明运行方式（默认 `js`）：
 
-```js
-const wasm = await kit.loadWasm('assets/model.wasm')  // 返回 { exports }
-const { add } = wasm.exports                           // 按需使用
+| runtime | 入口 | 执行方式 |
+|---|---|---|
+| `js`（默认） | `server.js` | Worker 内直接执行（CommonJS shim + `kit` 全局） |
+| `wasm` | `plugin.wasm` | Worker 内的 **HydroKit WASM 宿主**加载并调用（本节 ABI） |
+
+### 8.1 WASM 插件是"纯函数"
+
+WASM 无法 `await` 异步宿主调用，因此 ABI v1 把插件定义为**纯函数**：
+
+- **读**：宿主预取上下文（请求、时间、系统指标、音乐、本插件服务端存储快照），一次性交给插件
+- **写**：插件不直接调宿主，而是在返回值里给出 **effects 列表**，宿主代为执行（仍按清单权限校验）
+
+### 8.2 ABI v1（JSON over linear memory）
+
+导出（guest）：
+
+```
+hydro_abi_version() -> i32            # 必须为 1
+hydro_alloc(len) -> ptr               # guest 分配器
+hydro_free(ptr, len)
+hydro_view(ctxPtr, ctxLen) -> ptr     # 返回信封：[u32 小端长度][utf-8 JSON]
 ```
 
-- 典型用途：性能关键算法、加密、模型推理（liteRT 模型运行时是新里程碑，与本法无关）
-- 纯 JS 先做到功能，需要性能再引入 WASM——**插件不必须带 wasm**
+导入（host → 宿主提供）：
+
+```
+env.hydro_log(ptr, len)               # 可选，调试输出（进桌面端日志）
+```
+
+**上下文 JSON**（`hydro_view` 入参，字段按清单权限填充）：
+
+```json
+{
+  "abi": 1, "package": "com.demo.deskbuddy",
+  "surface": "app", "item": "main",
+  "req": { "trigger": "open", "event": {...}, "screen": {...}, "store": {...} },
+  "time":   { "unix": 0, "iso": "...", "hour": 9, "minute": 41 },
+  "server": { "base": "http://192.168.3.48:9000" },
+  "system": { "cpu": 12.5, "memPercent": 43.2, "memUsedMB": 8192, "memTotalMB": 16384 },
+  "music":  { "hasMedia": true, "title": "Feel Something", "artist": "Jaymes Young", "playing": true },
+  "storage": { "key": "value" }
+}
+```
+（`system` 需权限 `system`；`music` 需 `music`；`storage` 需 `storage`；`req.screen` / `req.store` 始终提供。）
+
+**返回值 JSON**：
+
+```json
+{
+  "root": { "type": "scroll", "...": "..." },
+  "refreshMs": 3000,
+  "storage": { "watchKey": "值" },
+  "effects": [
+    { "op": "notify",  "title": "标题", "text": "内容" },
+    { "op": "music",   "action": "play-pause" },
+    { "op": "storage", "key": "k", "value": "v" },
+    { "op": "lock" }
+  ]
+}
+```
+
+`root`/`refreshMs`/`storage` 语义与 JS 插件一致（§4/§6）；`effects` 由宿主执行，未知 `op` 忽略并记日志。
+
+### 8.3 打包与工具链
+
+- zip 内放 `plugin.wasm`（+ 可选 `assets/`），清单写 `"runtime": "wasm"`、`"entry": "plugin.wasm"`
+- SDK/示例：`desktop/examples/wasm-fixture/`（Rust，零依赖，最小 ABI 实现）——`cargo build --release --target wasm32-unknown-unknown`
+- 语言任选，只要产出符合 ABI 的 wasm：Rust（推荐，体积最小）、AssemblyScript、TinyGo；Go 1.24+ 也可用 `GOOS=wasip1` + `//go:wasmexport`（需宿主提供 WASI 导入桩）
+- `server.js` 里同样可以用 `kit.loadWasm('assets/x.wasm')` 加载**辅助** wasm（性能关键算法、模型）——那是 JS 插件的可选手段，与本节"WASM 插件"不同
 
 ## 9. 插件 WebUI（桌面端设置界面）
 
@@ -283,6 +344,7 @@ curl -X POST 'http://127.0.0.1:9000/api/hydro/com.demo.weather/app/main/view?sha
 - v0.1.1（2026-09-06）：§5 通道实现定为**长轮询**（poll/respond，无 WebSocket 依赖）；§2 生命周期补充"启动即建 + 按需唤起"。
 - v0.2（2026-09-06）：**watch 端存储落地**（§6 请求上下文语义：`X-Hydro-Store` 上送快照 / `view.storage` 落盘，容器与 bundle 已实现）；**插件 WebUI 落地**（§9：`web/` 同源服务 + 桌面端遮罩层内嵌）；示例插件更新为 v0.2（名字=watch 端、备注=server 端 + WebUI 设置页）。
 - v0.2.6（2026-09-06）：**Widget 表面落地**（手表呈现）——HydroApps 启动器新增"组件"条目，hydro 容器以 `surface=widget` 渲染并轮询 `refreshMs`；示例组件视图补导航节点。
+- v0.3（2026-09-06）：**WASM 插件（一等公民）**——清单 `runtime:"wasm"` + `entry:*.wasm`；ABI v1（JSON over linear memory 纯函数 + effects 列表，§8）；宿主 WorkerBundle 增加 WASM 加载与调用路径；上下文端点 `/api/hydro/worker/context`（权限门控）；Rust 夹具与 node 端到端测试；§8 重写。
 - v0.2.7（2026-09-06）：**Widget 卡片化**——按反馈迭代：组件入口从启动器行改为**设备信息页卡片区**（音乐卡下方独立卡片，卡片不跳转；`button action:'open'` 可跳转 HydroApp；widget 树定义"卡片树"白名单，禁用 nav/scroll/input/switch）；启动器只列应用；示例对齐（v0.2.4）。
 - v0.2.5（2026-09-06）：文档明确 item id 形式（URL 安全 slug，仅约定不校验）；桌面插件列表移除安装时间展示。
 - v0.2.3（2026-09-06）：**页面导航进协议**——新增 `type:"nav"` 节点（back/open），容器移除硬编码返回栏，插件声明自己的导航（§4）；天气示例带头声明。

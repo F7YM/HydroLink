@@ -2,9 +2,11 @@ package api
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gen2brain/beeep"
 
@@ -44,6 +46,8 @@ func (h *WorkerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.bridge.HandleRespond(w, r)
 	case path == "store" && r.Method == http.MethodPost:
 		h.handleStore(w, r)
+	case path == "context" && r.Method == http.MethodPost:
+		h.handleContext(w, r)
 	case path == "notify" && r.Method == http.MethodPost:
 		h.handleNotify(w, r)
 	case path == "music" && r.Method == http.MethodPost:
@@ -329,4 +333,92 @@ func webContentType(name string) string {
 	default:
 		return "application/octet-stream"
 	}
+}
+
+// ---- WASM plugin ABI v1: context builder ----
+
+// handleContext assembles the ABI v1 context JSON for a WASM plugin: the
+// pre-fetched, permission-gated data a pure-function plugin needs (request,
+// server time, host system metrics, music, its own server-scope storage).
+func (h *WorkerHandler) handleContext(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Package string          `json:"package"`
+		Surface string          `json:"surface"`
+		Item    string          `json:"item"`
+		Req     json.RawMessage `json:"req"`
+	}
+	if !parseWorkerBody(r, &body) {
+		writeWorkerError(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	m, err := h.st.GetPluginManifest(body.Package)
+	if err != nil {
+		writeWorkerError(w, http.StatusForbidden, "plugin 不存在或清单不可读")
+		return
+	}
+	has := func(perm string) bool {
+		for _, p := range m.Permissions {
+			if p == perm {
+				return true
+			}
+		}
+		return false
+	}
+
+	now := time.Now()
+	ctx := map[string]any{
+		"abi":     1,
+		"package": body.Package,
+		"surface": body.Surface,
+		"item":    body.Item,
+		"time": map[string]any{
+			"unix":   now.Unix(),
+			"iso":    now.Format(time.RFC3339),
+			"hour":   now.Hour(),
+			"minute": now.Minute(),
+		},
+		"server": map[string]any{
+			"base": "http://" + apiBaseHost(r),
+		},
+	}
+	if len(body.Req) > 0 {
+		ctx["req"] = json.RawMessage(body.Req)
+	}
+
+	if has("system") {
+		if p, err := system.GetPerf(); err == nil {
+			ctx["system"] = map[string]any{
+				"cpu":        p.CPU,
+				"memPercent": p.MemPercent,
+				"memUsedMB":  p.MemUsedMB,
+				"memTotalMB": p.MemTotalMB,
+			}
+		}
+	}
+	if has("music") {
+		info := system.GetMusic()
+		ctx["music"] = map[string]any{
+			"hasMedia": info.HasMedia,
+			"title":    info.Title,
+			"artist":   info.Artist,
+			"playing":  info.Playing,
+		}
+	}
+	if has("storage") || has("system") || has("music") {
+		if kv, err := h.st.LoadPluginKV(body.Package); err == nil {
+			ctx["storage"] = kv
+		}
+	}
+
+	writeJSON(w, http.StatusOK, ctx)
+}
+
+// apiBaseHost returns the LAN-reachable host:port for the current server
+// (LAN IP + the port this request arrived on).
+func apiBaseHost(r *http.Request) string {
+	port := "9000"
+	if _, p, err := net.SplitHostPort(r.Host); err == nil && p != "" {
+		port = p
+	}
+	return net.JoinHostPort(LocalIP(), port)
 }

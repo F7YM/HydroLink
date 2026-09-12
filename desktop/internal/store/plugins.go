@@ -15,10 +15,13 @@ import (
 
 // PluginManifest mirrors docs/hydroplugin.md §3.1.
 type PluginManifest struct {
-	ID          string       `json:"id"`
-	Name        string       `json:"name"`
-	Version     string       `json:"version"`
-	Icon        string       `json:"icon,omitempty"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	Icon    string `json:"icon,omitempty"`
+	// Runtime is "js" (default, server.js in a WebWorker) or "wasm"
+	// (plugin.wasm loaded by the WorkerBundle's HydroKit WASM host, ABI v1).
+	Runtime     string       `json:"runtime,omitempty"`
 	Entry       string       `json:"entry"`
 	Apps        []PluginItem `json:"apps"`
 	Widgets     []PluginItem `json:"widgets"`
@@ -38,6 +41,7 @@ type PluginInfo struct {
 	Name        string       `json:"name"`
 	Version     string       `json:"version"`
 	Entry       string       `json:"entry"`
+	Runtime     string       `json:"runtime"`
 	Apps        []PluginItem `json:"apps"`
 	Widgets     []PluginItem `json:"widgets"`
 	Permissions []string     `json:"permissions"`
@@ -49,6 +53,23 @@ type PluginInfo struct {
 
 // ErrPluginCanceled is returned when the user cancels an install dialog.
 var ErrPluginCanceled = errors.New("canceled")
+
+// Plugin runtimes.
+const (
+	RuntimeJS   = "js"   // server.js executed by the HydroKit worker
+	RuntimeWasm = "wasm" // plugin.wasm executed by the HydroKit WASM host (ABI v1)
+)
+
+func normalizeRuntime(rt string) string {
+	switch strings.ToLower(strings.TrimSpace(rt)) {
+	case "", RuntimeJS:
+		return RuntimeJS
+	case RuntimeWasm:
+		return RuntimeWasm
+	default:
+		return strings.ToLower(strings.TrimSpace(rt))
+	}
+}
 
 var pluginIDRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{1,120}$`)
 
@@ -94,6 +115,7 @@ func (s *Store) ListPlugins() []PluginInfo {
 		info.Name = m.Name
 		info.Version = m.Version
 		info.Entry = m.Entry
+		info.Runtime = normalizeRuntime(m.Runtime)
 		info.Apps = orEmpty(m.Apps)
 		info.Widgets = orEmpty(m.Widgets)
 		info.Permissions = orEmpty(m.Permissions)
@@ -149,8 +171,16 @@ func (s *Store) ReadPluginPackage(zipPath string) (*PluginManifest, error) {
 	if !pluginIDRe.MatchString(m.ID) {
 		return nil, fmt.Errorf("无效的包 ID: %q", m.ID)
 	}
+	m.Runtime = normalizeRuntime(m.Runtime)
 	if m.Entry == "" {
-		m.Entry = "server.js"
+		if m.Runtime == RuntimeWasm {
+			m.Entry = "plugin.wasm"
+		} else {
+			m.Entry = "server.js"
+		}
+	}
+	if m.Runtime == RuntimeWasm && !strings.HasSuffix(strings.ToLower(m.Entry), ".wasm") {
+		return nil, fmt.Errorf("runtime=wasm 的入口必须是 .wasm 文件: %s", m.Entry)
 	}
 	if ok, _ := hasEntry(zr.File, prefix, m.Entry); !ok {
 		return nil, fmt.Errorf("安装包缺少入口文件 %s", m.Entry)
@@ -209,6 +239,7 @@ func (s *Store) InstallPlugin(zipPath string) (PluginInfo, error) {
 		Name:        m.Name,
 		Version:     m.Version,
 		Entry:       m.Entry,
+		Runtime:     m.Runtime,
 		Apps:        apps,
 		Widgets:     widgets,
 		Permissions: orEmpty(m.Permissions),

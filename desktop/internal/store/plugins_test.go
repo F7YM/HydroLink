@@ -160,3 +160,45 @@ func TestInstallBadExtension(t *testing.T) {
 		t.Fatal("expected extension error")
 	}
 }
+
+func TestWasmRuntimePackage(t *testing.T) {
+	wasmManifest := `{
+  "id": "com.test.wasm",
+  "name": "WASM 插件",
+  "version": "0.1.0",
+  "runtime": "wasm",
+  "apps": [{"id":"main","name":"主页"}],
+  "permissions": ["system"]
+}`
+	s := testStore(t)
+	p := buildZip(t, map[string]string{
+		"manifest.json": wasmManifest,
+		"plugin.wasm":   "\x00asm\x01\x00\x00\x00", // minimal wasm magic
+	})
+	info, err := s.InstallPlugin(p)
+	if err != nil {
+		t.Fatalf("install wasm plugin: %v", err)
+	}
+	if info.Runtime != "wasm" || info.Entry != "plugin.wasm" {
+		t.Fatalf("info = %+v (want runtime=wasm entry=plugin.wasm)", info)
+	}
+	if got := s.ListPlugins(); len(got) != 1 || got[0].Runtime != "wasm" {
+		t.Fatalf("list = %+v", got)
+	}
+
+	// runtime=wasm with a non-wasm entry is rejected
+	bad := buildZip(t, map[string]string{
+		"manifest.json": strings.Replace(wasmManifest, `"permissions"`, `"entry": "server.js", "permissions"`, 1),
+		"server.js":     "x",
+		"plugin.wasm":   "\x00asm\x01\x00\x00\x00",
+	})
+	if _, err := s.InstallPlugin(bad); err == nil || !strings.Contains(err.Error(), ".wasm") {
+		t.Fatalf("err = %v, want .wasm entry error", err)
+	}
+
+	// missing wasm entry is rejected
+	missing := buildZip(t, map[string]string{"manifest.json": wasmManifest})
+	if _, err := s.InstallPlugin(missing); err == nil || !strings.Contains(err.Error(), "plugin.wasm") {
+		t.Fatalf("err = %v, want missing entry error", err)
+	}
+}
