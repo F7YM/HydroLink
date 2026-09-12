@@ -111,23 +111,21 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
     let canvas_w = 480.0;
     let canvas_h = if screen_h > 0.0 { screen_h * scale } else { 480.0 };
     let cx = canvas_w / 2.0;
-    let cy = canvas_h / 2.0;
     // Tunables (WebUI writes them into server-scope storage; defaults keep the
     // reference-mock look). gap/stroke are physical-px intents.
-    let gap_phys = setting(&ctx, "edgeGap", 16.0).clamp(4.0, 60.0);
+    let gap_phys = setting(&ctx, "edgeGap", 16.0).clamp(4.0, 60.0); // 曲线模式的贴边距离
     let arc_span = setting(&ctx, "arcSpan", 60.0).clamp(20.0, 120.0);
     let stroke_phys = setting(&ctx, "stroke", 9.0).clamp(2.0, 24.0);
     let blur = setting(&ctx, "blur", 26.0).clamp(0.0, 60.0);
     let dim = setting(&ctx, "dim", 0.3).clamp(0.05, 1.0);
     let colors = setting_str(&ctx, "colors", "gray");
     // 侧条默认直条（普通 div 渲染，稳定可见）；arc 为可选
-    let bars = setting_str(&ctx, "bars", "bar"); // bar（直条）| arc（贴边弧线）
+    let bars = setting_str(&ctx, "bars", "bar"); // bar（直条）| curve（逐行描出的曲线）
     let font_scale = setting(&ctx, "fontScale", 1.0).clamp(0.6, 2.0);
     let f = |base: f64| (base * font_scale).round();
 
-    let edge_gap = if screen_w > 0.0 { gap_phys * scale } else { gap_phys * 2.0 };
-    let radius = cx - edge_gap;
-    let stroke = if screen_w > 0.0 { stroke_phys * scale } else { stroke_phys };
+    let _ = stroke_phys; // 粗细在各自渲染器内定义
+
 
     // Clicking the cover toggles playback; the host executes the effects
     // (music control + remembering the action in server-scope storage).
@@ -199,24 +197,6 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
         })
     };
 
-    let arc = |value: f64, start: i64, color: &str| {
-        json!({
-            "type": "progress",
-            "props": { "percent": value.round(), "variant": "arc" },
-            "style": {
-                "position": "absolute",
-                "left": 0, "top": 0, "width": canvas_w, "height": canvas_h,
-                "startAngle": start,
-                "totalAngle": arc_span.round(),
-                "radius": radius.round(),
-                "centerX": cx,
-                "centerY": cy,
-                "strokeWidth": stroke.round(),
-                "color": color,
-                "layerColor": "rgba(255,255,255,0.14)"
-            }
-        })
-    };
 
     let cover_src = if !server_base.is_empty() {
         let size = if screen_w > 0.0 { screen_w.round() as i64 } else { 466 };
@@ -245,13 +225,48 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
 
     let color_left = if colors == "split" { "#BAC3FF" } else { "#C8CDD8" };
     let color_right = if colors == "split" { "#7ADFA0" } else { "#C8CDD8" };
-    let bar_w = 14.0;
-    let gap = 12.0;
+    let bar_w: f64 = 14.0;
+    let gap: f64 = 12.0;
     let center_w = (canvas_w - 2.0 * (bar_w + gap)).round();
 
     // arc 模式仍用绝对定位（在真机上待验证）；bar 模式为纯 flex 流布局
-    let side_left = if bars == "arc" { arc(cpu, 240, color_left) } else { bar(cpu, color_left) };
-    let side_right = if bars == "arc" { arc(mem, 60, color_right) } else { bar(mem, color_right) };
+    // curve：逐行 box 描出的贴边曲线（纯流式，不依赖 progress 组件）
+    let curve = |value: f64, side: &str, color: &str| -> Value {
+        let thickness = 12.0;
+        let radius = cx - gap_phys * (if screen_w > 0.0 { scale } else { 1.0 }) - thickness / 2.0;
+        let half = arc_span.to_radians() / 2.0;
+        let half_span = radius * half.sin();
+        let rows: i64 = 26;
+        let row_h = (half_span * 2.0 / rows as f64).max(2.0);
+        let max_inset = (cx - radius * half.cos()) + thickness / 2.0;
+        let col_w = (max_inset + thickness + 2.0).round();
+        let pct = value.clamp(0.0, 100.0);
+        let mut kids: Vec<Value> = Vec::new();
+        for i in 0..rows {
+            // 自下而上编号：dy 为该行中心相对屏幕中心的纵向偏移
+            let dy = half_span - (i as f64 + 0.5) * row_h;
+            let dx = (radius * radius - dy * dy).max(0.0).sqrt();
+            let inset = (cx - dx - thickness / 2.0).max(0.0);
+            let filled = (100.0 * (i as f64 + 1.0) / rows as f64) <= pct;
+            let left = if side == "left" { inset } else { col_w - thickness - inset };
+            kids.push(json!({
+                "type": "box",
+                "style": {
+                    "width": thickness, "height": row_h,
+                    "marginLeft": left.round(),
+                    "backgroundColor": if filled { color } else { "rgba(255,255,255,0.16)" }
+                }
+            }));
+        }
+        json!({
+            "type": "column",
+            "style": { "width": col_w, "height": (half_span * 2.0).round() },
+            "children": kids
+        })
+    };
+
+    let side_left = if bars == "curve" { curve(cpu, "left", color_left) } else { bar(cpu, color_left) };
+    let side_right = if bars == "curve" { curve(mem, "right", color_right) } else { bar(mem, color_right) };
 
     let mut children: Vec<Value> = vec![json!({
         "type": "row",
@@ -324,11 +339,9 @@ mod tests {
             .collect()
     }
 
-    fn arcs(tree: &Value) -> Vec<&Value> {
-        row_columns(tree)
-            .into_iter()
-            .filter(|c| c["props"]["variant"] == "arc")
-            .collect()
+    /// 侧条列里的 box 数量（curve 模式 = 描线行数；bar 模式 = 1）
+    fn side_box_count(tree: &Value, idx: usize) -> usize {
+        row_columns(tree)[idx]["children"].as_array().map(|k| k.len()).unwrap_or(0)
     }
 
     /// 收集树里所有 text 节点的文本
@@ -376,14 +389,11 @@ mod tests {
             "music":{"hasMedia":true,"title":"Feel Something","artist":"Jaymes Young",
                      "artUrl":"http://s/api/music/art"},
             "server":{"base":"http://192.168.1.5:9000"},
-            "storage":{"bars":"arc"},
             "req":{"screen":{"width":466,"height":466},"event":{}}
         }"#);
         assert_eq!(t["refreshMs"], 3000);
-        let a = arcs(&t);
-        assert_eq!(a.len(), 2, "expected CPU + RAM arcs");
-        assert_eq!(a[0]["props"]["percent"].as_f64().unwrap(), 13.0); // cpu rounded
-        assert_eq!(a[1]["props"]["percent"].as_f64().unwrap(), 63.0); // mem rounded
+        // 默认直条：两侧各一个填充 box，高度按百分比
+        assert_eq!(row_columns(&t).len(), 3);
         let all = texts(&t);
         assert!(all.contains(&"09:41".to_string()), "clock missing: {:?}", all);
         assert!(all.contains(&"Feel Something".to_string()));
@@ -391,28 +401,33 @@ mod tests {
     }
 
     #[test]
-    fn geometry_adapts_and_defaults_without_screen_info() {
-        let with = view(r#"{"req":{"screen":{"width":466,"height":466}},"music":{"hasMedia":false},"storage":{"bars":"arc"}}"#);
-        let a = arcs(&with);
-        assert_eq!(a[0]["style"]["radius"].as_f64().unwrap(), 224.0, "466px circle -> radius 224");
-        assert_eq!(a[0]["style"]["height"].as_f64().unwrap(), 480.0, "canvas maps to designWidth 480");
-        let without = view(r#"{"music":{"hasMedia":false},"storage":{"bars":"arc"}}"#);
-        assert_eq!(arcs(&without)[0]["style"]["radius"].as_f64().unwrap(), 208.0);
-        assert_eq!(arcs(&without)[0]["style"]["width"].as_f64().unwrap(), 480.0);
+    fn geometry_adapts_to_screen() {
+        // 直条：轨道高度按画布（=屏幕换算到 designWidth 480）计算
+        let with = view(r#"{"req":{"screen":{"width":466,"height":466}},"music":{"hasMedia":false}}"#);
+        let track_h = row_columns(&with)[0]["style"]["height"].as_f64().unwrap();
+        assert!((track_h - 250.0).abs() < 2.0, "track height {track_h} (0.52*480)");
+        let without = view(r#"{"music":{"hasMedia":false}}"#);
+        let track_h2 = row_columns(&without)[0]["style"]["height"].as_f64().unwrap();
+        assert!((track_h2 - 250.0).abs() < 2.0, "no screen info -> 480 canvas");
     }
 
     #[test]
     fn settings_are_applied_and_clamped() {
         let t = view(r#"{"music":{"hasMedia":false},
+            "system":{"cpu":80,"memPercent":20},
             "req":{"screen":{"width":466,"height":466}},
-            "storage":{"bars":"arc","edgeGap":40,"arcSpan":90,"stroke":30,"colors":"split"}}"#);
-        let a = arcs(&t);
-        assert_eq!(a[0]["style"]["radius"].as_f64().unwrap(), 199.0); // 240 - 40*480/466
-        assert_eq!(a[0]["style"]["totalAngle"].as_f64().unwrap(), 90.0);
-        // stroke is clamped to ≤24 physical px, then scaled to design px
-        assert_eq!(a[0]["style"]["strokeWidth"].as_f64().unwrap(), 25.0); // round(24*480/466)
-        assert_eq!(a[0]["style"]["color"], "#BAC3FF");
-        assert_eq!(a[1]["style"]["color"], "#7ADFA0");
+            "storage":{"bars":"curve","edgeGap":40,"arcSpan":90,"colors":"split"}}"#);
+        let cols = row_columns(&t);
+        // 曲线模式：两侧列都是多行 box；配色 split 生效
+        assert!(side_box_count(&t, 0) > 10 && side_box_count(&t, 2) > 10);
+        let left = cols[0]["children"].as_array().unwrap();
+        // 自下而上填充：CPU 80% → 底部行为填充色，顶部行仍为轨道色
+        assert_eq!(left[0]["style"]["backgroundColor"], "#BAC3FF");
+        assert_eq!(left[left.len() - 1]["style"]["backgroundColor"], "rgba(255,255,255,0.16)");
+        // RAM 20%：填充行数明显更少
+        let right = cols[2]["children"].as_array().unwrap();
+        let filled = |v: &Vec<Value>| v.iter().filter(|b| b["style"]["backgroundColor"] != "rgba(255,255,255,0.16)").count();
+        assert!(filled(right) < filled(left), "RAM(20%) should fill fewer rows than CPU(80%)");
     }
 
     #[test]
@@ -481,10 +496,17 @@ mod tests {
             let h = fill["style"]["height"].as_f64().unwrap();
             assert!((h - expect_fill).abs() < 2.0, "fill height {h} for 50%");
         }
-        assert_eq!(arcs(&t).len(), 0, "default mode must not use arc nodes");
-        // 显式 arc 才用 progress 节点
-        let a = view(r#"{"music":{"hasMedia":false},"storage":{"bars":"arc"}}"#);
-        assert_eq!(arcs(&a).len(), 2);
+        // curve 模式：侧条列由多行 box 描出曲线，且不使用 progress 节点
+        let c = view(r#"{"music":{"hasMedia":false},"system":{"cpu":80,"memPercent":20},
+            "storage":{"bars":"curve"},"req":{"screen":{"width":466,"height":466}}}"#);
+        assert!(side_box_count(&c, 0) > 10, "curve mode needs many rows");
+        assert!(side_box_count(&c, 2) > 10);
+        assert!(!c.to_string().contains("progress"), "must not use the progress component");
+        // 行的左偏移随高度变化 => 形成弧线
+        let col = &row_columns(&c)[0];
+        let first = col["children"][0]["style"]["marginLeft"].as_f64().unwrap();
+        let mid = col["children"][13]["style"]["marginLeft"].as_f64().unwrap();
+        assert!(mid < first, "curve must bow toward the edge: first={first} mid={mid}");
     }
 
     #[test]

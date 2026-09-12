@@ -298,7 +298,7 @@ setInterval(function () {}, 1000);
 	}
 	// Default side bars are boxes; opt into arc mode to exercise <progress>.
 	if code, _ := call("/api/hydro/worker/store",
-		`{"package":"com.demo.deskbuddy","op":"set","key":"bars","value":"arc"}`); code != http.StatusOK {
+		`{"package":"com.demo.deskbuddy","op":"set","key":"bars","value":"curve"}`); code != http.StatusOK {
 		t.Fatalf("enable arc mode -> %d", code)
 	}
 	time.Sleep(400 * time.Millisecond) // let the worker re-enter the poll
@@ -310,10 +310,7 @@ setInterval(function () {}, 1000);
 
 	for _, want := range []string{
 		`"refreshMs":3000`,
-		`"variant":"arc"`,  // CPU / RAM arc progress bars
-		`"startAngle":240`, // left arc (9 o'clock)
-		`"startAngle":60`,  // right arc (3 o'clock)
-		`"radius":208`,     // arcs hug the screen edge
+		`"marginLeft"`, // box-traced curve rows
 		`"backgroundColor":"#0b0d12"`,
 		`"textAlign":"center"`,
 	} {
@@ -321,8 +318,8 @@ setInterval(function () {}, 1000);
 			t.Fatalf("tree missing %s:\n%s", want, body)
 		}
 	}
-	if strings.Count(body, `"variant":"arc"`) != 2 {
-		t.Fatalf("expected exactly 2 arc progress nodes:\n%s", body)
+	if strings.Contains(body, "progress") {
+		t.Fatalf("progress component must not be used:\n%s", body)
 	}
 
 	// Default mode (no settings) renders box bars, not progress nodes.
@@ -332,14 +329,14 @@ setInterval(function () {}, 1000);
 	if codeDef != http.StatusOK {
 		t.Fatalf("default view -> %d: %s", codeDef, defTree)
 	}
-	if strings.Count(defTree, `"type":"box"`) != 2 || strings.Contains(defTree, `"variant":"arc"`) {
+	if strings.Count(defTree, `"type":"box"`) != 2 || strings.Contains(defTree, `"marginLeft"`) {
 		t.Fatalf("default mode should render 2 flow bar fills and no arcs:\n%s", defTree)
 	}
 	if !strings.Contains(defTree, `"justifyContent":"flex-end"`) {
 		t.Fatalf("bars must be bottom-aligned flow columns:\n%s", defTree)
 	}
 	_, _ = call("/api/hydro/worker/store",
-		`{"package":"com.demo.deskbuddy","op":"set","key":"bars","value":"arc"}`)
+		`{"package":"com.demo.deskbuddy","op":"set","key":"bars","value":"curve"}`)
 	time.Sleep(400 * time.Millisecond)
 
 	// Settings from the plugin's server-scope storage drive the geometry and
@@ -357,16 +354,16 @@ setInterval(function () {}, 1000);
 	if code != http.StatusOK {
 		t.Fatalf("tuned view -> %d: %s", code, tuned)
 	}
-	if !strings.Contains(tuned, `"radius":199`) { // 240 - 40*480/466
-		t.Fatalf("edgeGap setting not applied (want radius 199):\n%s", tuned)
-	}
-	if !strings.Contains(tuned, `"color":"#BAC3FF"`) || !strings.Contains(tuned, `"color":"#7ADFA0"`) {
+	// colors=split must tint the two fills differently (curve rows use bg color)
+	if !strings.Contains(tuned, `"backgroundColor":"#BAC3FF"`) || !strings.Contains(tuned, `"backgroundColor":"#7ADFA0"`) {
 		t.Fatalf("colors=split not applied:\n%s", tuned)
 	}
-	// clear the tunables but keep arc mode for the geometry assertions below
+	// edgeGap shapes the curve: rows exist with per-row offsets
+	if strings.Count(tuned, `"marginLeft"`) < 20 {
+		t.Fatalf("curve rows missing offset geometry:\n%s", tuned)
+	}
+	// back to defaults (straight bars)
 	_, _ = call("/api/hydro/worker/store", `{"package":"com.demo.deskbuddy","op":"clear"}`)
-	_, _ = call("/api/hydro/worker/store",
-		`{"package":"com.demo.deskbuddy","op":"set","key":"bars","value":"arc"}`)
 	time.Sleep(400 * time.Millisecond)
 
 	// Geometry adapts to the reported screen: the px unit scales by
@@ -525,13 +522,13 @@ setInterval(function () {}, 1000);
 		t.Fatalf("shipped package should default to 2 flow bar fills:\n%s", body)
 	}
 	if code, _ := call("/api/hydro/worker/store",
-		`{"package":"com.demo.deskbuddy","op":"set","key":"bars","value":"arc"}`); code != http.StatusOK {
+		`{"package":"com.demo.deskbuddy","op":"set","key":"bars","value":"curve"}`); code != http.StatusOK {
 		t.Fatalf("enable arc mode -> %d", code)
 	}
 	time.Sleep(400 * time.Millisecond)
-	if code, arcBody := call("/api/hydro/com.demo.deskbuddy/app/main/view", ""); code != http.StatusOK ||
-		strings.Count(arcBody, `"variant":"arc"`) != 2 {
-		t.Fatalf("arc opt-in failed (%d):\n%s", code, arcBody)
+	if code, curveBody := call("/api/hydro/com.demo.deskbuddy/app/main/view", ""); code != http.StatusOK ||
+		strings.Count(curveBody, `"marginLeft"`) < 20 {
+		t.Fatalf("curve opt-in failed (%d):\n%s", code, curveBody)
 	}
 	// The listed plugins must expose the wasm runtime + its declared permissions.
 	rr := httptest.NewRecorder()
