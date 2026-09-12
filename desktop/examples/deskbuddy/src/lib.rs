@@ -169,37 +169,34 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
 
     // 弧条：0°=12 点方向、顺时针；左侧弧以 270°（9 点）为中心，右侧以 90°（3 点）
     // 直条备选：轨道 + 填充两个 box（不依赖 progress 组件）
-    let bar = |value: f64, side: &str, color: &str| -> Vec<Value> {
-        let side_off = 16.0; // 距屏幕边缘（设计 px）
-        let track_h = canvas_h * 0.5;
-        let track_top = (canvas_h - track_h) / 2.0;
-        let bar_w = 12.0;
+    // 侧条：**不使用绝对定位**（绝对定位的叶子在容器组件内不渲染）。
+    // 结构 = column 轨道（固定宽高、底部对齐）+ box 填充（自下而上）。
+    let bar = |value: f64, color: &str| -> Value {
+        let bar_w = 14.0;
+        let track_h = (canvas_h * 0.52).round();
         let pct = value.clamp(0.0, 100.0);
-        let fill_h = (track_h * pct / 100.0).max(bar_w / 2.0);
-        let (left, right) = if side == "left" { (side_off, 0.0) } else { (0.0, side_off) };
-        vec![
-            // 轨道
-            json!({
-                "type": "box",
-                "style": {
-                    "position": "absolute", "top": track_top, "left": left, "right": right,
-                    "width": bar_w, "height": track_h,
-                    "borderRadius": bar_w / 2.0,
-                    "backgroundColor": "rgba(255,255,255,0.16)"
+        let fill_h = ((track_h - 6.0) * pct / 100.0).max(bar_w / 2.0).round();
+        json!({
+            "type": "column",
+            "style": {
+                "width": bar_w, "height": track_h,
+                "borderRadius": bar_w / 2.0,
+                "backgroundColor": "rgba(255,255,255,0.16)",
+                "justifyContent": "flex-end",
+                "alignItems": "center",
+                "padding": 3
+            },
+            "children": [
+                {
+                    "type": "box",
+                    "style": {
+                        "width": bar_w - 6.0, "height": fill_h,
+                        "borderRadius": (bar_w - 6.0) / 2.0,
+                        "backgroundColor": color
+                    }
                 }
-            }),
-            // 填充（自下而上，高度按设计 px 计算，避免百分比相对整页解析）
-            json!({
-                "type": "box",
-                "style": {
-                    "position": "absolute", "top": track_top + track_h - fill_h,
-                    "left": left, "right": right,
-                    "width": bar_w, "height": fill_h,
-                    "borderRadius": bar_w / 2.0,
-                    "backgroundColor": color
-                }
-            })
-        ]
+            ]
+        })
     };
 
     let arc = |value: f64, start: i64, color: &str| {
@@ -229,16 +226,14 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
         art_url.clone()
     };
 
+    // 封面必须是**叶子**（容器页只展开 3 层，L3 上的容器会被当成未知叶子）；
+    // 居中由中间列的 alignItems: center 完成
     let cover = if has_media && !cover_src.is_empty() {
         json!({
-            "type": "row",
-            "style": { "justifyContent": "center", "marginTop": 18 },
-            "children": [{
-                "type": "image",
-                "props": { "src": cover_src },
-                "events": { "tap": "toggle" },
-                "style": { "width": 200, "height": 200, "borderRadius": 16 }
-            }]
+            "type": "image",
+            "props": { "src": cover_src },
+            "events": { "tap": "toggle" },
+            "style": { "width": 200, "height": 200, "borderRadius": 16, "marginTop": 18 }
         })
     } else {
         json!({
@@ -250,35 +245,49 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
 
     let color_left = if colors == "split" { "#BAC3FF" } else { "#C8CDD8" };
     let color_right = if colors == "split" { "#7ADFA0" } else { "#C8CDD8" };
-    let mut sides: Vec<Value> = Vec::new();
-    if bars == "bar" {
-        sides.extend(bar(cpu, "left", color_left));
-        sides.extend(bar(mem, "right", color_right));
-    } else {
-        sides.push(arc(cpu, 240, color_left));
-        sides.push(arc(mem, 60, color_right));
-    }
+    let bar_w = 14.0;
+    let gap = 12.0;
+    let center_w = (canvas_w - 2.0 * (bar_w + gap)).round();
 
-    let mut children: Vec<Value> = sides;
-    children.push(json!({
+    // arc 模式仍用绝对定位（在真机上待验证）；bar 模式为纯 flex 流布局
+    let side_left = if bars == "arc" { arc(cpu, 240, color_left) } else { bar(cpu, color_left) };
+    let side_right = if bars == "arc" { arc(mem, 60, color_right) } else { bar(mem, color_right) };
+
+    let mut children: Vec<Value> = vec![json!({
+        "type": "row",
+        "style": { "alignItems": "center" },
+        "children": [
+            side_left,
+            { "type": "column", "style": { "width": center_w, "alignItems": "center" },
+              "children": [] },
+            side_right
+        ]
+    })];
+    let mut center_kids: Vec<Value> = Vec::new();
+    center_kids.push(json!({
         "type": "text",
         "props": { "text": clock },
         "style": { "fontSize": f(36.0), "fontWeight": 700, "color": "#FFFFFF",
                    "textAlign": "center", "width": "100%" }
     }));
-    children.push(json!({
+    center_kids.push(json!({
         "type": "text",
         "props": { "text": if title.is_empty() { "HydroLink".to_string() } else { title } },
         "style": { "fontSize": f(32.0), "fontWeight": 700, "color": "#FFFFFF",
                    "textAlign": "center", "width": "100%", "marginTop": 10 }
     }));
-    children.push(json!({
+    center_kids.push(json!({
         "type": "text",
         "props": { "text": artist },
         "style": { "fontSize": f(22.0), "color": "rgba(255,255,255,0.4)",
                    "textAlign": "center", "width": "100%", "marginTop": 4 }
     }));
-    children.push(cover);
+    center_kids.push(cover);
+    if let Some(row) = children.get_mut(0) {
+        if let Some(kids) = row["children"].as_array_mut() {
+            kids[1]["children"] = json!(center_kids);
+        }
+    }
 
     let tree = json!({
         "refreshMs": 3000,
@@ -306,13 +315,56 @@ mod tests {
         serde_json::from_slice(payload).expect("envelope payload is not valid JSON")
     }
 
-    fn arcs(tree: &Value) -> Vec<&Value> {
-        tree["root"]["children"]
+    /// 根 row 的三列：[左条, 中间列, 右条]
+    fn row_columns(tree: &Value) -> Vec<&Value> {
+        tree["root"]["children"][0]["children"]
             .as_array()
-            .expect("children")
+            .expect("row children")
             .iter()
+            .collect()
+    }
+
+    fn arcs(tree: &Value) -> Vec<&Value> {
+        row_columns(tree)
+            .into_iter()
             .filter(|c| c["props"]["variant"] == "arc")
             .collect()
+    }
+
+    /// 收集树里所有 text 节点的文本
+    fn texts(tree: &Value) -> Vec<String> {
+        fn walk(n: &Value, out: &mut Vec<String>) {
+            if n["type"] == "text" {
+                if let Some(t) = n["props"]["text"].as_str() {
+                    out.push(t.to_string());
+                }
+            }
+            if let Some(kids) = n["children"].as_array() {
+                for k in kids {
+                    walk(k, out);
+                }
+            }
+        }
+        let mut out = Vec::new();
+        walk(&tree["root"], &mut out);
+        out
+    }
+
+    fn find_text<'a>(tree: &'a Value, want: &str) -> &'a Value {
+        fn walk<'a>(n: &'a Value, want: &str) -> Option<&'a Value> {
+            if n["type"] == "text" && n["props"]["text"].as_str() == Some(want) {
+                return Some(n);
+            }
+            if let Some(kids) = n["children"].as_array() {
+                for k in kids {
+                    if let Some(f) = walk(k, want) {
+                        return Some(f);
+                    }
+                }
+            }
+            None
+        }
+        walk(&tree["root"], want).unwrap_or_else(|| panic!("text {want} not found in {:?}", texts(tree)))
     }
 
     #[test]
@@ -332,12 +384,10 @@ mod tests {
         assert_eq!(a.len(), 2, "expected CPU + RAM arcs");
         assert_eq!(a[0]["props"]["percent"].as_f64().unwrap(), 13.0); // cpu rounded
         assert_eq!(a[1]["props"]["percent"].as_f64().unwrap(), 63.0); // mem rounded
-        let texts: Vec<String> = t["root"]["children"].as_array().unwrap().iter()
-            .filter_map(|c| c["props"]["text"].as_str().map(|s| s.to_string()))
-            .collect();
-        assert!(texts.contains(&"09:41".to_string()), "clock missing: {:?}", texts);
-        assert!(texts.contains(&"Feel Something".to_string()));
-        assert!(texts.contains(&"Jaymes Young".to_string()));
+        let all = texts(&t);
+        assert!(all.contains(&"09:41".to_string()), "clock missing: {:?}", all);
+        assert!(all.contains(&"Feel Something".to_string()));
+        assert!(all.contains(&"Jaymes Young".to_string()));
     }
 
     #[test]
@@ -376,29 +426,21 @@ mod tests {
         assert!(bg.contains("size=466") && bg.contains("blur=12") && bg.contains("dim=0.5"), "bg: {bg}");
         let without = view(r#"{"music":{"hasMedia":false},"server":{"base":"http://host:9000"}}"#);
         assert!(without["root"]["style"]["backgroundImage"].is_null(), "no media -> no background image");
-        let texts: Vec<String> = without["root"]["children"].as_array().unwrap().iter()
-            .filter_map(|c| c["props"]["text"].as_str().map(|s| s.to_string()))
-            .collect();
-        assert!(texts.iter().any(|t| t.contains("无正在播放")), "placeholder missing: {:?}", texts);
+        let all = texts(&without);
+        assert!(all.iter().any(|t| t.contains("无正在播放")), "placeholder missing: {:?}", all);
     }
 
     #[test]
     fn typography_matches_the_spec() {
         let t = view(r#"{"time":{"hour":9,"minute":41},
             "music":{"hasMedia":true,"title":"T","artist":"A"},"req":{"screen":{"width":466,"height":466}}}"#);
-        let kids = t["root"]["children"].as_array().unwrap();
-        let find = |want: &str| -> &Value {
-            kids.iter()
-                .find(|c| c["props"]["text"].as_str() == Some(want))
-                .unwrap_or_else(|| panic!("text {want} not found"))
-        };
-        let clock = find("09:41");
+        let clock = find_text(&t, "09:41");
         assert_eq!(clock["style"]["fontSize"].as_f64().unwrap(), 36.0);
         assert_eq!(clock["style"]["fontWeight"].as_f64().unwrap(), 700.0);
-        let title = find("T");
+        let title = find_text(&t, "T");
         assert_eq!(title["style"]["fontSize"].as_f64().unwrap(), 32.0);
         assert_eq!(title["style"]["fontWeight"].as_f64().unwrap(), 700.0);
-        let artist = find("A");
+        let artist = find_text(&t, "A");
         assert_eq!(artist["style"]["fontSize"].as_f64().unwrap(), 22.0);
         assert_eq!(artist["style"]["color"].as_str().unwrap(), "rgba(255,255,255,0.4)");
     }
@@ -414,30 +456,60 @@ mod tests {
         let bg_b = b["root"]["style"]["backgroundImage"].as_str().unwrap_or("");
         assert!(bg_a.contains("&k="), "background lacks a cache key: {bg_a}");
         assert_ne!(bg_a, bg_b, "background URL must change when the track changes");
-        let cover_a = a["root"]["children"].as_array().unwrap().iter()
-            .find_map(|c| c["children"].as_array().and_then(|k| k.first())
-                .and_then(|im| im["props"]["src"].as_str().map(|s| s.to_string())))
+        let cover_a = row_columns(&a)[1]["children"]
+            .as_array()
+            .and_then(|kids| kids.iter().find(|c| c["type"] == "image"))
+            .and_then(|im| im["props"]["src"].as_str().map(|s| s.to_string()))
             .unwrap_or_default();
         assert!(cover_a.contains("&k="), "cover lacks a cache key: {cover_a}");
     }
 
     #[test]
-    fn bars_as_boxes_by_default_and_arc_opt_in() {
-        // 默认：直条（两个轨道 + 两个填充）
+    fn bars_are_flow_laid_out_and_arc_is_opt_in() {
         let t = view(r#"{"music":{"hasMedia":false},"system":{"cpu":50,"memPercent":50},
             "req":{"screen":{"width":466,"height":466}}}"#);
+        let cols = row_columns(&t);
+        assert_eq!(cols.len(), 3, "row = [left bar, center, right bar]");
+        // 侧条：column 轨道 + 单个 box 填充，且不使用绝对定位
+        // canvas_h 480 → 轨道 round(480*0.52)=250，填充 (250-6)*50% = 122
+        for (idx, expect_fill) in [(0usize, 122.0_f64), (2usize, 122.0_f64)] {
+            let track = cols[idx];
+            assert_eq!(track["type"], "column", "bar must be a flow column");
+            assert!(track["style"]["position"].is_null(), "bar must not be absolute");
+            let fill = &track["children"][0];
+            assert_eq!(fill["type"], "box");
+            let h = fill["style"]["height"].as_f64().unwrap();
+            assert!((h - expect_fill).abs() < 2.0, "fill height {h} for 50%");
+        }
         assert_eq!(arcs(&t).len(), 0, "default mode must not use arc nodes");
-        let boxes: Vec<&Value> = t["root"]["children"].as_array().unwrap().iter()
-            .filter(|c| c["type"] == "box").collect();
-        assert_eq!(boxes.len(), 4, "expect 2 tracks + 2 fills");
-        // 轨道半屏高、填充按百分比（设计 px 计算，避免百分比相对整页）
-        let track_h = boxes[0]["style"]["height"].as_f64().unwrap();
-        let fill_h = boxes[1]["style"]["height"].as_f64().unwrap();
-        assert!((track_h - 240.0).abs() < 1.0, "track height {track_h}");
-        assert!((fill_h - 120.0).abs() < 1.0, "fill height {fill_h} (50%)");
         // 显式 arc 才用 progress 节点
         let a = view(r#"{"music":{"hasMedia":false},"storage":{"bars":"arc"}}"#);
         assert_eq!(arcs(&a).len(), 2);
+    }
+
+    #[test]
+    fn depth_never_exceeds_three_levels() {
+        // 容器页只展开 3 层：根(0) → L1 → L2 → L3 叶子。深层容器会被渲染成垃圾文本，
+        // 这里锁死结构（叶子层不允许再出现容器）。
+        let t = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A"},
+            "req":{"screen":{"width":466,"height":466}},"time":{"hour":1,"minute":2}}"#);
+        fn leafish(n: &Value) -> bool {
+            matches!(n["type"].as_str().unwrap_or(""), "text" | "image" | "icon" | "box"
+                | "badge" | "spinner" | "button" | "switch" | "input" | "progress" | "nav")
+        }
+        fn walk(n: &Value, depth: usize) {
+            if let Some(kids) = n["children"].as_array() {
+                assert!(depth <= 2, "container at depth {depth} would be clipped by the 3-level unroll");
+                for k in kids {
+                    if k.get("children").is_some() {
+                        walk(k, depth + 1);
+                    } else {
+                        assert!(leafish(k), "unexpected leaf type {:?}", k["type"]);
+                    }
+                }
+            }
+        }
+        walk(&t["root"], 0);
     }
 
     #[test]
@@ -446,9 +518,7 @@ mod tests {
         let big = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A"},"time":{"hour":1,"minute":2},
             "storage":{"fontScale":1.5}}"#);
         let size_of = |t: &Value, txt: &str| -> f64 {
-            t["root"]["children"].as_array().unwrap().iter()
-                .find(|c| c["props"]["text"].as_str() == Some(txt))
-                .map(|c| c["style"]["fontSize"].as_f64().unwrap()).unwrap()
+            find_text(t, txt)["style"]["fontSize"].as_f64().unwrap()
         };
         assert_eq!(size_of(&base, "01:02"), 36.0);
         assert_eq!(size_of(&big, "01:02"), 54.0);

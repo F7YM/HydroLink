@@ -332,8 +332,11 @@ setInterval(function () {}, 1000);
 	if codeDef != http.StatusOK {
 		t.Fatalf("default view -> %d: %s", codeDef, defTree)
 	}
-	if strings.Count(defTree, `"type":"box"`) != 4 || strings.Contains(defTree, `"variant":"arc"`) {
-		t.Fatalf("default mode should render 4 box bars and no arcs:\n%s", defTree)
+	if strings.Count(defTree, `"type":"box"`) != 2 || strings.Contains(defTree, `"variant":"arc"`) {
+		t.Fatalf("default mode should render 2 flow bar fills and no arcs:\n%s", defTree)
+	}
+	if !strings.Contains(defTree, `"justifyContent":"flex-end"`) {
+		t.Fatalf("bars must be bottom-aligned flow columns:\n%s", defTree)
 	}
 	_, _ = call("/api/hydro/worker/store",
 		`{"package":"com.demo.deskbuddy","op":"set","key":"bars","value":"arc"}`)
@@ -518,8 +521,8 @@ setInterval(function () {}, 1000);
 			t.Fatalf("shipped package tree missing %s:\n%s", want, body)
 		}
 	}
-	if strings.Count(body, `"type":"box"`) != 4 {
-		t.Fatalf("shipped package should default to 4 box bars:\n%s", body)
+	if strings.Count(body, `"type":"box"`) != 2 {
+		t.Fatalf("shipped package should default to 2 flow bar fills:\n%s", body)
 	}
 	if code, _ := call("/api/hydro/worker/store",
 		`{"package":"com.demo.deskbuddy","op":"set","key":"bars","value":"arc"}`); code != http.StatusOK {
