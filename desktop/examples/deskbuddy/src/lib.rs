@@ -133,6 +133,7 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
     };
     let mut root_style = json!({
         "padding": 16,
+        "alignItems": "center", // 列内子节点水平居中（封面不再靠左）
         "backgroundColor": "#0b0d12",
         "backgroundSize": "cover",
         "backgroundPosition": "center"
@@ -288,6 +289,18 @@ mod tests {
         assert!(without["root"]["style"]["backgroundImage"].is_null(), "no media -> no background image");
         let all = texts(&without);
         assert!(all.iter().any(|t| t.contains("无正在播放")), "placeholder missing: {:?}", all);
+    }
+
+    #[test]
+    fn cover_is_centred_by_the_root_column() {
+        let t = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A"},
+            "server":{"base":"http://h:9000"},"req":{"screen":{"width":432,"height":514}}}"#);
+        assert_eq!(t["root"]["style"]["alignItems"], "center",
+            "column children (cover) must be centred");
+        let cover = t["root"]["children"].as_array().unwrap().iter()
+            .find(|c| c["type"] == "image")
+            .expect("cover image missing");
+        assert!(cover["style"]["width"].as_f64().unwrap() > 0.0);
     }
 
     #[test]
