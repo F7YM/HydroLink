@@ -1,1 +1,0 @@
-/home/float/桌面/Projects/HydroLink/desktop/examples/wasm-fixture/target/wasm32-unknown-unknown/release/hydro_wasm_fixture.wasm: /home/float/桌面/Projects/HydroLink/desktop/examples/wasm-fixture/src/lib.rs
