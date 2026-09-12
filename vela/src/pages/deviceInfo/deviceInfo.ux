@@ -403,13 +403,14 @@
   color: #888;
   margin-top: 16px;
   margin-bottom: 8px;
-  padding-left: 10px;
 }
+/* 与 .music-card 完全同盒：同宽 + 同左右内边距（Vela 默认 content-box，
+   padding 会额外撑大盒子，必须逐项对齐才能左右边缘一致） */
 .widget-card {
   width: 400px;
   background-color: #2e323c;
-  border-radius: 28px;
-  padding: 16px 24px 18px 24px;
+  border-radius: 40px;
+  padding: 20px 32px 24px 32px;
   margin-bottom: 10px;
   flex-direction: column;
 }
@@ -544,6 +545,15 @@
     font-size: 16px;
   }
   .music-card {
+    width: 360px;
+    border-radius: 35px;
+    padding: 16px 28px 20px 28px;
+  }
+  /* HydroWidget 卡片与音乐卡逐项镜像（圆屏：360px / 同圆角 / 同内边距） */
+  .widgets-title {
+    width: 360px;
+  }
+  .widget-card {
     width: 360px;
     border-radius: 35px;
     padding: 16px 28px 20px 28px;
