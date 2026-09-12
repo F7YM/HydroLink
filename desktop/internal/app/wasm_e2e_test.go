@@ -129,27 +129,12 @@ setInterval(function () {}, 1000);
 	}
 	defer func() { _ = cmd.Process.Kill() }()
 
-	// Wait for the wasm host to load and announce readiness.
-	deadline := time.Now().Add(20 * time.Second)
-	ready := false
-	for time.Now().Before(deadline) {
-		raw, _ := os.ReadFile(marker)
-		if strings.Contains(string(raw), `"ready"`) {
-			ready = true
-			break
-		}
-		if strings.Contains(string(raw), `"error"`) {
-			t.Fatalf("worker error: %s", raw)
-		}
-		time.Sleep(200 * time.Millisecond)
-	}
-	if !ready {
-		t.Fatalf("wasm worker never became ready; marker: %s", mustRead(marker))
-	}
-
+	// The worker registers its session on the first poll; a view request then
+	// gets delivered. (The "ready" message only fires once a poll returns, so
+	// drive the flow instead of waiting for it.)
 	viewURL := ts.URL + "/api/hydro/com.test.wasmfix/app/main/view"
 	var body string
-	deadline = time.Now().Add(15 * time.Second)
+	deadline := time.Now().Add(25 * time.Second)
 	for time.Now().Before(deadline) {
 		req, _ := http.NewRequest(http.MethodPost, viewURL, nil)
 		rr := httptest.NewRecorder()
@@ -157,6 +142,9 @@ setInterval(function () {}, 1000);
 		if rr.Code == http.StatusOK {
 			body = rr.Body.String()
 			break
+		}
+		if raw := mustRead(marker); strings.Contains(raw, `"error"`) {
+			t.Fatalf("wasm worker error: %s", raw)
 		}
 		time.Sleep(300 * time.Millisecond)
 	}
