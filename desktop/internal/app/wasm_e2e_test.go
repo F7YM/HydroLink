@@ -3,6 +3,8 @@ package app
 import (
 	"archive/zip"
 	"bytes"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -327,4 +329,144 @@ setInterval(function () {}, 1000);
 	if !strings.Contains(kv, `"found":true`) {
 		t.Fatalf("storage effect was not executed by the host: %s", kv)
 	}
+}
+
+// TestShippedDeskBuddyPackage installs the COMMITTED .hpk artifact (not a
+// freshly built one) and drives it through the real chain, so packaging drift
+// (e.g. a stale plugin.wasm inside the zip) fails the suite.
+func TestShippedDeskBuddyPackage(t *testing.T) {
+	nodePath, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node not available")
+	}
+	hpk, err := filepath.Abs(filepath.Join("..", "..", "examples", "com.demo.deskbuddy.hpk"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(hpk); err != nil {
+		t.Skipf("shipped package missing: %v", err)
+	}
+
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	_, st, err := NewServer()
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	info, err := st.InstallPlugin(hpk)
+	if err != nil {
+		t.Fatalf("install shipped package: %v", err)
+	}
+	if info.Runtime != "wasm" || info.ID != "com.demo.deskbuddy" {
+		t.Fatalf("shipped package manifest wrong: %+v", info)
+	}
+
+	// Packaging drift guard: the wasm inside the committed .hpk must match a
+	// fresh build of the source tree (skipped when the Rust toolchain or the
+	// wasm target is unavailable).
+	if cargoPath, err := exec.LookPath("cargo"); err == nil {
+		if out, err := exec.Command("rustup", "target", "list", "--installed").Output(); err == nil &&
+			strings.Contains(string(out), "wasm32-unknown-unknown") {
+			pluginDir, err := filepath.Abs(filepath.Join("..", "..", "examples", "deskbuddy"))
+			if err == nil {
+				build := exec.Command(cargoPath, "build", "--release", "--target", "wasm32-unknown-unknown")
+				build.Dir = pluginDir
+				if err := build.Run(); err == nil {
+					fresh, err := os.ReadFile(filepath.Join(pluginDir, "target", "wasm32-unknown-unknown",
+						"release", "hydro_deskbuddy.wasm"))
+					if err == nil {
+						packed, err := readZipEntry(hpk, "plugin.wasm")
+						if err != nil {
+							t.Fatalf("read plugin.wasm from hpk: %v", err)
+						}
+						if !bytes.Equal(fresh, packed) {
+							t.Fatalf("打包产物与源码不一致：请重新打包 com.demo.deskbuddy.hpk"+
+								"（fresh %d bytes vs packed %d bytes）", len(fresh), len(packed))
+						}
+					}
+				}
+			}
+		}
+	}
+
+	srv, _, err := NewServer()
+	if err != nil {
+		t.Fatalf("NewServer (2nd): %v", err)
+	}
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	bundle := hydrokit.WasmBundle(info.ID, info.Entry, ts.URL)
+	dir := t.TempDir()
+	bundlePath := filepath.Join(dir, "bundle.js")
+	if err := os.WriteFile(bundlePath, bundle, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(dir, "marker.log")
+	runnerPath := filepath.Join(dir, "runner.js")
+	runner := `global.postMessage = function (m) {
+  require("fs").appendFileSync(process.env.MARKER, JSON.stringify(m) + "\n");
+};
+new Function(require("fs").readFileSync(process.argv[2], "utf8"))();
+setInterval(function () {}, 1000);
+`
+	if err := os.WriteFile(runnerPath, []byte(runner), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(nodePath, runnerPath, bundlePath)
+	cmd.Env = append(os.Environ(), "MARKER="+marker)
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = cmd.Process.Kill() }()
+
+	var body string
+	deadline := time.Now().Add(25 * time.Second)
+	for time.Now().Before(deadline) {
+		req, _ := http.NewRequest(http.MethodPost, ts.URL+"/api/hydro/com.demo.deskbuddy/app/main/view", nil)
+		rr := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(rr, req)
+		if rr.Code == http.StatusOK {
+			body = rr.Body.String()
+			break
+		}
+		if raw := mustRead(marker); strings.Contains(raw, `"error"`) {
+			t.Fatalf("shipped package worker error: %s", raw)
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
+	if body == "" {
+		t.Fatalf("shipped package view never returned 200; marker: %s", mustRead(marker))
+	}
+	for _, want := range []string{`"variant":"arc"`, `"refreshMs":3000`, `"radius":208`, `"backgroundColor":"#0b0d12"`} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("shipped package tree missing %s:\n%s", want, body)
+		}
+	}
+	// The listed plugins must expose the wasm runtime + its declared permissions.
+	rr := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/hydro/list", nil))
+	if !strings.Contains(rr.Body.String(), "com.demo.deskbuddy") {
+		t.Fatalf("deskbuddy missing from plugin list: %s", rr.Body.String())
+	}
+}
+
+// readZipEntry returns one file's bytes from a zip archive.
+func readZipEntry(zipPath, name string) ([]byte, error) {
+	zr, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return nil, err
+	}
+	defer zr.Close()
+	for _, f := range zr.File {
+		if f.Name != name {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return nil, err
+		}
+		defer rc.Close()
+		return io.ReadAll(rc)
+	}
+	return nil, fmt.Errorf("entry %s not found", name)
 }
