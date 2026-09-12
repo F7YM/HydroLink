@@ -150,7 +150,9 @@ module.exports = {
 }
 ```
 
-- **`progress`（进度条）**：`props.percent`（0-100）、`props.variant`（`horizontal` 默认 / `arc`）；颜色与几何走 `style`：`color`、`layerColor`、`strokeWidth`，弧线另支持 `startAngle`/`totalAngle`/`radius`/`centerX`/`centerY`（对应 Vela `progress` 组件）。位置用 `position:absolute` + `top/left/right/bottom`（Vela 支持 relative|absolute）
+- **`progress`（进度条）**：`props.percent`（0-100）、`props.variant`（`horizontal` 默认 / `arc`）；颜色与几何走 `style`：`color`、`layerColor`、`strokeWidth`，弧线另支持 `startAngle`/`totalAngle`/`radius`/`centerX`/`centerY`（对应 Vela `progress` 组件；**角度类数值按度处理**，容器补 `deg`，其余数值补 `px`）
+- **绝对定位**：节点 `style.position:"absolute"` + `top/left/right/bottom` 由**容器上提到包装层**执行（叶子在自定义组件内部无定位上下文，包含块尺寸为 0 会被算成 0 尺寸而不渲染）。因此弧线、水印、浮层等可安全使用绝对定位；同时**避免 `left` 与 `right`（或 `top` 与 `bottom`）同时给**，用一组偏移 + 显式宽高最稳
+- **层级限制**：容器只展开 3 层（根 → L1 → L2 → L3 叶子），**L3 必须是叶子**（容器放错层级会被渲染成未知叶子占位）；`text/image/box/badge/spinner/button/switch/input/progress/nav` 是叶子
 - **全屏背景层**：根节点的 `backgroundImage`/`backgroundSize`/`backgroundPosition`/`backgroundColor` 会被容器提升到**整页容器**（铺满全屏，不受圆屏安全区内边距影响）；其余样式仍作用于内容层。示例：`{"type":"scroll","style":{"backgroundImage":"http://host:9000/api/music/art?size=466&blur=26&dim=0.3","backgroundSize":"cover","padding":16}}`
 - 返回值整体为 `{ "root": Node, "refreshMs": 0 }`；返回 `null` 表示"无变更"
 - **Widget 的表面形态（卡片树）**：`/api/hydro/{pkg}/widget/{item}/...` 与 app 表面同一套路由/事件，但**渲染约束不同**——widget 树是"卡片树"：
@@ -350,6 +352,7 @@ curl -X POST 'http://127.0.0.1:9000/api/hydro/com.demo.weather/app/main/view?sha
 - v0.1.1（2026-09-06）：§5 通道实现定为**长轮询**（poll/respond，无 WebSocket 依赖）；§2 生命周期补充"启动即建 + 按需唤起"。
 - v0.2（2026-09-06）：**watch 端存储落地**（§6 请求上下文语义：`X-Hydro-Store` 上送快照 / `view.storage` 落盘，容器与 bundle 已实现）；**插件 WebUI 落地**（§9：`web/` 同源服务 + 桌面端遮罩层内嵌）；示例插件更新为 v0.2（名字=watch 端、备注=server 端 + WebUI 设置页）。
 - v0.2.6（2026-09-06）：**Widget 表面落地**（手表呈现）——HydroApps 启动器新增"组件"条目，hydro 容器以 `surface=widget` 渲染并轮询 `refreshMs`；示例组件视图补导航节点。
+- v0.3.3（2026-09-06）：容器**绝对定位上提到包装层**（修复弧线/浮层在叶子组件内不渲染的根因）；`progress` 角度单位（deg）说明；明确 3 层层级与叶子白名单；桌搭插件侧条改为纯流式布局（直条）。
 - v0.3.2（2026-09-06）：示例插件的**单元测试与打包脚本**（`pack.sh`，纯函数 ABI 可直接 cargo test）；桌搭插件补齐调参 WebUI 与自适应几何（见 §9/§8）。
 - v0.3.1（2026-09-06）：**`progress` 叶子与全屏背景层**——新增 `type:"progress"`（horizontal/arc，§4）；根节点的 background* 样式提升到整页容器（全屏背景，避开安全区限制）。
 - v0.3（2026-09-06）：**WASM 插件（一等公民）**——清单 `runtime:"wasm"` + `entry:*.wasm`；ABI v1（JSON over linear memory 纯函数 + effects 列表，§8）；宿主 WorkerBundle 增加 WASM 加载与调用路径；上下文端点 `/api/hydro/worker/context`（权限门控）；Rust 夹具与 node 端到端测试；§8 重写。

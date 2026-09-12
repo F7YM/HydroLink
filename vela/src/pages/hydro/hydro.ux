@@ -16,13 +16,13 @@
       <div class="safe {{ safeClass }}">
         <scroll if="{{ rootScroll }}" class="tree-scroll" scroll-y="true" bounces="true">
           <div class="content" style="{{ contentStyle }}">
-            <div for="{{ (i1, l1) in ui }}" style="{{ l1.grow ? 'flex-grow: 1' : '' }}">
+            <div for="{{ (i1, l1) in ui }}" style="{{ l1.ws }}">
               <!-- L1 容器 -->
               <div if="{{ l1.c }}" style="{{ l1.s }}">
-                <div for="{{ (i2, l2) in l1.kids }}" style="{{ l2.grow ? 'flex-grow: 1' : '' }}">
+                <div for="{{ (i2, l2) in l1.kids }}" style="{{ l2.ws }}">
                   <!-- L2 容器 -->
                   <div if="{{ l2.c }}" style="{{ l2.s }}">
-                    <div for="{{ (i3, l3) in l2.kids }}" style="{{ l3.grow ? 'flex-grow: 1' : '' }}">
+                    <div for="{{ (i3, l3) in l2.kids }}" style="{{ l3.ws }}">
                       <hydro-leaf leaf="{{ l3 }}" @hydrotap="leafTap" @change="leafChange" @hydroinput="leafInput" @hydronav="leafNav"></hydro-leaf>
                     </div>
                   </div>
@@ -34,13 +34,13 @@
           </div>
         </scroll>
         <div if="{{ !rootScroll }}" class="content" style="{{ contentStyle }}">
-          <div for="{{ (i1, l1) in ui }}" style="{{ l1.grow ? 'flex-grow: 1' : '' }}">
+          <div for="{{ (i1, l1) in ui }}" style="{{ l1.ws }}">
             <!-- L1 容器 -->
             <div if="{{ l1.c }}" style="{{ l1.s }}">
-              <div for="{{ (i2, l2) in l1.kids }}" style="{{ l2.grow ? 'flex-grow: 1' : '' }}">
+              <div for="{{ (i2, l2) in l1.kids }}" style="{{ l2.ws }}">
                 <!-- L2 容器 -->
                 <div if="{{ l2.c }}" style="{{ l2.s }}">
-                  <div for="{{ (i3, l3) in l2.kids }}" style="{{ l3.grow ? 'flex-grow: 1' : '' }}">
+                  <div for="{{ (i3, l3) in l2.kids }}" style="{{ l3.ws }}">
                     <hydro-leaf leaf="{{ l3 }}" @hydrotap="leafTap" @change="leafChange" @hydroinput="leafInput" @hydronav="leafNav"></hydro-leaf>
                   </div>
                 </div>
@@ -127,6 +127,9 @@ const ICON_MAP = {
 
 // 数值单位：角度类（startAngle/totalAngle…）补 deg，其余补 px；
 // 字符串原样透传（调用方可自带单位，如 "240deg"）
+// 绝对定位相关样式：在包装层生效（见 buildLeaf 注释）
+const POSITION_KEYS = ['position', 'top', 'left', 'right', 'bottom', 'zIndex']
+
 function cssVal(key, v) {
   if (typeof v === 'number') {
     return /angle$/i.test(key) ? v + 'deg' : v + 'px'
@@ -176,15 +179,29 @@ function buildLeaf(n, inRow, ctx) {
   const isBox = type === 'box'
   const iconSrc = isIcon ? (ICON_MAP[p.name] || '') : ''
   const st = resolveStyle(n, ctx)
+  // 绝对定位样式**上提到包装 div**：叶子在自定义组件内部没有定位上下文
+  // （包含块尺寸为 0，left/right 过约束会把宽高算成 0 → 完全不渲染）。
+  // 包装层是普通 div，包含块正常（.tree-area / .page）。
+  const isAbs = !!(st && st.position === 'absolute')
+  const wrapPos = {}
+  const leafSt = Object.assign({}, st)
+  if (isAbs) {
+    POSITION_KEYS.forEach((k) => {
+      if (st[k] !== undefined) { wrapPos[k] = st[k]; delete leafSt[k] }
+    })
+  }
   // 容器默认主题：文本未指定颜色时用白色（Vela 默认文本色是灰的）
-  let s = toCssStyle(st)
-  if (isText && !(st && typeof st.color === 'string')) {
+  let s = toCssStyle(leafSt)
+  if (isText && !(leafSt && typeof leafSt.color === 'string')) {
     s = 'color: #FFFFFF; ' + s
   }
+  let ws = toCssStyle(wrapPos)
+  if (inRow && isText) ws = ws ? ws + '; flex-grow: 1' : 'flex-grow: 1'
   return {
     c: false,
     t: type,
     s: s,
+    ws: ws,
     // 行容器里的文本叶子自动撑满剩余宽度，把后面的控件顶到右侧
     // （Vela 内联 justify-content 不生效，用 flex-grow 实现）
     grow: !!(inRow && isText),
@@ -224,9 +241,19 @@ function build(n, inRow, ctx) {
     // Vela 的 div 默认按内容收窄，容器必须显式撑满父级，
     // 行内才有剩余空间供 flex-grow / space-between 分配
     const dir = n.type === 'row' ? 'row' : 'column'
+    const cst = resolveStyle(n, ctx)
+    const cWrap = {}
+    const cSt = Object.assign({}, cst)
+    if (cst && cst.position === 'absolute') {
+      POSITION_KEYS.forEach((k) => {
+        if (cst[k] !== undefined) { cWrap[k] = cst[k]; delete cSt[k] }
+      })
+    }
     return {
       c: true,
-      s: 'width: 100%; flex-direction: ' + dir + '; ' + toCssStyle(resolveStyle(n, ctx)),
+      sc: n.type === 'scroll',
+      s: 'width: 100%; flex-direction: ' + dir + '; ' + toCssStyle(cSt),
+      ws: toCssStyle(cWrap),
       kids: n.children.map((c) => build(c, n.type === 'row', ctx))
     }
   }
