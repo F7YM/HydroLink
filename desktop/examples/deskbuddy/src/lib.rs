@@ -250,19 +250,19 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
     children.push(json!({
         "type": "text",
         "props": { "text": clock },
-        "style": { "fontSize": 44, "fontWeight": 700, "color": "#FFFFFF",
+        "style": { "fontSize": 24, "fontWeight": 700, "color": "#FFFFFF",
                    "textAlign": "center", "width": "100%" }
     }));
     children.push(json!({
         "type": "text",
         "props": { "text": if title.is_empty() { "HydroLink".to_string() } else { title } },
-        "style": { "fontSize": 30, "fontWeight": 700, "color": "#FFFFFF",
+        "style": { "fontSize": 24, "fontWeight": 700, "color": "#FFFFFF",
                    "textAlign": "center", "width": "100%", "marginTop": 10 }
     }));
     children.push(json!({
         "type": "text",
         "props": { "text": artist },
-        "style": { "fontSize": 22, "color": "#B9C0CC",
+        "style": { "fontSize": 16, "color": "rgba(255,255,255,0.4)",
                    "textAlign": "center", "width": "100%", "marginTop": 4 }
     }));
     children.push(cover);
@@ -366,6 +366,27 @@ mod tests {
             .filter_map(|c| c["props"]["text"].as_str().map(|s| s.to_string()))
             .collect();
         assert!(texts.iter().any(|t| t.contains("无正在播放")), "placeholder missing: {:?}", texts);
+    }
+
+    #[test]
+    fn typography_matches_the_spec() {
+        let t = view(r#"{"time":{"hour":9,"minute":41},
+            "music":{"hasMedia":true,"title":"T","artist":"A"},"req":{"screen":{"width":466,"height":466}}}"#);
+        let kids = t["root"]["children"].as_array().unwrap();
+        let find = |want: &str| -> &Value {
+            kids.iter()
+                .find(|c| c["props"]["text"].as_str() == Some(want))
+                .unwrap_or_else(|| panic!("text {want} not found"))
+        };
+        let clock = find("09:41");
+        assert_eq!(clock["style"]["fontSize"].as_f64().unwrap(), 24.0);
+        assert_eq!(clock["style"]["fontWeight"].as_f64().unwrap(), 700.0);
+        let title = find("T");
+        assert_eq!(title["style"]["fontSize"].as_f64().unwrap(), 24.0);
+        assert_eq!(title["style"]["fontWeight"].as_f64().unwrap(), 700.0);
+        let artist = find("A");
+        assert_eq!(artist["style"]["fontSize"].as_f64().unwrap(), 16.0);
+        assert_eq!(artist["style"]["color"].as_str().unwrap(), "rgba(255,255,255,0.4)");
     }
 
     #[test]
