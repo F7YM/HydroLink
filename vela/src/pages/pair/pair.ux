@@ -53,7 +53,6 @@
       </div>
 
       <!-- 表单校验错误（页内显示，不弹 toast） -->
-      <text class="form-error" if="{{ formError }}">{{ formError }}</text>
 
       <!-- Pair button: 箭头图标按钮，点击进入「正在配对」页 -->
       <div class="button-wrapper">
@@ -269,6 +268,7 @@
 
 <script>
 import router from '@system.router'
+import prompt from '@system.prompt'
 
 export default {
   private: {
@@ -276,7 +276,6 @@ export default {
     serverIp: '',
     serverPort: '9000',
     deviceName: '',
-    formError: '',
     pressedKey: '',
     releasedKey: ''
   },
@@ -296,7 +295,6 @@ export default {
   },
 
   onShow() {
-    this.formError = ''
     // 从 app.ux 导出的全局对象读取键盘结果
     const appDef = this.$app && this.$app.$def
     const result = appDef ? appDef.keyboardResult : null
@@ -334,21 +332,21 @@ export default {
   },
 
   onPair() {
+    // 表单校验用 toast 提示（不再在页面内显示错误行）
     if (!this.serverIp) {
-      this.formError = '请输入服务器IP'
+      prompt.showToast({ message: '请输入服务器IP' })
       return
     }
     if (!this.serverPort) {
-      this.formError = '请输入端口'
+      prompt.showToast({ message: '请输入端口' })
       return
     }
     const port = parseInt(this.serverPort, 10)
     if (isNaN(port) || port < 1 || port > 65535) {
-      this.formError = '端口无效'
+      prompt.showToast({ message: '端口无效' })
       return
     }
 
-    this.formError = ''
     // 进入「正在配对」页执行配对（错误在页面内显示，不弹 toast）
     router.push({
       uri: '/pages/pairing',

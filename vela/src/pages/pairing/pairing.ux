@@ -29,6 +29,18 @@
       </text>
 
       <text class="target">{{ serverIp }}:{{ serverPort }}</text>
+
+      <!-- 失败态：显式返回按钮（不再自动返回，用户自行决定重试） -->
+      <div
+        if="{{ pairState === 'error' }}"
+        class="btn-back pressable {{ pressedKey === 'failback' ? 'is-down press-down' : '' }} {{ releasedKey === 'failback' ? 'press-up' : '' }}"
+        ontouchstart="pressDown('failback')"
+        ontouchend="pressRelease('failback')"
+        ontouchcancel="pressCancel('failback')"
+        onclick="onFailBack"
+      >
+        <text class="btn-back-text">返回</text>
+      </div>
     </div>
   </div>
 </template>
@@ -116,6 +128,20 @@
 }
 .status-error {
   color: #ffb4ab;
+}
+/* 失败态返回按钮 */
+.btn-back {
+  margin-top: 30px;
+  background-color: #bac3ff;
+  border-radius: 40px;
+  padding: 12px 52px;
+  align-items: center;
+  justify-content: center;
+}
+.btn-back-text {
+  color: #00237c;
+  font-size: 26px;
+  font-weight: bold;
 }
 .target {
   font-size: 22px;
@@ -246,6 +272,11 @@ export default {
   },
 
   goBack() {
+    router.back()
+  },
+
+  // 配对失败：返回上一页（配对页）由用户决定是否重试
+  onFailBack() {
     router.back()
   },
 
