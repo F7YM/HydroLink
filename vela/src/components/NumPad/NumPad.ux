@@ -107,8 +107,9 @@
   width: 30px;
   height: 30px;
 }
+/* 退格键与数字键统一底色（.np-key 提供 #2e323c） */
 .np-del {
-  background-color: #3a3f4a;
+  background-color: #2e323c;
 }
 
 /* ---- 按压动画 ---- */
