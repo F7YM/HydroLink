@@ -44,6 +44,21 @@ fn num(v: &Value, path: &[&str]) -> f64 {
     cur.as_f64().unwrap_or(0.0)
 }
 
+/// Setting from the plugin's server-scope storage snapshot (ctx.storage),
+/// falling back to a default.
+fn setting(ctx: &Value, key: &str, default: f64) -> f64 {
+    let v = &ctx["storage"][key];
+    v.as_f64().unwrap_or(default)
+}
+
+fn setting_str(ctx: &Value, key: &str, default: &str) -> String {
+    let v = &ctx["storage"][key];
+    match v.as_str() {
+        Some(s) if !s.is_empty() => s.to_string(),
+        _ => default.to_string(),
+    }
+}
+
 fn text(v: &Value, path: &[&str]) -> String {
     let mut cur = v;
     for k in path {
@@ -77,6 +92,29 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
     let art_blur = text(&ctx, &["music", "artBlur"]);
     let handler = text(&ctx, &["req", "event", "handler"]);
 
+    // 屏幕自适应几何：Vela 的 px 相对 designWidth(480) 缩放，故用
+    // req.screen.width（物理像素）换算回设计像素，保证任何屏型上弧条
+    // 距屏幕边缘的物理间距一致。
+    let screen_w = num(&ctx, &["req", "screen", "width"]);
+    let screen_h = num(&ctx, &["req", "screen", "height"]);
+    let scale = if screen_w > 0.0 { 480.0 / screen_w } else { 1.0 };
+    let canvas_w = 480.0;
+    let canvas_h = if screen_h > 0.0 { screen_h * scale } else { 480.0 };
+    let cx = canvas_w / 2.0;
+    let cy = canvas_h / 2.0;
+    // Tunables (WebUI writes them into server-scope storage; defaults keep the
+    // reference-mock look). gap/stroke are physical-px intents.
+    let gap_phys = setting(&ctx, "edgeGap", 16.0).clamp(4.0, 60.0);
+    let arc_span = setting(&ctx, "arcSpan", 60.0).clamp(20.0, 120.0);
+    let stroke_phys = setting(&ctx, "stroke", 9.0).clamp(2.0, 24.0);
+    let blur = setting(&ctx, "blur", 26.0).clamp(0.0, 60.0);
+    let dim = setting(&ctx, "dim", 0.3).clamp(0.05, 1.0);
+    let colors = setting_str(&ctx, "colors", "gray");
+
+    let edge_gap = if screen_w > 0.0 { gap_phys * scale } else { gap_phys * 2.0 };
+    let radius = cx - edge_gap;
+    let stroke = if screen_w > 0.0 { stroke_phys * scale } else { stroke_phys };
+
     // Clicking the cover toggles playback; the host executes the effects
     // (music control + remembering the action in server-scope storage).
     let mut effects = json!([]);
@@ -87,10 +125,21 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
         ]);
     }
 
-    let background = if has_media && !art_blur.is_empty() {
-        art_blur
-    } else {
+    let server_base = text(&ctx, &["server", "base"]);
+    let background = if !has_media {
         String::new()
+    } else if !server_base.is_empty() {
+        let size = if screen_w > 0.0 { screen_w.round() as i64 } else { 466 };
+        format!(
+            "{}/api/music/art?size={}&blur={}&dim={}",
+            server_base.trim_end_matches('/'),
+            size,
+            blur.round() as i64,
+            // keep two decimals for dim
+            (dim * 100.0).round() / 100.0
+        )
+    } else {
+        art_blur
     };
     let mut root_style = json!({
         "padding": 16,
@@ -102,19 +151,6 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
         root_style["backgroundImage"] = json!(background);
     }
 
-    // 屏幕自适应几何：Vela 的 px 相对 designWidth(480) 缩放，故用
-    // req.screen.width（物理像素）换算回设计像素，保证任何屏型上弧条
-    // 距屏幕边缘的物理间距一致。
-    let screen_w = num(&ctx, &["req", "screen", "width"]);
-    let screen_h = num(&ctx, &["req", "screen", "height"]);
-    let scale = if screen_w > 0.0 { 480.0 / screen_w } else { 1.0 };
-    let canvas_w = 480.0;
-    let canvas_h = if screen_h > 0.0 { screen_h * scale } else { 480.0 };
-    let cx = canvas_w / 2.0;
-    let cy = canvas_h / 2.0;
-    let edge_gap = if screen_w > 0.0 { 16.0 * scale } else { 32.0 }; // 距边缘物理 ~16px
-    let radius = cx - edge_gap;
-    let stroke = if screen_w > 0.0 { 9.0 * scale } else { 9.0 };
 
     // 弧条：0°=12 点方向、顺时针；左侧弧以 270°（9 点）为中心，右侧以 90°（3 点）
     let arc = |value: f64, start: i64, color: &str| {
@@ -125,7 +161,7 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
                 "position": "absolute",
                 "left": 0, "top": 0, "width": canvas_w, "height": canvas_h,
                 "startAngle": start,
-                "totalAngle": 60,
+                "totalAngle": arc_span.round(),
                 "radius": radius.round(),
                 "centerX": cx,
                 "centerY": cy,
@@ -162,8 +198,8 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
             "type": "scroll",
             "style": root_style,
             "children": [
-                arc(cpu, 240, "#C8CDD8"),
-                arc(mem, 60, "#C8CDD8"),
+                arc(cpu, 240, if colors == "split" { "#BAC3FF" } else { "#C8CDD8" }),
+                arc(mem, 60, if colors == "split" { "#7ADFA0" } else { "#C8CDD8" }),
                 {
                     "type": "text",
                     "props": { "text": clock },

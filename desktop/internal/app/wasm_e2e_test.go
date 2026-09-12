@@ -313,6 +313,30 @@ setInterval(function () {}, 1000);
 		t.Fatalf("expected exactly 2 arc progress nodes:\n%s", body)
 	}
 
+	// Settings from the plugin's server-scope storage drive the geometry and
+	// background (the WebUI writes these keys): edgeGap 40 -> radius shrinks.
+	if code, _ := call("/api/hydro/worker/store",
+		`{"package":"com.demo.deskbuddy","op":"set","key":"edgeGap","value":40}`); code != http.StatusOK {
+		t.Fatalf("store set edgeGap -> %d", code)
+	}
+	if code, _ := call("/api/hydro/worker/store",
+		`{"package":"com.demo.deskbuddy","op":"set","key":"colors","value":"split"}`); code != http.StatusOK {
+		t.Fatalf("store set colors -> %d", code)
+	}
+	time.Sleep(400 * time.Millisecond) // let the worker re-enter the poll
+	code, tuned := call("/api/hydro/com.demo.deskbuddy/app/main/view?shape=circle&width=466&height=466&dpr=2&dt=watch", "")
+	if code != http.StatusOK {
+		t.Fatalf("tuned view -> %d: %s", code, tuned)
+	}
+	if !strings.Contains(tuned, `"radius":199`) { // 240 - 40*480/466
+		t.Fatalf("edgeGap setting not applied (want radius 199):\n%s", tuned)
+	}
+	if !strings.Contains(tuned, `"color":"#BAC3FF"`) || !strings.Contains(tuned, `"color":"#7ADFA0"`) {
+		t.Fatalf("colors=split not applied:\n%s", tuned)
+	}
+	// back to defaults for the shipped-package expectations below
+	_, _ = call("/api/hydro/worker/store", `{"package":"com.demo.deskbuddy","op":"clear"}`)
+
 	// Geometry adapts to the reported screen: the px unit scales by
 	// designWidth/screenWidth (480/466), so the arc keeps a ~16 physical px
 	// gap to the edge: radius = 240 - 16*480/466 ≈ 224 design px.
