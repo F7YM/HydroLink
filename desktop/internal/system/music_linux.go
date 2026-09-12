@@ -17,7 +17,7 @@ func runPlayerctl(args ...string) (string, bool) {
 
 // GetMusic reads media info via playerctl (MPRIS).
 func GetMusic() MusicInfo {
-	out, ok := runPlayerctl("metadata", "--format", "{{title}}|||{{artist}}|||{{status}}")
+	out, ok := runPlayerctl("metadata", "--format", "{{title}}|||{{artist}}|||{{status}}|||{{mpris:artUrl}}")
 	if !ok || out == "" {
 		return MusicInfo{HasMedia: false}
 	}
@@ -31,6 +31,9 @@ func GetMusic() MusicInfo {
 	}
 	if len(parts) > 2 {
 		info.Playing = parts[2] == "Playing"
+	}
+	if len(parts) > 3 {
+		info.ArtURL = parts[3]
 	}
 	return info
 }

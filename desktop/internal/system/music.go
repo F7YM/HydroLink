@@ -9,6 +9,9 @@ type MusicInfo struct {
 	Title    string
 	Artist   string
 	Playing  bool
+	// ArtURL is the raw MPRIS art location (file:// or http(s)://); empty when
+	// the player has no cover. The API layer resolves it to image bytes.
+	ArtURL string
 }
 
 // MusicControl actions supported by /api/music/control.

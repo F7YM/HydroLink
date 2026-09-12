@@ -109,6 +109,10 @@ var kit = {
     action: function (a) { return _remote("POST", "/api/hydro/worker/music", { package: __PKG, action: a }); }
   },
   lock: function () { return _remote("POST", "/api/hydro/worker/lock", { package: __PKG }); },
+  system: {
+    perf: function () { return _remote("POST", "/api/hydro/worker/system", { package: __PKG, op: "perf" }); },
+    music: function () { return _remote("POST", "/api/hydro/worker/system", { package: __PKG, op: "music" }); }
+  },
   commands: {
     list: function () { return _remote("POST", "/api/hydro/worker/commands", { package: __PKG, op: "list" }); },
     run: function (i) { return _remote("POST", "/api/hydro/worker/commands", { package: __PKG, op: "run", index: i }); }

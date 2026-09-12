@@ -48,6 +48,8 @@ func (h *WorkerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleStore(w, r)
 	case path == "context" && r.Method == http.MethodPost:
 		h.handleContext(w, r)
+	case path == "system" && r.Method == http.MethodPost:
+		h.handleSystem(w, r)
 	case path == "notify" && r.Method == http.MethodPost:
 		h.handleNotify(w, r)
 	case path == "music" && r.Method == http.MethodPost:
@@ -395,6 +397,7 @@ func (h *WorkerHandler) handleContext(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	base := "http://" + apiBaseHost(r)
 	if has("music") {
 		info := system.GetMusic()
 		ctx["music"] = map[string]any{
@@ -402,6 +405,9 @@ func (h *WorkerHandler) handleContext(w http.ResponseWriter, r *http.Request) {
 			"title":    info.Title,
 			"artist":   info.Artist,
 			"playing":  info.Playing,
+			// Watch-reachable URLs for the cover (original / blurred background)
+			"artUrl":  base + "/api/music/art",
+			"artBlur": base + "/api/music/art?size=466&blur=26&dim=0.3",
 		}
 	}
 	if has("storage") || has("system") || has("music") {

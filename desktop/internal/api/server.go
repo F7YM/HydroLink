@@ -283,6 +283,9 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	case (path == "/api/performance" || path == "/performance") && r.Method == http.MethodGet:
 		s.withTrusted(w, r, func() { s.handlePerformance(w) })
 
+	case (path == "/api/music/art" || path == "/music/art") && r.Method == http.MethodGet:
+		s.handleMusicArt(w, r)
+
 	case (path == "/api/music" || path == "/music") && r.Method == http.MethodGet:
 		s.withTrusted(w, r, func() { s.handleGetMusic(w) })
 
