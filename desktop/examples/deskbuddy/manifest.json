@@ -1,0 +1,19 @@
+{
+  "id": "com.demo.deskbuddy",
+  "name": "桌搭",
+  "version": "0.1.0",
+  "runtime": "wasm",
+  "entry": "plugin.wasm",
+  "apps": [
+    {
+      "id": "main",
+      "name": "桌搭"
+    }
+  ],
+  "widgets": [],
+  "permissions": [
+    "system",
+    "music",
+    "storage"
+  ]
+}
