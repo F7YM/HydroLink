@@ -297,10 +297,9 @@ setInterval(function () {}, 1000);
 	for _, want := range []string{
 		`"refreshMs":3000`,
 		`"variant":"arc"`,  // CPU / RAM arc progress bars
-		`"CPU `,            // cpu badge
-		`"RAM `,            // ram badge
-		`"startAngle":240`, // left arc
-		`"startAngle":60`,  // right arc
+		`"startAngle":240`, // left arc (9 o'clock)
+		`"startAngle":60`,  // right arc (3 o'clock)
+		`"radius":208`,     // arcs hug the screen edge
 		`"backgroundColor":"#0b0d12"`,
 		`"textAlign":"center"`,
 	} {

@@ -148,8 +148,8 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
             "type": "scroll",
             "style": root_style,
             "children": [
-                arc(cpu, 240, "#BAC3FF"),
-                arc(mem, 60, "#7ADFA0"),
+                arc(cpu, 240, "#C8CDD8"),
+                arc(mem, 60, "#C8CDD8"),
                 {
                     "type": "text",
                     "props": { "text": clock },
@@ -168,17 +168,7 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
                     "style": { "fontSize": 22, "color": "#B9C0CC",
                                "textAlign": "center", "width": "100%", "marginTop": 4 }
                 },
-                cover,
-                {
-                    "type": "row",
-                    "style": { "justifyContent": "center", "marginTop": 14 },
-                    "children": [
-                        { "type": "badge", "props": { "label": format!("CPU {:.0}%", cpu) },
-                          "style": { "backgroundColor": "#2b3040" } },
-                        { "type": "badge", "props": { "label": format!("RAM {:.0}%", mem) },
-                          "style": { "backgroundColor": "#2b3040", "marginLeft": 12 } }
-                    ]
-                }
+                cover
             ]
         }
     });
