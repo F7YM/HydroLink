@@ -296,6 +296,18 @@ setInterval(function () {}, 1000);
 	if body == "" {
 		t.Fatalf("deskbuddy view never returned 200; marker: %s", mustRead(marker))
 	}
+	// Default side bars are boxes; opt into arc mode to exercise <progress>.
+	if code, _ := call("/api/hydro/worker/store",
+		`{"package":"com.demo.deskbuddy","op":"set","key":"bars","value":"arc"}`); code != http.StatusOK {
+		t.Fatalf("enable arc mode -> %d", code)
+	}
+	time.Sleep(400 * time.Millisecond) // let the worker re-enter the poll
+	if code, b := call("/api/hydro/com.demo.deskbuddy/app/main/view", ""); code == http.StatusOK {
+		body = b
+	} else {
+		t.Fatalf("arc-mode view -> %d: %s", code, b)
+	}
+
 	for _, want := range []string{
 		`"refreshMs":3000`,
 		`"variant":"arc"`,  // CPU / RAM arc progress bars
@@ -312,6 +324,20 @@ setInterval(function () {}, 1000);
 	if strings.Count(body, `"variant":"arc"`) != 2 {
 		t.Fatalf("expected exactly 2 arc progress nodes:\n%s", body)
 	}
+
+	// Default mode (no settings) renders box bars, not progress nodes.
+	_, _ = call("/api/hydro/worker/store", `{"package":"com.demo.deskbuddy","op":"clear"}`)
+	time.Sleep(400 * time.Millisecond)
+	codeDef, defTree := call("/api/hydro/com.demo.deskbuddy/app/main/view", "")
+	if codeDef != http.StatusOK {
+		t.Fatalf("default view -> %d: %s", codeDef, defTree)
+	}
+	if strings.Count(defTree, `"type":"box"`) != 4 || strings.Contains(defTree, `"variant":"arc"`) {
+		t.Fatalf("default mode should render 4 box bars and no arcs:\n%s", defTree)
+	}
+	_, _ = call("/api/hydro/worker/store",
+		`{"package":"com.demo.deskbuddy","op":"set","key":"bars","value":"arc"}`)
+	time.Sleep(400 * time.Millisecond)
 
 	// Settings from the plugin's server-scope storage drive the geometry and
 	// background (the WebUI writes these keys): edgeGap 40 -> radius shrinks.
@@ -334,8 +360,11 @@ setInterval(function () {}, 1000);
 	if !strings.Contains(tuned, `"color":"#BAC3FF"`) || !strings.Contains(tuned, `"color":"#7ADFA0"`) {
 		t.Fatalf("colors=split not applied:\n%s", tuned)
 	}
-	// back to defaults for the shipped-package expectations below
+	// clear the tunables but keep arc mode for the geometry assertions below
 	_, _ = call("/api/hydro/worker/store", `{"package":"com.demo.deskbuddy","op":"clear"}`)
+	_, _ = call("/api/hydro/worker/store",
+		`{"package":"com.demo.deskbuddy","op":"set","key":"bars","value":"arc"}`)
+	time.Sleep(400 * time.Millisecond)
 
 	// Geometry adapts to the reported screen: the px unit scales by
 	// designWidth/screenWidth (480/466), so the arc keeps a ~16 physical px
@@ -459,6 +488,13 @@ setInterval(function () {}, 1000);
 	}
 	defer func() { _ = cmd.Process.Kill() }()
 
+	call := func(path, body string) (int, string) {
+		req, _ := http.NewRequest(http.MethodPost, ts.URL+path, strings.NewReader(body))
+		rr := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(rr, req)
+		return rr.Code, rr.Body.String()
+	}
+
 	var body string
 	deadline := time.Now().Add(25 * time.Second)
 	for time.Now().Before(deadline) {
@@ -477,10 +513,22 @@ setInterval(function () {}, 1000);
 	if body == "" {
 		t.Fatalf("shipped package view never returned 200; marker: %s", mustRead(marker))
 	}
-	for _, want := range []string{`"variant":"arc"`, `"refreshMs":3000`, `"radius":208`, `"backgroundColor":"#0b0d12"`} {
+	for _, want := range []string{`"refreshMs":3000`, `"backgroundColor":"#0b0d12"`, `"type":"box"`} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("shipped package tree missing %s:\n%s", want, body)
 		}
+	}
+	if strings.Count(body, `"type":"box"`) != 4 {
+		t.Fatalf("shipped package should default to 4 box bars:\n%s", body)
+	}
+	if code, _ := call("/api/hydro/worker/store",
+		`{"package":"com.demo.deskbuddy","op":"set","key":"bars","value":"arc"}`); code != http.StatusOK {
+		t.Fatalf("enable arc mode -> %d", code)
+	}
+	time.Sleep(400 * time.Millisecond)
+	if code, arcBody := call("/api/hydro/com.demo.deskbuddy/app/main/view", ""); code != http.StatusOK ||
+		strings.Count(arcBody, `"variant":"arc"`) != 2 {
+		t.Fatalf("arc opt-in failed (%d):\n%s", code, arcBody)
 	}
 	// The listed plugins must expose the wasm runtime + its declared permissions.
 	rr := httptest.NewRecorder()

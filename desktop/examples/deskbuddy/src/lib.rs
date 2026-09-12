@@ -120,7 +120,10 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
     let blur = setting(&ctx, "blur", 26.0).clamp(0.0, 60.0);
     let dim = setting(&ctx, "dim", 0.3).clamp(0.05, 1.0);
     let colors = setting_str(&ctx, "colors", "gray");
-    let bars = setting_str(&ctx, "bars", "arc"); // arc（贴边弧线）| bar（直条备选）
+    // 侧条默认直条（普通 div 渲染，稳定可见）；arc 为可选
+    let bars = setting_str(&ctx, "bars", "bar"); // bar（直条）| arc（贴边弧线）
+    let font_scale = setting(&ctx, "fontScale", 1.0).clamp(0.6, 2.0);
+    let f = |base: f64| (base * font_scale).round();
 
     let edge_gap = if screen_w > 0.0 { gap_phys * scale } else { gap_phys * 2.0 };
     let radius = cx - edge_gap;
@@ -167,23 +170,33 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
     // 弧条：0°=12 点方向、顺时针；左侧弧以 270°（9 点）为中心，右侧以 90°（3 点）
     // 直条备选：轨道 + 填充两个 box（不依赖 progress 组件）
     let bar = |value: f64, side: &str, color: &str| -> Vec<Value> {
-        let (left, right) = if side == "left" { (12.0, 0.0) } else { (0.0, 12.0) };
-        let pct = value.clamp(0.0, 100.0).round();
+        let side_off = 16.0; // 距屏幕边缘（设计 px）
+        let track_h = canvas_h * 0.5;
+        let track_top = (canvas_h - track_h) / 2.0;
+        let bar_w = 12.0;
+        let pct = value.clamp(0.0, 100.0);
+        let fill_h = (track_h * pct / 100.0).max(bar_w / 2.0);
+        let (left, right) = if side == "left" { (side_off, 0.0) } else { (0.0, side_off) };
         vec![
+            // 轨道
             json!({
                 "type": "box",
                 "style": {
-                    "position": "absolute", "top": 120, "bottom": 120,
-                    "left": left, "right": right, "width": 10,
-                    "borderRadius": 5, "backgroundColor": "rgba(255,255,255,0.14)"
+                    "position": "absolute", "top": track_top, "left": left, "right": right,
+                    "width": bar_w, "height": track_h,
+                    "borderRadius": bar_w / 2.0,
+                    "backgroundColor": "rgba(255,255,255,0.16)"
                 }
             }),
+            // 填充（自下而上，高度按设计 px 计算，避免百分比相对整页解析）
             json!({
                 "type": "box",
                 "style": {
-                    "position": "absolute", "bottom": 120, "left": left, "right": right,
-                    "width": 10, "height": format!("{}%", pct),
-                    "borderRadius": 5, "backgroundColor": color
+                    "position": "absolute", "top": track_top + track_h - fill_h,
+                    "left": left, "right": right,
+                    "width": bar_w, "height": fill_h,
+                    "borderRadius": bar_w / 2.0,
+                    "backgroundColor": color
                 }
             })
         ]
@@ -250,19 +263,19 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
     children.push(json!({
         "type": "text",
         "props": { "text": clock },
-        "style": { "fontSize": 24, "fontWeight": 700, "color": "#FFFFFF",
+        "style": { "fontSize": f(36.0), "fontWeight": 700, "color": "#FFFFFF",
                    "textAlign": "center", "width": "100%" }
     }));
     children.push(json!({
         "type": "text",
         "props": { "text": if title.is_empty() { "HydroLink".to_string() } else { title } },
-        "style": { "fontSize": 24, "fontWeight": 700, "color": "#FFFFFF",
+        "style": { "fontSize": f(32.0), "fontWeight": 700, "color": "#FFFFFF",
                    "textAlign": "center", "width": "100%", "marginTop": 10 }
     }));
     children.push(json!({
         "type": "text",
         "props": { "text": artist },
-        "style": { "fontSize": 16, "color": "rgba(255,255,255,0.4)",
+        "style": { "fontSize": f(22.0), "color": "rgba(255,255,255,0.4)",
                    "textAlign": "center", "width": "100%", "marginTop": 4 }
     }));
     children.push(cover);
@@ -311,6 +324,7 @@ mod tests {
             "music":{"hasMedia":true,"title":"Feel Something","artist":"Jaymes Young",
                      "artUrl":"http://s/api/music/art"},
             "server":{"base":"http://192.168.1.5:9000"},
+            "storage":{"bars":"arc"},
             "req":{"screen":{"width":466,"height":466},"event":{}}
         }"#);
         assert_eq!(t["refreshMs"], 3000);
@@ -328,11 +342,11 @@ mod tests {
 
     #[test]
     fn geometry_adapts_and_defaults_without_screen_info() {
-        let with = view(r#"{"req":{"screen":{"width":466,"height":466}},"music":{"hasMedia":false}}"#);
+        let with = view(r#"{"req":{"screen":{"width":466,"height":466}},"music":{"hasMedia":false},"storage":{"bars":"arc"}}"#);
         let a = arcs(&with);
         assert_eq!(a[0]["style"]["radius"].as_f64().unwrap(), 224.0, "466px circle -> radius 224");
         assert_eq!(a[0]["style"]["height"].as_f64().unwrap(), 480.0, "canvas maps to designWidth 480");
-        let without = view(r#"{"music":{"hasMedia":false}}"#);
+        let without = view(r#"{"music":{"hasMedia":false},"storage":{"bars":"arc"}}"#);
         assert_eq!(arcs(&without)[0]["style"]["radius"].as_f64().unwrap(), 208.0);
         assert_eq!(arcs(&without)[0]["style"]["width"].as_f64().unwrap(), 480.0);
     }
@@ -341,7 +355,7 @@ mod tests {
     fn settings_are_applied_and_clamped() {
         let t = view(r#"{"music":{"hasMedia":false},
             "req":{"screen":{"width":466,"height":466}},
-            "storage":{"edgeGap":40,"arcSpan":90,"stroke":30,"colors":"split"}}"#);
+            "storage":{"bars":"arc","edgeGap":40,"arcSpan":90,"stroke":30,"colors":"split"}}"#);
         let a = arcs(&t);
         assert_eq!(a[0]["style"]["radius"].as_f64().unwrap(), 199.0); // 240 - 40*480/466
         assert_eq!(a[0]["style"]["totalAngle"].as_f64().unwrap(), 90.0);
@@ -379,13 +393,13 @@ mod tests {
                 .unwrap_or_else(|| panic!("text {want} not found"))
         };
         let clock = find("09:41");
-        assert_eq!(clock["style"]["fontSize"].as_f64().unwrap(), 24.0);
+        assert_eq!(clock["style"]["fontSize"].as_f64().unwrap(), 36.0);
         assert_eq!(clock["style"]["fontWeight"].as_f64().unwrap(), 700.0);
         let title = find("T");
-        assert_eq!(title["style"]["fontSize"].as_f64().unwrap(), 24.0);
+        assert_eq!(title["style"]["fontSize"].as_f64().unwrap(), 32.0);
         assert_eq!(title["style"]["fontWeight"].as_f64().unwrap(), 700.0);
         let artist = find("A");
-        assert_eq!(artist["style"]["fontSize"].as_f64().unwrap(), 16.0);
+        assert_eq!(artist["style"]["fontSize"].as_f64().unwrap(), 22.0);
         assert_eq!(artist["style"]["color"].as_str().unwrap(), "rgba(255,255,255,0.4)");
     }
 
@@ -408,13 +422,38 @@ mod tests {
     }
 
     #[test]
-    fn bars_setting_switches_to_box_bars() {
-        let t = view(r#"{"music":{"hasMedia":false},"storage":{"bars":"bar"},
+    fn bars_as_boxes_by_default_and_arc_opt_in() {
+        // 默认：直条（两个轨道 + 两个填充）
+        let t = view(r#"{"music":{"hasMedia":false},"system":{"cpu":50,"memPercent":50},
             "req":{"screen":{"width":466,"height":466}}}"#);
-        let kids = t["root"]["children"].as_array().unwrap();
-        assert_eq!(arcs(&t).len(), 0, "no arc nodes in bar mode");
-        let boxes = kids.iter().filter(|c| c["type"] == "box").count();
-        assert_eq!(boxes, 4, "expect 2 tracks + 2 fills");
+        assert_eq!(arcs(&t).len(), 0, "default mode must not use arc nodes");
+        let boxes: Vec<&Value> = t["root"]["children"].as_array().unwrap().iter()
+            .filter(|c| c["type"] == "box").collect();
+        assert_eq!(boxes.len(), 4, "expect 2 tracks + 2 fills");
+        // 轨道半屏高、填充按百分比（设计 px 计算，避免百分比相对整页）
+        let track_h = boxes[0]["style"]["height"].as_f64().unwrap();
+        let fill_h = boxes[1]["style"]["height"].as_f64().unwrap();
+        assert!((track_h - 240.0).abs() < 1.0, "track height {track_h}");
+        assert!((fill_h - 120.0).abs() < 1.0, "fill height {fill_h} (50%)");
+        // 显式 arc 才用 progress 节点
+        let a = view(r#"{"music":{"hasMedia":false},"storage":{"bars":"arc"}}"#);
+        assert_eq!(arcs(&a).len(), 2);
+    }
+
+    #[test]
+    fn font_scale_setting_scales_all_text() {
+        let base = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A"},"time":{"hour":1,"minute":2}}"#);
+        let big = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A"},"time":{"hour":1,"minute":2},
+            "storage":{"fontScale":1.5}}"#);
+        let size_of = |t: &Value, txt: &str| -> f64 {
+            t["root"]["children"].as_array().unwrap().iter()
+                .find(|c| c["props"]["text"].as_str() == Some(txt))
+                .map(|c| c["style"]["fontSize"].as_f64().unwrap()).unwrap()
+        };
+        assert_eq!(size_of(&base, "01:02"), 36.0);
+        assert_eq!(size_of(&big, "01:02"), 54.0);
+        assert_eq!(size_of(&base, "A"), 22.0);
+        assert_eq!(size_of(&big, "A"), 33.0);
     }
 
     #[test]
