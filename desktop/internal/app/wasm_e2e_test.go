@@ -313,6 +313,22 @@ setInterval(function () {}, 1000);
 		t.Fatalf("expected exactly 2 arc progress nodes:\n%s", body)
 	}
 
+	// Geometry adapts to the reported screen: the px unit scales by
+	// designWidth/screenWidth (480/466), so the arc keeps a ~16 physical px
+	// gap to the edge: radius = 240 - 16*480/466 ≈ 224 design px.
+	code, scaled := call("/api/hydro/com.demo.deskbuddy/app/main/view?shape=circle&width=466&height=466&dpr=2&dt=watch", "")
+	if code != http.StatusOK {
+		t.Fatalf("scaled view -> %d: %s", code, scaled)
+	}
+	if !strings.Contains(scaled, `"radius":224`) {
+		t.Fatalf("arc geometry not screen-adapted (want radius 224 for 466px):\n%s", scaled)
+	}
+	// 466 physical px maps to a 480x480 design canvas (designWidth 480), i.e.
+	// the canvas covers the whole screen.
+	if !strings.Contains(scaled, `"width":480`) || !strings.Contains(scaled, `"height":480`) {
+		t.Fatalf("arc canvas not screen-adapted (want 480x480 design px):\n%s", scaled)
+	}
+
 	// Cover tap -> effects executed host-side (music toggle + a server-scope
 	// storage write). Effects are internal to the runtime and are NOT echoed
 	// back in the HTTP view, so verify through the storage they produced.

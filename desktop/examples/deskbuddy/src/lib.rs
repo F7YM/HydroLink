@@ -102,6 +102,20 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
         root_style["backgroundImage"] = json!(background);
     }
 
+    // 屏幕自适应几何：Vela 的 px 相对 designWidth(480) 缩放，故用
+    // req.screen.width（物理像素）换算回设计像素，保证任何屏型上弧条
+    // 距屏幕边缘的物理间距一致。
+    let screen_w = num(&ctx, &["req", "screen", "width"]);
+    let screen_h = num(&ctx, &["req", "screen", "height"]);
+    let scale = if screen_w > 0.0 { 480.0 / screen_w } else { 1.0 };
+    let canvas_w = 480.0;
+    let canvas_h = if screen_h > 0.0 { screen_h * scale } else { 480.0 };
+    let cx = canvas_w / 2.0;
+    let cy = canvas_h / 2.0;
+    let edge_gap = if screen_w > 0.0 { 16.0 * scale } else { 32.0 }; // 距边缘物理 ~16px
+    let radius = cx - edge_gap;
+    let stroke = if screen_w > 0.0 { 9.0 * scale } else { 9.0 };
+
     // 弧条：0°=12 点方向、顺时针；左侧弧以 270°（9 点）为中心，右侧以 90°（3 点）
     let arc = |value: f64, start: i64, color: &str| {
         json!({
@@ -109,13 +123,13 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
             "props": { "percent": value.round(), "variant": "arc" },
             "style": {
                 "position": "absolute",
-                "left": 0, "top": 0, "width": 480, "height": 480,
+                "left": 0, "top": 0, "width": canvas_w, "height": canvas_h,
                 "startAngle": start,
                 "totalAngle": 60,
-                "radius": 208,
-                "centerX": 240,
-                "centerY": 240,
-                "strokeWidth": 10,
+                "radius": radius.round(),
+                "centerX": cx,
+                "centerY": cy,
+                "strokeWidth": stroke.round(),
                 "color": color,
                 "layerColor": "rgba(255,255,255,0.14)"
             }
