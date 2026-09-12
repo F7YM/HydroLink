@@ -31,27 +31,12 @@
 </head>
 <body>
   <h1>桌搭 · 设置</h1>
-  <p class="hint">弧条与背景的调参项存在服务端存储，手表上 3 秒内生效（表盘刷新周期）。左弧=CPU，右弧=RAM。</p>
+  <p class="hint">排版与背景的调参项存在服务端存储，手表上 3 秒内生效（刷新周期）。</p>
 
   <div class="card">
-    <div class="row"><label>距边缘 (物理px)</label><input type="range" id="edgeGap" min="4" max="60" step="1"><span class="val" id="edgeGapV"></span></div>
-    <div class="row"><label>弧长 (度)</label><input type="range" id="arcSpan" min="20" max="120" step="5"><span class="val" id="arcSpanV"></span></div>
-    <div class="row"><label>粗细 (物理px)</label><input type="range" id="stroke" min="2" max="24" step="1"><span class="val" id="strokeV"></span></div>
+    <div class="row"><label>字体缩放</label><input type="range" id="fontScale" min="0.6" max="2" step="0.1"><span class="val" id="fontScaleV"></span></div>
     <div class="row"><label>背景模糊 px</label><input type="range" id="blur" min="0" max="60" step="1"><span class="val" id="blurV"></span></div>
     <div class="row"><label>背景亮度 %</label><input type="range" id="dim" min="5" max="100" step="5"><span class="val" id="dimV"></span></div>
-    <div class="row"><label>侧条样式</label>
-      <div class="seg" id="bars">
-        <button type="button" data-v="bar">直条</button>
-        <button type="button" data-v="curve">曲线（描边弧）</button>
-      </div>
-    </div>
-    <div class="row"><label>字体缩放</label><input type="range" id="fontScale" min="0.6" max="2" step="0.1"><span class="val" id="fontScaleV"></span></div>
-    <div class="row"><label>配色</label>
-      <div class="seg" id="colors">
-        <button type="button" data-v="gray">统一灰</button>
-        <button type="button" data-v="split">CPU紫/RAM绿</button>
-      </div>
-    </div>
     <button id="save">保存</button>
     <button id="reset" class="ghost">恢复默认</button>
     <p id="msg"></p>
@@ -59,7 +44,7 @@
 
   <script>
     var PKG = 'com.demo.deskbuddy';
-    var DEFAULTS = { edgeGap: 16, arcSpan: 60, stroke: 9, blur: 26, dim: 30, fontScale: 1 };
+    var DEFAULTS = { fontScale: 1, blur: 26, dim: 30 };
     function $(id) { return document.getElementById(id); }
     function msg(t) { $('msg').textContent = t; }
     async function store(op, key, value) {
@@ -87,7 +72,7 @@
       var el = $(id);
       el.addEventListener('input', function () { $(id + 'V').textContent = fmt ? fmt(el.value) : el.value; });
     }
-    bind('edgeGap'); bind('arcSpan'); bind('stroke'); bind('blur'); bind('fontScale');
+    bind('fontScale'); bind('blur'); bind('dim', function (v) { return v + '%'; });
     bind('dim', function (v) { return v + '%'; });
 
     async function load() {
@@ -98,17 +83,10 @@
         var el = $(k);
         if (el) { el.value = v; el.dispatchEvent(new Event('input')); }
       }
-      var c = await store('get', 'colors');
-      segSet('colors', (c && c.found) ? c.value : 'gray');
-      var b = await store('get', 'bars');
-      segSet('bars', (b && b.found) ? b.value : 'bar');
     }
     function collect() {
       return {
         fontScale: Number($('fontScale').value),
-        edgeGap: Number($('edgeGap').value),
-        arcSpan: Number($('arcSpan').value),
-        stroke: Number($('stroke').value),
         blur: Number($('blur').value),
         dim: Number($('dim').value) / 100
       };
@@ -116,19 +94,13 @@
     $('save').addEventListener('click', async function () {
       var s = collect();
       for (var k in s) await store('set', k, s[k]);
-      await store('set', 'colors', $('colors').dataset.value);
-      await store('set', 'bars', $('bars').dataset.value);
       msg('已保存——手表 3 秒内生效。');
     });
     $('reset').addEventListener('click', async function () {
       for (var k in DEFAULTS) await store('remove', k);
-      await store('remove', 'colors');
-      await store('remove', 'bars');
       await load();
       msg('已恢复默认。');
     });
-    segBind('bars', 'bar');
-    segBind('colors', 'gray');
     load();
   </script>
 </body>

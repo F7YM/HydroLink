@@ -51,14 +51,6 @@ fn setting(ctx: &Value, key: &str, default: f64) -> f64 {
     v.as_f64().unwrap_or(default)
 }
 
-fn setting_str(ctx: &Value, key: &str, default: &str) -> String {
-    let v = &ctx["storage"][key];
-    match v.as_str() {
-        Some(s) if !s.is_empty() => s.to_string(),
-        _ => default.to_string(),
-    }
-}
-
 /// 曲目指纹（djb2）：用于给图片 URL 加缓存键，切歌后 URL 变化才能刷新。
 fn track_key(ctx: &Value) -> String {
     let seed = format!("{}|{}", text(ctx, &["music", "title"]), text(ctx, &["music", "artist"]));
@@ -93,8 +85,6 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
     let minute = num(&ctx, &["time", "minute"]) as i64;
     let clock = format!("{:02}:{:02}", hour, minute);
 
-    let cpu = num(&ctx, &["system", "cpu"]);
-    let mem = num(&ctx, &["system", "memPercent"]);
     let title = text(&ctx, &["music", "title"]);
     let artist = text(&ctx, &["music", "artist"]);
     let has_media = ctx["music"]["hasMedia"].as_bool().unwrap_or(false);
@@ -102,29 +92,16 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
     let art_blur = text(&ctx, &["music", "artBlur"]);
     let handler = text(&ctx, &["req", "event", "handler"]);
 
-    // 屏幕自适应几何：Vela 的 px 相对 designWidth(480) 缩放，故用
-    // req.screen.width（物理像素）换算回设计像素，保证任何屏型上弧条
-    // 距屏幕边缘的物理间距一致。
+    // 屏幕信息：用于背景图尺寸（designWidth 480 换算）
     let screen_w = num(&ctx, &["req", "screen", "width"]);
-    let screen_h = num(&ctx, &["req", "screen", "height"]);
-    let scale = if screen_w > 0.0 { 480.0 / screen_w } else { 1.0 };
-    let canvas_w = 480.0;
-    let canvas_h = if screen_h > 0.0 { screen_h * scale } else { 480.0 };
-    let cx = canvas_w / 2.0;
     // Tunables (WebUI writes them into server-scope storage; defaults keep the
     // reference-mock look). gap/stroke are physical-px intents.
-    let gap_phys = setting(&ctx, "edgeGap", 16.0).clamp(4.0, 60.0); // 曲线模式的贴边距离
-    let arc_span = setting(&ctx, "arcSpan", 60.0).clamp(20.0, 120.0);
-    let stroke_phys = setting(&ctx, "stroke", 9.0).clamp(2.0, 24.0);
     let blur = setting(&ctx, "blur", 26.0).clamp(0.0, 60.0);
     let dim = setting(&ctx, "dim", 0.3).clamp(0.05, 1.0);
-    let colors = setting_str(&ctx, "colors", "gray");
     // 侧条默认直条（普通 div 渲染，稳定可见）；arc 为可选
-    let bars = setting_str(&ctx, "bars", "bar"); // bar（直条）| curve（逐行描出的曲线）
     let font_scale = setting(&ctx, "fontScale", 1.0).clamp(0.6, 2.0);
     let f = |base: f64| (base * font_scale).round();
 
-    let _ = stroke_phys; // 粗细在各自渲染器内定义
 
 
     // Clicking the cover toggles playback; the host executes the effects
@@ -166,36 +143,6 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
 
 
     // 弧条：0°=12 点方向、顺时针；左侧弧以 270°（9 点）为中心，右侧以 90°（3 点）
-    // 直条备选：轨道 + 填充两个 box（不依赖 progress 组件）
-    // 侧条：**不使用绝对定位**（绝对定位的叶子在容器组件内不渲染）。
-    // 结构 = column 轨道（固定宽高、底部对齐）+ box 填充（自下而上）。
-    let bar = |value: f64, color: &str| -> Value {
-        let bar_w = 14.0;
-        let track_h = (canvas_h * 0.52).round();
-        let pct = value.clamp(0.0, 100.0);
-        let fill_h = ((track_h - 6.0) * pct / 100.0).max(bar_w / 2.0).round();
-        json!({
-            "type": "column",
-            "style": {
-                "width": bar_w, "height": track_h,
-                "borderRadius": bar_w / 2.0,
-                "backgroundColor": "rgba(255,255,255,0.16)",
-                "justifyContent": "flex-end",
-                "alignItems": "center",
-                "padding": 3
-            },
-            "children": [
-                {
-                    "type": "box",
-                    "style": {
-                        "width": bar_w - 6.0, "height": fill_h,
-                        "borderRadius": (bar_w - 6.0) / 2.0,
-                        "backgroundColor": color
-                    }
-                }
-            ]
-        })
-    };
 
 
     let cover_src = if !server_base.is_empty() {
@@ -223,61 +170,8 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
         })
     };
 
-    let color_left = if colors == "split" { "#BAC3FF" } else { "#C8CDD8" };
-    let color_right = if colors == "split" { "#7ADFA0" } else { "#C8CDD8" };
-    let bar_w: f64 = 14.0;
-    let gap: f64 = 12.0;
-    let center_w = (canvas_w - 2.0 * (bar_w + gap)).round();
-
-    // arc 模式仍用绝对定位（在真机上待验证）；bar 模式为纯 flex 流布局
-    // curve：逐行 box 描出的贴边曲线（纯流式，不依赖 progress 组件）
-    let curve = |value: f64, side: &str, color: &str| -> Value {
-        let thickness = 12.0;
-        let radius = cx - gap_phys * (if screen_w > 0.0 { scale } else { 1.0 }) - thickness / 2.0;
-        let half = arc_span.to_radians() / 2.0;
-        let half_span = radius * half.sin();
-        let rows: i64 = 26;
-        let row_h = (half_span * 2.0 / rows as f64).max(2.0);
-        let max_inset = (cx - radius * half.cos()) + thickness / 2.0;
-        let col_w = (max_inset + thickness + 2.0).round();
-        let pct = value.clamp(0.0, 100.0);
-        let mut kids: Vec<Value> = Vec::new();
-        for i in 0..rows {
-            // 自下而上编号：dy 为该行中心相对屏幕中心的纵向偏移
-            let dy = half_span - (i as f64 + 0.5) * row_h;
-            let dx = (radius * radius - dy * dy).max(0.0).sqrt();
-            let inset = (cx - dx - thickness / 2.0).max(0.0);
-            let filled = (100.0 * (i as f64 + 1.0) / rows as f64) <= pct;
-            let left = if side == "left" { inset } else { col_w - thickness - inset };
-            kids.push(json!({
-                "type": "box",
-                "style": {
-                    "width": thickness, "height": row_h,
-                    "marginLeft": left.round(),
-                    "backgroundColor": if filled { color } else { "rgba(255,255,255,0.16)" }
-                }
-            }));
-        }
-        json!({
-            "type": "column",
-            "style": { "width": col_w, "height": (half_span * 2.0).round() },
-            "children": kids
-        })
-    };
-
-    let side_left = if bars == "curve" { curve(cpu, "left", color_left) } else { bar(cpu, color_left) };
-    let side_right = if bars == "curve" { curve(mem, "right", color_right) } else { bar(mem, color_right) };
-
-    let mut children: Vec<Value> = vec![json!({
-        "type": "row",
-        "style": { "alignItems": "center" },
-        "children": [
-            side_left,
-            { "type": "column", "style": { "width": center_w, "alignItems": "center" },
-              "children": [] },
-            side_right
-        ]
-    })];
+    // 侧边进度条功能已移除：树只有中间一列内容
+    let mut children: Vec<Value> = Vec::new();
     let mut center_kids: Vec<Value> = Vec::new();
     center_kids.push(json!({
         "type": "text",
@@ -298,11 +192,7 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
                    "textAlign": "center", "width": "100%", "marginTop": 4 }
     }));
     center_kids.push(cover);
-    if let Some(row) = children.get_mut(0) {
-        if let Some(kids) = row["children"].as_array_mut() {
-            kids[1]["children"] = json!(center_kids);
-        }
-    }
+    children.extend(center_kids);
 
     let tree = json!({
         "refreshMs": 3000,
@@ -328,20 +218,6 @@ mod tests {
         let len = unsafe { std::ptr::read_unaligned(ptr as *const u32) } as usize;
         let payload = unsafe { std::slice::from_raw_parts(ptr.add(4), len) };
         serde_json::from_slice(payload).expect("envelope payload is not valid JSON")
-    }
-
-    /// 根 row 的三列：[左条, 中间列, 右条]
-    fn row_columns(tree: &Value) -> Vec<&Value> {
-        tree["root"]["children"][0]["children"]
-            .as_array()
-            .expect("row children")
-            .iter()
-            .collect()
-    }
-
-    /// 侧条列里的 box 数量（curve 模式 = 描线行数；bar 模式 = 1）
-    fn side_box_count(tree: &Value, idx: usize) -> usize {
-        row_columns(tree)[idx]["children"].as_array().map(|k| k.len()).unwrap_or(0)
     }
 
     /// 收集树里所有 text 节点的文本
@@ -381,7 +257,7 @@ mod tests {
     }
 
     #[test]
-    fn renders_clock_track_and_two_arcs() {
+    fn renders_clock_and_track_info() {
         let t = view(r#"{
             "time":{"hour":9,"minute":41},
             "screen":{},
@@ -392,42 +268,11 @@ mod tests {
             "req":{"screen":{"width":466,"height":466},"event":{}}
         }"#);
         assert_eq!(t["refreshMs"], 3000);
-        // 默认直条：两侧各一个填充 box，高度按百分比
-        assert_eq!(row_columns(&t).len(), 3);
+        assert!(t["root"]["children"].as_array().unwrap().len() >= 3);
         let all = texts(&t);
         assert!(all.contains(&"09:41".to_string()), "clock missing: {:?}", all);
         assert!(all.contains(&"Feel Something".to_string()));
         assert!(all.contains(&"Jaymes Young".to_string()));
-    }
-
-    #[test]
-    fn geometry_adapts_to_screen() {
-        // 直条：轨道高度按画布（=屏幕换算到 designWidth 480）计算
-        let with = view(r#"{"req":{"screen":{"width":466,"height":466}},"music":{"hasMedia":false}}"#);
-        let track_h = row_columns(&with)[0]["style"]["height"].as_f64().unwrap();
-        assert!((track_h - 250.0).abs() < 2.0, "track height {track_h} (0.52*480)");
-        let without = view(r#"{"music":{"hasMedia":false}}"#);
-        let track_h2 = row_columns(&without)[0]["style"]["height"].as_f64().unwrap();
-        assert!((track_h2 - 250.0).abs() < 2.0, "no screen info -> 480 canvas");
-    }
-
-    #[test]
-    fn settings_are_applied_and_clamped() {
-        let t = view(r#"{"music":{"hasMedia":false},
-            "system":{"cpu":80,"memPercent":20},
-            "req":{"screen":{"width":466,"height":466}},
-            "storage":{"bars":"curve","edgeGap":40,"arcSpan":90,"colors":"split"}}"#);
-        let cols = row_columns(&t);
-        // 曲线模式：两侧列都是多行 box；配色 split 生效
-        assert!(side_box_count(&t, 0) > 10 && side_box_count(&t, 2) > 10);
-        let left = cols[0]["children"].as_array().unwrap();
-        // 自下而上填充：CPU 80% → 底部行为填充色，顶部行仍为轨道色
-        assert_eq!(left[0]["style"]["backgroundColor"], "#BAC3FF");
-        assert_eq!(left[left.len() - 1]["style"]["backgroundColor"], "rgba(255,255,255,0.16)");
-        // RAM 20%：填充行数明显更少
-        let right = cols[2]["children"].as_array().unwrap();
-        let filled = |v: &Vec<Value>| v.iter().filter(|b| b["style"]["backgroundColor"] != "rgba(255,255,255,0.16)").count();
-        assert!(filled(right) < filled(left), "RAM(20%) should fill fewer rows than CPU(80%)");
     }
 
     #[test]
@@ -443,6 +288,16 @@ mod tests {
         assert!(without["root"]["style"]["backgroundImage"].is_null(), "no media -> no background image");
         let all = texts(&without);
         assert!(all.iter().any(|t| t.contains("无正在播放")), "placeholder missing: {:?}", all);
+    }
+
+    #[test]
+    fn no_progress_or_box_nodes() {
+        // 进度条功能已移除：树里不允许再出现 box / progress 节点
+        let t = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A"},
+            "system":{"cpu":50,"memPercent":50},"req":{"screen":{"width":466,"height":466}}}"#);
+        let dump = t.to_string();
+        assert!(!dump.contains("\"box\""), "no box nodes expected: {dump}");
+        assert!(!dump.contains("progress"), "no progress nodes expected: {dump}");
     }
 
     #[test]
@@ -471,42 +326,12 @@ mod tests {
         let bg_b = b["root"]["style"]["backgroundImage"].as_str().unwrap_or("");
         assert!(bg_a.contains("&k="), "background lacks a cache key: {bg_a}");
         assert_ne!(bg_a, bg_b, "background URL must change when the track changes");
-        let cover_a = row_columns(&a)[1]["children"]
+        let cover_a = a["root"]["children"]
             .as_array()
             .and_then(|kids| kids.iter().find(|c| c["type"] == "image"))
             .and_then(|im| im["props"]["src"].as_str().map(|s| s.to_string()))
             .unwrap_or_default();
         assert!(cover_a.contains("&k="), "cover lacks a cache key: {cover_a}");
-    }
-
-    #[test]
-    fn bars_are_flow_laid_out_and_arc_is_opt_in() {
-        let t = view(r#"{"music":{"hasMedia":false},"system":{"cpu":50,"memPercent":50},
-            "req":{"screen":{"width":466,"height":466}}}"#);
-        let cols = row_columns(&t);
-        assert_eq!(cols.len(), 3, "row = [left bar, center, right bar]");
-        // 侧条：column 轨道 + 单个 box 填充，且不使用绝对定位
-        // canvas_h 480 → 轨道 round(480*0.52)=250，填充 (250-6)*50% = 122
-        for (idx, expect_fill) in [(0usize, 122.0_f64), (2usize, 122.0_f64)] {
-            let track = cols[idx];
-            assert_eq!(track["type"], "column", "bar must be a flow column");
-            assert!(track["style"]["position"].is_null(), "bar must not be absolute");
-            let fill = &track["children"][0];
-            assert_eq!(fill["type"], "box");
-            let h = fill["style"]["height"].as_f64().unwrap();
-            assert!((h - expect_fill).abs() < 2.0, "fill height {h} for 50%");
-        }
-        // curve 模式：侧条列由多行 box 描出曲线，且不使用 progress 节点
-        let c = view(r#"{"music":{"hasMedia":false},"system":{"cpu":80,"memPercent":20},
-            "storage":{"bars":"curve"},"req":{"screen":{"width":466,"height":466}}}"#);
-        assert!(side_box_count(&c, 0) > 10, "curve mode needs many rows");
-        assert!(side_box_count(&c, 2) > 10);
-        assert!(!c.to_string().contains("progress"), "must not use the progress component");
-        // 行的左偏移随高度变化 => 形成弧线
-        let col = &row_columns(&c)[0];
-        let first = col["children"][0]["style"]["marginLeft"].as_f64().unwrap();
-        let mid = col["children"][13]["style"]["marginLeft"].as_f64().unwrap();
-        assert!(mid < first, "curve must bow toward the edge: first={first} mid={mid}");
     }
 
     #[test]
