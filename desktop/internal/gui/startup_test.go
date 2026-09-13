@@ -25,7 +25,7 @@ func TestStartServerReportsPortConflict(t *testing.T) {
 	defer ln.Close()
 	port := ln.Addr().(*net.TCPAddr).Port
 
-	a := NewApp(srv, st, port, nil)
+	a := NewApp(srv, st, port, nil, nil)
 	err = a.StartServer()
 	if err == nil {
 		t.Fatal("端口被占用时 StartServer 应返回错误")
@@ -52,7 +52,7 @@ func TestStartServerBindsFreePort(t *testing.T) {
 	port := ln.Addr().(*net.TCPAddr).Port
 	_ = ln.Close()
 
-	a := NewApp(srv, st, port, nil)
+	a := NewApp(srv, st, port, nil, nil)
 	if err := a.StartServer(); err != nil {
 		t.Fatalf("空闲端口应当绑定成功: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestSaveSettingsRecoversFromPortConflict(t *testing.T) {
 	occupied := ln.Addr().(*net.TCPAddr).Port
 	defer ln.Close()
 
-	a := NewApp(srv, st, occupied, nil)
+	a := NewApp(srv, st, occupied, nil, nil)
 	if err := a.StartServer(); err == nil {
 		t.Fatal("占用的端口不应绑定成功")
 	}

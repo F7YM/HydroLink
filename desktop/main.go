@@ -32,6 +32,11 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// Windows 托盘需要 ICO 数据（HICON），Linux 用 PNG。
+//
+//go:embed icon.ico
+var trayICO []byte
+
 func init() {
 	// beeep shows this as the notification app name (dbus/notify-send -a).
 	beeep.AppName = "HydroLink"
@@ -101,7 +106,7 @@ func main() {
 	// the same PNG feeds the system tray pixmap.
 	windowIcon, _ := assets.ReadFile("frontend/dist/icon.png")
 
-	desktopApp := gui.NewApp(srv, st, listenPort, windowIcon)
+	desktopApp := gui.NewApp(srv, st, listenPort, windowIcon, trayICO)
 
 	// Start the HTTP server before the window so the watch can already connect
 	// while the UI loads. A bind failure is NOT fatal here: the usual cause is

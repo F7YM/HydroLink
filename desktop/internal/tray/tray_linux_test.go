@@ -205,9 +205,9 @@ func TestRegisterMenuAndCallbacks(t *testing.T) {
 		label string
 		typ   string
 	}{
-		{menuIDShow, "显示主窗口", ""},
+		{MenuIDShow, "显示主窗口", ""},
 		{2, "", "separator"},
-		{menuIDQuit, "退出", ""},
+		{MenuIDQuit, "退出", ""},
 	}
 	for i, w := range want {
 		var node layoutNode
@@ -230,7 +230,7 @@ func TestRegisterMenuAndCallbacks(t *testing.T) {
 	}
 
 	// 4) 点击回调：菜单"显示主窗口"、菜单"退出"、以及左键 Activate
-	if err := menu.Call(menuIface+".Event", 0, menuIDShow, "clicked", dbus.MakeVariant(""), uint32(0)).Err; err != nil {
+	if err := menu.Call(menuIface+".Event", 0, MenuIDShow, "clicked", dbus.MakeVariant(""), uint32(0)).Err; err != nil {
 		t.Fatalf("Event(show): %v", err)
 	}
 	select {
@@ -238,7 +238,7 @@ func TestRegisterMenuAndCallbacks(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("点击 显示主窗口 未触发 OnActivate")
 	}
-	if err := menu.Call(menuIface+".Event", 0, menuIDQuit, "clicked", dbus.MakeVariant(""), uint32(0)).Err; err != nil {
+	if err := menu.Call(menuIface+".Event", 0, MenuIDQuit, "clicked", dbus.MakeVariant(""), uint32(0)).Err; err != nil {
 		t.Fatalf("Event(quit): %v", err)
 	}
 	select {

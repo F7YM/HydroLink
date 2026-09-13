@@ -1,7 +1,7 @@
-//go:build !linux
+//go:build !linux && !windows
 
-// Package tray: non-Linux builds have no tray implementation yet; Settings
-// still exposes the toggle and reports why the tray is unavailable.
+// Package tray: Linux(StatusNotifierItem) 与 Windows(Shell_NotifyIcon) 之外的
+// 平台（当前只有 macOS）还没有实现；设置里的开关仍然存在，并如实报告"托盘不可用"。
 package tray
 
 import "fmt"
@@ -9,6 +9,7 @@ import "fmt"
 // Options configures the tray icon.
 type Options struct {
 	IconPNG    []byte
+	IconICO    []byte
 	Title      string
 	Tooltip    string
 	Subtitle   string

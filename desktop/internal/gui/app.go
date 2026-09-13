@@ -28,6 +28,7 @@ type App struct {
 
 	trayEnabled bool
 	trayIcon    []byte
+	trayICO     []byte
 	tray        *tray.Tray
 	trayErr     string
 
@@ -38,8 +39,8 @@ type App struct {
 
 // NewApp creates the desktop app bindings. trayIcon is the PNG used for the
 // system tray pixmap (usually frontend/dist/icon.png).
-func NewApp(srv *api.Server, st *store.Store, port int, trayIcon []byte) *App {
-	a := &App{srv: srv, st: st, port: port, trayIcon: trayIcon}
+func NewApp(srv *api.Server, st *store.Store, port int, trayIcon, trayICO []byte) *App {
+	a := &App{srv: srv, st: st, port: port, trayIcon: trayIcon, trayICO: trayICO}
 	cfg, _ := st.LoadConfig()
 	a.trayEnabled = trayEnabledFrom(cfg)
 	return a

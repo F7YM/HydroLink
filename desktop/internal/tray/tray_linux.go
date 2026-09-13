@@ -36,15 +36,14 @@ const (
 
 	menuIface = "com.canonical.dbusmenu"
 	menuPath  = "/MenuBar"
-
-	menuIDShow = 1
-	menuIDQuit = 3
 )
 
 // Options configures the tray icon.
 type Options struct {
 	// IconPNG is the source image for the tray pixmaps (usually appicon.png).
 	IconPNG []byte
+	// IconICO is only used by the Windows backend (HICON needs ICO data).
+	IconICO []byte
 	// Title is the status item name (ApplicationStatus category).
 	Title string
 	// Tooltip carries the hover tooltip (title + subtitle).
@@ -315,38 +314,30 @@ func props(pairs map[string]any) map[string]dbus.Variant {
 	return out
 }
 
+// layout 由共享规格 MenuEntries() 生成，保证与 Windows 托盘菜单一致。
 func (m *dbusMenu) layout() layoutNode {
-	show := layoutNode{
-		ID: menuIDShow,
-		Props: props(map[string]any{
-			"label":   "显示主窗口",
-			"enabled": true,
-			"visible": true,
-		}),
-	}
-	sep := layoutNode{
-		ID: 2,
-		Props: props(map[string]any{
-			"type":    "separator",
-			"visible": true,
-		}),
-	}
-	quit := layoutNode{
-		ID: menuIDQuit,
-		Props: props(map[string]any{
-			"label":   "退出",
-			"enabled": true,
-			"visible": true,
-		}),
+	children := make([]dbus.Variant, 0, len(MenuEntries()))
+	for _, e := range MenuEntries() {
+		if e.Separator {
+			children = append(children, dbus.MakeVariant(layoutNode{
+				ID:    e.ID,
+				Props: props(map[string]any{"type": "separator", "visible": true}),
+			}))
+			continue
+		}
+		children = append(children, dbus.MakeVariant(layoutNode{
+			ID: e.ID,
+			Props: props(map[string]any{
+				"label":   e.Label,
+				"enabled": true,
+				"visible": true,
+			}),
+		}))
 	}
 	return layoutNode{
-		ID:    0,
-		Props: props(map[string]any{"children-display": "submenu"}),
-		Children: []dbus.Variant{
-			dbus.MakeVariant(show),
-			dbus.MakeVariant(sep),
-			dbus.MakeVariant(quit),
-		},
+		ID:       0,
+		Props:    props(map[string]any{"children-display": "submenu"}),
+		Children: children,
 	}
 }
 
@@ -390,11 +381,11 @@ func (m *dbusMenu) Event(id int32, eventID string, data dbus.Variant, timestamp 
 	}
 	m.t.logf("tray: 菜单点击 id=%d", id)
 	switch id {
-	case menuIDShow:
+	case MenuIDShow:
 		if m.t.opts.OnActivate != nil {
 			go m.t.opts.OnActivate()
 		}
-	case menuIDQuit:
+	case MenuIDQuit:
 		if m.t.opts.OnQuit != nil {
 			go m.t.opts.OnQuit()
 		}
