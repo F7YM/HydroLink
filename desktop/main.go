@@ -78,6 +78,7 @@ func main() {
 	noCover := flag.Bool("no-cover", false, "不读取封面缩略图（排查崩溃用）")
 	noNotify := flag.Bool("no-notify", false, "不发系统通知（排查崩溃用）")
 	selfTestRounds := flag.Int("selftest-times", 30, "配合 -selftest=loop：循环轮数")
+	musicTrace := flag.Bool("music-trace", false, "逐步骤打印 WinRT 音乐/封面调用（排查崩溃用）")
 	port := flag.Int("port", 0, "listen port override")
 	flag.Parse()
 
@@ -88,6 +89,9 @@ func main() {
 	// 诊断开关：先应用开关，再决定是自检还是正常启动。
 	system.SetCoverArtEnabled(!*noCover)
 	system.SetNotifyEnabled(!*noNotify)
+	if *musicTrace {
+		system.SetMusicTrace(true)
+	}
 	if *selfTest != "" {
 		if *selfTestRounds > 0 {
 			selfTestTimes = *selfTestRounds

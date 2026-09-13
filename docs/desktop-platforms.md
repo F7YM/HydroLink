@@ -93,6 +93,13 @@ HydroLink-amd64.exe -no-cover -no-notify
   消息队列，而 Go 不泵消息 → `IAsyncInfo::GetStatus` 永远不是 Completed。
   修法：所有 WinRT 调用固定在一个**常驻专属 MTA 线程**上串行执行
   （`internal/system/winrt_thread_windows.go`）。
+- **WinRT 接口是"扁平"的**（重要）：每个接口只继承 `IInspectable`，`requires`
+  只表示"实现类还必须实现这些接口"，**基接口方法不会内联进 vtable** —— 基接口
+  能力（`IClosable::Close`、`IInputStream::ReadAsync`）必须另外 `QueryInterface`。
+  按经典 COM 继承去写会让槽位整体偏移，调用到野函数指针 → 进程**静默终止**
+  （无 Go panic 堆栈、无错误输出，表现就是"窗口和托盘一起消失"）。
+  权威布局可对照 windows-rs 生成代码里的 `*_Vtbl` 与 `define_interface!` 行
+  （IID 一并核对）。守护测试：`internal/system/winrt_layout_windows_test.go`。
 - **回调 panic 会杀进程**：非 HTTP handler 的 goroutine 里 panic 不受 net/http
   保护，而 GUI 子系统没有控制台，堆栈写进没人看的 stderr → "窗口和托盘一起消失"。
   修法：托盘回调（`safeCall`）与 Wails 事件回调（`App.safeGo`）加 recover + 记堆栈。

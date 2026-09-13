@@ -63,6 +63,7 @@ func (s *smtcBackend) read() (MusicInfo, error) {
 }
 
 func (s *smtcBackend) readOnWinRTThread() (MusicInfo, error) {
+	trace("music: 步骤 1/5 获取 SMTC 会话")
 	sess, err := currentSession()
 	if err != nil {
 		logf("music: 获取 SMTC 会话失败: %v", err)
@@ -71,6 +72,7 @@ func (s *smtcBackend) readOnWinRTThread() (MusicInfo, error) {
 	if sess == nil {
 		return MusicInfo{HasMedia: false}, nil
 	}
+	trace("music: 步骤 2/5 读取媒体属性")
 	props, err := mediaProperties(sess)
 	if err != nil {
 		logf("music: 读取媒体属性失败: %v", err)
@@ -79,6 +81,7 @@ func (s *smtcBackend) readOnWinRTThread() (MusicInfo, error) {
 	if props == nil {
 		return MusicInfo{HasMedia: false}, nil
 	}
+	trace("music: 步骤 3/5 取标题/艺术家")
 	title, _ := props.GetTitle()
 	artist, _ := props.GetArtist()
 	info := MusicInfo{
@@ -87,6 +90,7 @@ func (s *smtcBackend) readOnWinRTThread() (MusicInfo, error) {
 		Artist:   artist,
 		Playing:  trackingPlaying(sess),
 	}
+	trace("music: 步骤 4/5 完成（标题=%q 艺术家=%q 播放中=%v）", title, artist, info.Playing)
 	// 切歌时留一条面包屑：若进程随后硬崩，日志最后一行就是线索。
 	if key := title + "|" + artist; key != lastTrackKey {
 		lastTrackKey = key
@@ -94,7 +98,7 @@ func (s *smtcBackend) readOnWinRTThread() (MusicInfo, error) {
 	}
 	if coverArtOn() {
 		// 封面读取失败不影响标题/艺术家（很多曲目本来就没有封面）。
-		logf("music: 读取封面 start（%q）", title)
+		trace("music: 步骤 5/5 读取封面（%q）", title)
 		if art, err := coverArtURL(props); err == nil {
 			info.ArtURL = art
 			logf("music: 读取封面 ok: %s", art)
@@ -249,6 +253,7 @@ func currentSession() (*control.GlobalSystemMediaTransportControlsSession, error
 	if err := roInitialize(); err != nil {
 		return nil, err
 	}
+	trace("music:   · RoGetActivationFactory(RequestAsync)")
 	op, err := control.GlobalSystemMediaTransportControlsSessionManagerRequestAsync()
 	if err != nil {
 		return nil, fmt.Errorf("获取 SMTC 管理器失败: %v", err)
@@ -257,6 +262,7 @@ func currentSession() (*control.GlobalSystemMediaTransportControlsSession, error
 	if err != nil {
 		return nil, err
 	}
+	trace("music:   · 等待完成 ok，QueryInterface(Manager)")
 	qi, err := queryInterface(ptr, control.SignatureiGlobalSystemMediaTransportControlsSessionManager)
 	if err != nil {
 		return nil, err

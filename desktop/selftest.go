@@ -34,6 +34,9 @@ var selfTestTimes = 30
 func runSelfTest(items string) {
 	icons := loadedIcons()
 
+	// 自检即诊断场景：打开逐步骤追踪（崩溃时最后一条日志就是崩溃点）。
+	system.SetMusicTrace(true)
+
 	fmt.Printf("=== HydroLink 自检 ===\n")
 	fmt.Printf("os=%s arch=%s data=%s png=%dB ico=%dB\n",
 		runtime.GOOS, runtime.GOARCH, dataDirHint(), len(icons.png), len(icons.ico))
@@ -45,7 +48,7 @@ func runSelfTest(items string) {
 			continue
 		}
 		if name == "all" {
-			for _, n := range []string{"music", "cover", "notify", "tray", "loop"} {
+			for _, n := range []string{"winrt", "music", "cover", "notify", "tray", "loop"} {
 				step(n)
 			}
 			continue
@@ -102,6 +105,16 @@ func step(name string) {
 		}
 		tr.Stop()
 		fmt.Printf("[tray] ok\n")
+
+	case "winrt":
+		// 只做线程/公寓初始化 + 一次最小 WinRT 调用：用来区分"线程设置本身有问题"
+		// 还是"某个具体调用的参数/接口有问题"。
+		if info, err := system.MusicSelfTest(); err != nil {
+			fmt.Printf("[winrt] 线程就绪，但音乐查询失败: %v\n", err)
+			return
+		} else {
+			fmt.Printf("[winrt] 线程就绪，音乐查询返回: hasMedia=%v\n", info.HasMedia)
+		}
 
 	case "loop":
 		// 模拟手表在设备卡片页的轮询（music + 封面每 3 秒一次），

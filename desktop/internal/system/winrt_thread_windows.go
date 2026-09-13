@@ -5,6 +5,7 @@ package system
 import (
 	"fmt"
 	"runtime"
+	"runtime/debug"
 	"sync"
 
 	"github.com/go-ole/go-ole"
@@ -57,10 +58,36 @@ func runWinRT[T any](fn func() (T, error)) (T, error) {
 		err error
 	}
 	ch := make(chan outcome, 1)
+	trace("winrt: 派发到专属 MTA 线程")
 	winrtReqs <- func() {
+		defer func() {
+			// 专属线程上的 panic 也要变成可见的错误：否则整个进程会直接消失。
+			if r := recover(); r != nil {
+				msg := fmt.Sprintf("WinRT 线程 panic: %v\n%s", r, debug.Stack())
+				logf("system: %s", msg)
+				ch <- outcome{err: fmt.Errorf("WinRT 线程 panic: %v", r)}
+			}
+		}()
 		v, err := fn()
+		trace("winrt: 线程内调用完成")
 		ch <- outcome{v: v, err: err}
 	}
 	r := <-ch
 	return r.v, r.err
+}
+
+// musicTrace 控制逐步骤追踪（-music-trace / 自检时自动开启）。
+var musicTrace atomicBool
+
+// SetMusicTrace 开关 WinRT 逐步骤追踪。
+func SetMusicTrace(on bool) { musicTrace.Store(on) }
+
+// MusicTraceEnabled 报告追踪是否开启。
+func MusicTraceEnabled() bool { return musicTrace.Load() }
+
+// trace 只在追踪开启时输出（崩溃时最后一条就是崩溃点）。
+func trace(format string, args ...any) {
+	if musicTrace.Load() {
+		logf(format, args...)
+	}
 }

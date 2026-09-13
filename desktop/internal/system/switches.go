@@ -12,6 +12,9 @@ var (
 	notifyOnFlag   atomic.Bool
 )
 
+// atomicBool 是跨平台的小别名（追踪开关用）。
+type atomicBool = atomic.Bool
+
 func init() {
 	coverArtOnFlag.Store(true)
 	notifyOnFlag.Store(true)

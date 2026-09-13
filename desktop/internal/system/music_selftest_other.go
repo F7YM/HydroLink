@@ -4,6 +4,12 @@ package system
 
 import "fmt"
 
+// SetMusicTrace / MusicTraceEnabled：逐步骤追踪只在 Windows 的 WinRT 路径有意义。
+func SetMusicTrace(on bool) { logf("music: 逐步骤追踪仅 Windows 生效（当前 %v）", on) }
+
+// MusicTraceEnabled 报告追踪开关状态。
+func MusicTraceEnabled() bool { return false }
+
 // MusicSelfTest 在非 Windows 平台直接查一次（这里没有 TTL 缓存的差异）。
 func MusicSelfTest() (MusicInfo, error) { return GetMusic(), nil }
 
