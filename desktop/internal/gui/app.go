@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/gen2brain/beeep"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -416,20 +415,6 @@ func (a *App) PluginBridgeLog(text string) {
 		return
 	}
 	a.srv.AddLog("hydrokit(frontend): "+text, "warning")
-}
-
-// OpenLogFile opens the app log in the default handler so a user reporting a
-// problem can read (and copy) it — the GUI build has no console.
-func (a *App) OpenLogFile() error {
-	p := applog.Path()
-	if p == "" {
-		return fmt.Errorf("日志文件不可用")
-	}
-	if a.ctx == nil {
-		return fmt.Errorf("窗口尚未就绪")
-	}
-	runtime.BrowserOpenURL(a.ctx, "file://"+filepath.ToSlash(p))
-	return nil
 }
 
 // Settings holds the editable server settings.

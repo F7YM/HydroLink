@@ -35,7 +35,7 @@
 
 - **日志文件**：`<数据目录>/hydrolink.log`（Linux `~/.config/hydrolink/`、
   Windows `%AppData%\hydrolink\`、macOS `~/Library/Application Support/hydrolink/`）；
-  超过 1 MiB 轮转为 `.log.1`。状态页「日志文件」一行可直接打开。
+  超过 1 MiB 轮转为 `.log.1`。状态页「日志文件」一行显示完整路径（可自行复制打开）。
 - **`-music-probe`**：打印当前曲目与失败原因后退出。Windows GUI 子系统没有控制台，
   所以同时写入日志文件；也可用 `--console` 版构建直接看输出。
 - **启动日志含选择的网卡**：`local IP: 192.168.3.48 (iface wlp0s20f3, scored)`。

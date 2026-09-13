@@ -152,12 +152,6 @@
     }
   }
 
-  $("stOpenLog").addEventListener("click", async () => {
-    try { await B().OpenLogFile(); } catch (e) {
-      $("stLogFile").textContent = "无法打开日志：" + String(e && e.message ? e.message : e);
-    }
-  });
-
   $("setSave").addEventListener("click", async () => {
     const port = parseInt($("setPort").value, 10);
     const acceptAll = $("setAcceptAll").checked;
