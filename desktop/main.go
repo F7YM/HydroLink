@@ -11,6 +11,7 @@ package main
 
 import (
 	"embed"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -27,6 +28,7 @@ import (
 	"hydrolink-desktop/internal/app"
 	"hydrolink-desktop/internal/applog"
 	"hydrolink-desktop/internal/gui"
+	"hydrolink-desktop/internal/system"
 )
 
 //go:embed all:frontend/dist
@@ -59,7 +61,20 @@ func assetAPIProxy(srv *api.Server) http.Handler {
 func main() {
 	noGUI := flag.Bool("no-gui", false, "run headless (HTTP server only)")
 	port := flag.Int("port", 0, "listen port override")
+	musicProbe := flag.Bool("music-probe", false, "打印当前媒体信息（诊断用）后退出")
 	flag.Parse()
+
+	if *musicProbe {
+		// 一条命令诊断"手表看不到音乐"：Windows 用 GUI 子系统构建时没有控制台，
+		// 所以同时写日志文件；控制台版可直接看输出。
+		out, _ := json.Marshal(map[string]any{
+			"music": system.GetMusic(),
+			"error": system.MusicDiagnostics(),
+		})
+		fmt.Println(string(out))
+		log.Printf("music-probe: %s", out)
+		return
+	}
 
 	srv, st, err := app.NewServer()
 	if err != nil {

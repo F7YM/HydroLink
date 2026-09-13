@@ -58,3 +58,6 @@ func ControlMusic(action string) bool {
 	_, ok := runPlayerctl(args...)
 	return ok
 }
+
+// MusicDiagnostics 返回最近一次查询的错误（Windows 用它做诊断；这里无缓存）。
+func MusicDiagnostics() string { return "" }

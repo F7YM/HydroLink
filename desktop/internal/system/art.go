@@ -49,7 +49,8 @@ func FetchAlbumArt(info MusicInfo) (*AlbumArt, error) {
 	path := raw
 	if strings.HasPrefix(raw, "file://") {
 		if u, err := url.Parse(raw); err == nil {
-			path = u.Path
+			// Windows 上 url.Path 是 "/C:/dir/x.jpg"，直接 ReadFile 会失败。
+			path = filePathFromURL(u)
 		}
 	}
 	data, err := os.ReadFile(path)
