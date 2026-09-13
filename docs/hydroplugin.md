@@ -1,7 +1,9 @@
 # HydroPlugin 插件规范（草案 v0.1）
 
 > 状态：**规范先行**——本文档是 HydroKit 插件系统的权威描述，后续实现按此执行。
-> 适用范围：桌面端（HydroLink desktop，Go + Wails）。安卓端为后续里程碑，采用同一规范（同为 WebView 宿主 + 同一插件包），届时补充平台差异说明。
+> 适用范围：桌面端（HydroLink desktop，Go + Wails）与安卓端（Kotlin + NanoHTTPD）。
+> 两端同为 WebView 宿主、同一插件包、同一协议；平台差异见 §9.1 与
+> [android-hydrokit.md](android-hydrokit.md)（安卓移植进度与真机验证清单）。
 > 桌面端各操作系统（Linux/Windows/macOS）的能力差异与验证状态见 [desktop-platforms.md](desktop-platforms.md)。
 
 ## 1. 角色定位
@@ -329,6 +331,38 @@ env.hydro_log(ptr, len)               # 可选，调试输出（进桌面端日�
 - **示例**：`com.demo.weather`（随源码分发：`desktop/examples/com.demo.weather.hpk`）的 `web/index.html`——城市设置（服务端存储，保存后手表 App 副标题同步）+ 通知演示
 - **反馈文案**：保存成功只提示"保存成功"（短、不带生效时机/实现细节的长句）
 
+## 9.1 平台差异（桌面 / 安卓）
+
+两端跑**同一套协议与同一份插件包**（`.hpk`），实现方式不同：
+
+| 方面 | 桌面（Go + Wails） | 安卓（Kotlin + NanoHTTPD） |
+|---|---|---|
+| 参考实现 | `desktop/internal/hydrokit/` | `android/app/src/main/java/com/hydro/link/server/hydrokit/` |
+| HTTP 层 | `net/http` | NanoHTTPD（`fi.iki.elonen`） |
+| JSON | `encoding/json` | Gson |
+| JS 插件宿主 | WebView 里的 **Blob Worker**（前端按需生成） | 每个插件一个**隐藏 WebView**，加载 `assets/hydrokit/worker.html` |
+| 宿主页来源 | 前端 `GetPluginBundle()` 生成 | 服务端同源提供：`GET /api/hydro/worker/host?file=worker.html` |
+| WASM 插件 | 同一份 worker 胶水里 `WebAssembly.instantiate`（ABI v1） | 同左（同一份胶水，ABI v1） |
+| 插件目录 | `<数据目录>/plugins/<id>/` | `<filesDir>/hydrokit/plugins/<id>/` |
+| 插件存储 | `<数据目录>/plugins-storage/<id>.json` | `<filesDir>/hydrokit/plugins-storage/<id>.json` |
+| 插件 WebUI | 主界面的遮罩层 iframe | 独立 Activity 的 WebView |
+| 能力实现 | playerctl / loginctl / 桌面通知 / `sh -c` | MediaSession / 无障碍锁屏 / NotificationManager / Shizuku 或 `sh` |
+
+**协议层面完全一致**（`/api/hydro/*` 路由、`X-Hydro-Store`、屏幕查询参数、
+worker poll/respond 报文、`View`/`Node` 字段、权限名）。跨端契约由测试钉住：
+`android/app/src/test/java/.../ProtocolContractTest.kt` 逐条断言手表容器真正读取的字段。
+
+安卓端的能力前置条件（插件作者需要知道）：
+
+| 权限 | 安卓上的实际表现 |
+|---|---|
+| `notify` | 走通知渠道；Android 13+ 需用户授予 POST_NOTIFICATIONS |
+| `music` | 依赖 MediaSession / 通知监听（未授权时返回 `hasMedia:false`） |
+| `lock` | 需要用户在系统设置里开启无障碍服务，否则返回失败 |
+| `commands` | 走 Shizuku（需授权）或 `sh -c`（受应用沙箱限制） |
+| `system` | 内存/负载近似值（`/proc/loadavg`），字段口径与桌面一致 |
+| `storage` / `fetch` | 与桌面一致（服务端存储 / 网络访问） |
+
 ## 10. 开发与调试
 
 1. **安装**：把 `xxx.hpk`（zip）解压到插件的安装目录（第一版：宿主持有目录下的 `plugins/{id}/`；界面化安装后续）
@@ -347,10 +381,14 @@ curl -X POST 'http://127.0.0.1:9000/api/hydro/com.demo.weather/app/main/view?sha
 - 安卓端实现（后续里程碑；同规范，WebView 宿主，能力 API 换安卓后端）
 - 插件市场、签名、可信分发的 UI 流程
 - 插件 `web/` 桌面 UI 渲染（空壳页仅创建 Worker；UI 表面后续里程碑）
-- 每插件多请求并发排队策略的多 Worker 化（第一版单插件串行处理）
+- 每插件多请求并发排队策略的多 Worker 化（第一版单插件串行处理；两端一致）
 
 ## 版本记录
 
+- v0.4.0（2026-09-13）：**安卓端实现落地**（§9.1）——Kotlin 端的 HydroKit 运行时、
+  插件包仓库、HTTP 路由、worker 长轮询通道、JS/WASM 宿主（隐藏 WebView）、
+  kit 能力与权限门控、插件 WebUI 与管理界面；与桌面端同一套 `.hpk` 与协议，
+  跨端字段契约由 `ProtocolContractTest` 钉住。
 - v0.3.4（2026-09-06）：§9 **WebUI 标题与文案约定**（标题=插件名，不出现 `WebUI`/包 id；保存成功只提示"保存成功"）；桌搭/天气示例页按此调整。
 
 - v0.1（草案，2026-09-06）：首版规范。与桌面 HydroKit Go 实现同步演进；实现与本文档冲突时以本文档为准（需评审修订）。
