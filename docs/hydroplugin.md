@@ -2,6 +2,7 @@
 
 > 状态：**规范先行**——本文档是 HydroKit 插件系统的权威描述，后续实现按此执行。
 > 适用范围：桌面端（HydroLink desktop，Go + Wails）。安卓端为后续里程碑，采用同一规范（同为 WebView 宿主 + 同一插件包），届时补充平台差异说明。
+> 桌面端各操作系统（Linux/Windows/macOS）的能力差异与验证状态见 [desktop-platforms.md](desktop-platforms.md)。
 
 ## 1. 角色定位
 
