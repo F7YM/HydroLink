@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -108,5 +109,47 @@ func TestMediaSetHelper(t *testing.T) {
 	}
 	if n.Media["pill"]["fontSize"] != 22 {
 		t.Fatalf("pill media = %+v", n.Media["pill"])
+	}
+}
+
+// 无头部的传输通道（安卓互联通道）：设备侧存储快照可以从 query 或 event body
+// 传进来，服务端三条路都要认，否则插件 watch 作用域状态会丢。
+func TestStoreSnapshotFromQueryAndBody(t *testing.T) {
+	plugin := &capturePlugin{m: Manifest{
+		Package: Package{ID: "test.pkg", Version: "1.0.0"},
+		Apps:    []Item{{ID: "main"}},
+	}}
+	rt := NewRuntime(nil)
+	if err := rt.Register(plugin); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	h := NewHandler(rt)
+
+	// query
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/hydro/test.pkg/app/main/view?store=%7B%22city%22%3A%22%E5%8C%97%E4%BA%AC%22%7D", nil)
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("query store: code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if got := plugin.last.Store["city"]; got != "北京" {
+		t.Fatalf("query store 未生效: %#v", plugin.last.Store)
+	}
+
+	// event body
+	plugin.last = Request{}
+	rec = httptest.NewRecorder()
+	body := `{"event":{"handler":"refresh"},"store":{"city":"上海"}}`
+	req = httptest.NewRequest(http.MethodPost, "/api/hydro/test.pkg/app/main/event", strings.NewReader(body))
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("body store: code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if got := plugin.last.Store["city"]; got != "上海" {
+		t.Fatalf("body store 未生效: %#v", plugin.last.Store)
+	}
+	if plugin.last.Event.Handler != "refresh" {
+		t.Fatalf("事件未解析: %#v", plugin.last.Event)
 	}
 }

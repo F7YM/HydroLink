@@ -148,7 +148,11 @@ class HydroKitRoutes(
             }
         }
 
-        val store = parseStoreHeader(req.headers["x-hydro-store"])
+        // 设备侧存储快照：HTTP 走 X-Hydro-Store 头；互联通道没有头，
+        // 由容器放进 query（GET）或 body（POST）的 "store" 字段
+        var store = parseStoreHeader(req.headers["x-hydro-store"])
+        if (store == null) store = parseStoreHeader(req.query["store"])
+        if (store == null) store = parseStoreFromBody(req.body)
 
         return Request(
             trigger = trigger,
@@ -163,6 +167,21 @@ class HydroKitRoutes(
             ),
             store = store,
         )
+    }
+
+    /** 从 event 请求体里取 store 字段（互联通道的 POST 请求）。 */
+    private fun parseStoreFromBody(raw: String?): MutableMap<String, Any?>? {
+        if (raw.isNullOrBlank()) return null
+        return try {
+            val el = JsonParser.parseString(raw)
+            if (!el.isJsonObject) return null
+            val storeEl = el.asJsonObject.get("store") ?: return null
+            if (!storeEl.isJsonObject) return null
+            @Suppress("UNCHECKED_CAST")
+            gson.fromJson(storeEl, Map::class.java) as? MutableMap<String, Any?>
+        } catch (e: Exception) {
+            null
+        }
     }
 
     /** X-Hydro-Store：JSON 对象；解析失败按"没有快照"处理（与桌面一致）。 */

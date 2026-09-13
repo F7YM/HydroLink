@@ -160,6 +160,39 @@ class ProtocolContractTest {
     }
 
     @Test
+    fun storeCanArriveViaQueryOrBodyForInterconnect() {
+        val seen = arrayListOf<Request>()
+        val rt = Runtime()
+        rt.register(object : Runtime.Plugin {
+            override fun manifest() = manifest
+            override fun view(surface: String, item: String, req: Request): View {
+                seen.add(req)
+                return View(root = Node.text("x"))
+            }
+        })
+        val routes = HydroKitRoutes(rt)
+
+        // 互联通道的 GET：没有 X-Hydro-Store 头，store 走 query
+        routes.handle(
+            HydroHttpRequest(
+                "GET", "/api/hydro/com.demo.weather/widget/card/view",
+                query = mapOf("store" to """{"city":"北京"}"""),
+            )
+        )
+        assertEquals("北京", seen[0].store!!["city"])
+
+        // 互联通道的 POST（event）：store 放 body
+        routes.handle(
+            HydroHttpRequest(
+                "POST", "/api/hydro/com.demo.weather/app/main/event",
+                body = """{"event":{"handler":"refresh"},"store":{"city":"上海"}}""",
+            )
+        )
+        assertEquals("上海", seen[1].store!!["city"])
+        assertEquals("refresh", seen[1].event!!.handler)
+    }
+
+    @Test
     fun screenQueryAndStoreHeaderAreHonoured() {
         val seen = arrayListOf<Request>()
         val rt = Runtime()

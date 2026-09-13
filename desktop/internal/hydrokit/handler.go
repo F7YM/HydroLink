@@ -50,10 +50,21 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	req := Request{Trigger: triggerForAction(action), Params: map[string]string{}}
 	// The container uploads the device-side storage snapshot with each request.
+	// HTTP uses the X-Hydro-Store header; transports without headers (e.g. the
+	// Android interconnect channel) put the same JSON in the "store" query
+	// parameter or in the request body, so accept all three.
 	if h := r.Header.Get("X-Hydro-Store"); h != "" {
 		var store map[string]any
 		if err := json.Unmarshal([]byte(h), &store); err == nil && store != nil {
 			req.Store = store
+		}
+	}
+	if req.Store == nil {
+		if q := r.URL.Query().Get("store"); q != "" {
+			var store map[string]any
+			if err := json.Unmarshal([]byte(q), &store); err == nil && store != nil {
+				req.Store = store
+			}
 		}
 	}
 	if q := r.URL.Query(); q != nil {
@@ -106,6 +117,7 @@ func decodeEvent(r *http.Request, req *Request) error {
 	var body struct {
 		Event  Event             `json:"event"`
 		Params map[string]string `json:"params"`
+		Store  map[string]any    `json:"store"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		return err
@@ -113,6 +125,10 @@ func decodeEvent(r *http.Request, req *Request) error {
 	req.Event = body.Event
 	if body.Params != nil {
 		req.Params = body.Params
+	}
+	// 事件体里也可能带设备侧存储快照（无头部的传输通道）
+	if body.Store != nil && req.Store == nil {
+		req.Store = body.Store
 	}
 	req.Trigger = TriggerEvent
 	return nil

@@ -291,6 +291,37 @@ class HydroHttpServer(
     // ---- Internal request handler (for interconnect transport) ----
 
     /**
+     * 互联通道下的 `/api/hydro/…` 路由：手表的请求经由 XMS Wearable 转发到这里
+     * （[com.hydro.link.server.hydrokit.HydroKit] 的插件路由），响应必须是 JSON 对象
+     * —— 互联通道只能传 JSON，二进制资源（wasm/图片）走不了这条路。
+     */
+    private fun handleHydroInternal(
+        cleanPath: String,
+        method: String,
+        bodyJson: JsonObject?,
+    ): com.google.gson.JsonElement {
+        val req = com.hydro.link.server.hydrokit.HydroInterconnect.toRequest(
+            rawPath = cleanPath,
+            method = method,
+            body = bodyJson?.toString(),
+        )
+        val out = hydroKit.handle(req)
+            ?: return gson.toJsonTree(mapOf("status" to "error", "message" to "Not found"))
+        if (out.bytes != null) {
+            return gson.toJsonTree(mapOf("status" to "error", "message" to "二进制资源请走 HTTP"))
+        }
+        if (out.body.isBlank()) {
+            return gson.toJsonTree(mapOf("status" to "ok", "code" to out.status))
+        }
+        return try {
+            com.google.gson.JsonParser.parseString(out.body)
+        } catch (e: Exception) {
+            // 非 JSON 正文（例如 HTML 页面）在互联通道上没法原样传，包一层
+            gson.toJsonTree(mapOf("status" to "ok", "code" to out.status, "body" to out.body))
+        }
+    }
+
+    /**
      * Handle an API request from the InterconnectHandler (UDP transport).
      * Routes to the same handlers as serve() but returns a JsonElement
      * instead of an HTTP Response.  Bypasses device-trust checks since
@@ -302,6 +333,13 @@ class HydroHttpServer(
 
         return try {
             when {
+                // ---- HydroKit（插件平台）----
+                // 手表在互联通道下会把请求转发到这里（deviceService 里 HTTP 与
+                // interconnect 两条路都会走），所以插件路由必须在这里也生效；
+                // 另外互联通道没有 HTTP 头，X-Hydro-Store 改从 query/body 的
+                // "store" 字段读取（见 vela deviceService.hydro）。
+                cleanPath.startsWith("/api/hydro") -> handleHydroInternal(cleanPath, method, bodyJson)
+
                 // Health check
                 cleanPath == "/api/ping" || cleanPath == "/ping" ->
                     gson.toJsonTree(mapOf("status" to "ok", "api_level" to API_LEVEL, "version" to VERSION))

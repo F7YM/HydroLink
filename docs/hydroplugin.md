@@ -348,9 +348,21 @@ env.hydro_log(ptr, len)               # 可选，调试输出（进桌面端日�
 | 插件 WebUI | 主界面的遮罩层 iframe | 独立 Activity 的 WebView |
 | 能力实现 | playerctl / loginctl / 桌面通知 / `sh -c` | MediaSession / 无障碍锁屏 / NotificationManager / Shizuku 或 `sh` |
 
-**协议层面完全一致**（`/api/hydro/*` 路由、`X-Hydro-Store`、屏幕查询参数、
+**协议层面完全一致**（`/api/hydro/*` 路由、存储快照、屏幕查询参数、
 worker poll/respond 报文、`View`/`Node` 字段、权限名）。跨端契约由测试钉住：
 `android/app/src/test/java/.../ProtocolContractTest.kt` 逐条断言手表容器真正读取的字段。
+
+存储快照（§6 请求上下文语义）的传输有**三条通道**，两端服务端都按同一优先级读取，
+因为手表并不总能带自定义请求头：
+
+| 通道 | 场景 | 位置 |
+|---|---|---|
+| 请求头 `X-Hydro-Store` | 手表直连 HTTP（Vela `fetch` 可带 header） | 最高优先级 |
+| 查询参数 `store` | 互联通道（XMS Wearable UDP 转发，无自定义头） | 次之 |
+| 请求体字段 `store` | `event` 等 POST 请求 | 最后 |
+
+安卓端 `HttpServer.handleInternalRequest` 同样把 `/api/hydro/*` 交给 HydroKit，
+手表无论走 localhost 还是互联通道，协议行为一致。
 
 安卓端的能力前置条件（插件作者需要知道）：
 
@@ -385,6 +397,11 @@ curl -X POST 'http://127.0.0.1:9000/api/hydro/com.demo.weather/app/main/view?sha
 
 ## 版本记录
 
+- v0.4.1（2026-09-13）：**存储快照三条传输通道**（§9.1）——手表经互联通道（XMS Wearable）
+  发来的 hydro 请求带不了自定义请求头，两端服务端改为按 `X-Hydro-Store` 头 → `store`
+  查询参数 → 请求体 `store` 字段的顺序读取；安卓端 `HttpServer.handleInternalRequest`
+  把 `/api/hydro/*` 也交给 HydroKit（此前互联通道直接 404），手表容器 `deviceService.hydro`
+  在互联通道下把快照塞进 query/body。两端各加回归测试。
 - v0.4.0（2026-09-13）：**安卓端实现落地**（§9.1）——Kotlin 端的 HydroKit 运行时、
   插件包仓库、HTTP 路由、worker 长轮询通道、JS/WASM 宿主（隐藏 WebView）、
   kit 能力与权限门控、插件 WebUI 与管理界面；与桌面端同一套 `.hpk` 与协议，
