@@ -92,8 +92,12 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
     let art_blur = text(&ctx, &["music", "artBlur"]);
     let handler = text(&ctx, &["req", "event", "handler"]);
 
-    // 屏幕信息：用于背景图尺寸（designWidth 480 换算）
+    // 屏幕信息：用于背景图尺寸与方屏封面定位（designWidth 480 换算）
     let screen_w = num(&ctx, &["req", "screen", "width"]);
+    let screen_h = num(&ctx, &["req", "screen", "height"]);
+    let shape = text(&ctx, &["req", "screen", "shape"]);
+    let canvas_w = 480.0;
+    let canvas_h = if screen_w > 0.0 && screen_h > 0.0 { screen_h * (480.0 / screen_w) } else { 480.0 };
     // Tunables (WebUI writes them into server-scope storage; defaults keep the
     // reference-mock look). gap/stroke are physical-px intents.
     let blur = setting(&ctx, "blur", 26.0).clamp(0.0, 60.0);
@@ -156,12 +160,27 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
 
     // 封面必须是**叶子**（容器页只展开 3 层，L3 上的容器会被当成未知叶子）；
     // 居中由中间列的 alignItems: center 完成
+    // 方屏（rect）：封面放大并**绝对居中于屏幕正中**；
+    // 圆屏：保持流式布局（居中由根节点 alignItems 完成）
+    let is_rect = shape == "rect";
+    let cover_size: f64 = if is_rect { 290.0 } else { 200.0 };
+    let mut cover_style = json!({
+        "width": cover_size, "height": cover_size, "borderRadius": 16
+    });
+    if is_rect {
+        cover_style["position"] = json!("absolute");
+        cover_style["left"] = json!(((canvas_w - cover_size) / 2.0).round());
+        cover_style["top"] = json!(((canvas_h - cover_size) / 2.0).round());
+    } else {
+        cover_style["marginTop"] = json!(18);
+    }
+
     let cover = if has_media && !cover_src.is_empty() {
         json!({
             "type": "image",
             "props": { "src": cover_src },
             "events": { "tap": "toggle" },
-            "style": { "width": 200, "height": 200, "borderRadius": 16, "marginTop": 18 }
+            "style": cover_style
         })
     } else {
         json!({
@@ -289,6 +308,33 @@ mod tests {
         assert!(without["root"]["style"]["backgroundImage"].is_null(), "no media -> no background image");
         let all = texts(&without);
         assert!(all.iter().any(|t| t.contains("无正在播放")), "placeholder missing: {:?}", all);
+    }
+
+    #[test]
+    fn rect_screen_centres_and_enlarges_the_cover() {
+        let t = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A"},
+            "server":{"base":"http://h:9000"},
+            "req":{"screen":{"shape":"rect","width":432,"height":514}}}"#);
+        let cover = t["root"]["children"].as_array().unwrap().iter()
+            .find(|c| c["type"] == "image").expect("cover").clone();
+        let style = &cover["style"];
+        assert_eq!(style["position"], "absolute", "rect cover must be absolutely centred");
+        // canvas: 480 x (514*480/432=571.1)；290 的封面 → left 95 / top 141
+        assert_eq!(style["left"].as_f64().unwrap(), 95.0);
+        assert_eq!(style["top"].as_f64().unwrap(), 141.0);
+        assert_eq!(style["width"].as_f64().unwrap(), 290.0);
+        // 圆心与画布中心一致
+        let cx = style["left"].as_f64().unwrap() + style["width"].as_f64().unwrap() / 2.0;
+        assert!((cx - 240.0).abs() < 1.0, "cover not horizontally centred: {cx}");
+
+        // 圆屏保持流式（无绝对定位、尺寸较小）
+        let c = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A"},
+            "server":{"base":"http://h:9000"},
+            "req":{"screen":{"shape":"circle","width":466,"height":466}}}"#);
+        let cc = c["root"]["children"].as_array().unwrap().iter()
+            .find(|x| x["type"] == "image").expect("cover").clone();
+        assert!(cc["style"]["position"].is_null(), "circle cover stays in flow");
+        assert_eq!(cc["style"]["width"].as_f64().unwrap(), 200.0);
     }
 
     #[test]
