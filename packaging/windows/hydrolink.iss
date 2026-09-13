@@ -1,4 +1,4 @@
-; HydroLink —— Windows 安装程序（Inno Setup 6）
+﻿; HydroLink —— Windows 安装程序（Inno Setup 6）
 ;
 ; 用法（在 Windows 上）：
 ;   iscc /DMyAppVersion=1.0.0 /DMySourceDir=..\..\bin packaging\windows\hydrolink.iss
@@ -15,17 +15,40 @@
 ;     并在卸载前询问是否一并删除。
 ;   · 安装/卸载前结束正在运行的实例（否则文件占用会导致卸载失败）。
 
-#ifndef MyAppVersion
-  #define MyAppVersion "0.0.0"
-#endif
-#ifndef MySourceDir
-  #define MySourceDir "..\..\bin"
-#endif
 #ifndef MyPrivileges
   #define MyPrivileges "lowest"
 #endif
-; 仓库根目录（LICENSE/README/图标都在这里）
-#define MyRepoRoot "..\.."
+
+; 所有路径都从**本 .iss 文件所在目录**推导（SourcePath 由 Inno 预定义），
+; 这样与当前工作目录无关，也不会被调用方传错相对路径 ——
+; 之前写成 "..\..\bin" 导致找不到 desktop\bin\HydroLink-amd64.exe。
+#define MyRepoRoot  SourcePath + "\..\.."
+#define MyDesktopDir MyRepoRoot + "\desktop"
+#define MyBinDir    MyDesktopDir + "\bin"
+
+; 二进制可能是交叉编译的 HydroLink-amd64.exe，也可能是 build-windows.bat 出的
+; HydroLink.exe；找不到就在编译期报错，并给出该跑哪条命令。
+#if FileExists(MyBinDir + "\HydroLink-amd64.exe")
+  #define MyPayload MyBinDir + "\HydroLink-amd64.exe"
+#elif FileExists(MyBinDir + "\HydroLink.exe")
+  #define MyPayload MyBinDir + "\HydroLink.exe"
+#else
+  #error 找不到 desktop\bin\HydroLink-amd64.exe（或 HydroLink.exe）。先构建 Windows 二进制：Windows 上跑 desktop\build-windows.bat，或在 Linux 上跑 bash packaging/build-windows.sh
+#endif
+
+#if !FileExists(MyRepoRoot + "\LICENSE")
+  #error 找不到仓库根目录的 LICENSE，请确认 hydrolink.iss 仍在 packaging\windows\ 下
+#endif
+
+; 版本号：命令行 /DMyAppVersion=… 优先（CI 可覆盖），否则直接读 desktop\VERSION。
+; 曾经用 "0.0.0" 当兜底，结果直接跑 ISCC 时会静默产出 HydroLink-0.0.0-setup.exe。
+#ifndef MyAppVersion
+  #define VersionFile MyRepoRoot + "\desktop\VERSION"
+  #if !FileExists(VersionFile)
+    #error 找不到 desktop\VERSION（版本号唯一来源）
+  #endif
+  #define MyAppVersion Trim(FileRead(FileOpen(VersionFile)))
+#endif
 
 #define MyAppName "HydroLink"
 #define MyAppExeName "HydroLink.exe"
@@ -60,15 +83,20 @@ LicenseFile={#MyRepoRoot}\LICENSE
 ; SignedUninstaller=yes
 
 [Languages]
-Name: "chinese"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+; 英文是 Inno Setup 自带的；中文语言包（ChineseSimplified.isl）需要额外下载：
+;   https://jrsoftware.org/files/istrans/  ->  放到 Inno Setup 的 Languages\ 目录
+; 存在就自动启用，不存在就只用英文（避免因为缺个翻译文件编译不过）。
 Name: "english"; MessagesFile: "compiler:Default.isl"
+#if FileExists(AddBackslash(CompilerPath) + "Languages\ChineseSimplified.isl")
+Name: "chinese"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+#endif
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 Name: "autostart"; Description: "开机自动启动（开机后在托盘常驻，方便手表随时连接）"; GroupDescription: "启动选项："; Flags: unchecked
 
 [Files]
-Source: "{#MySourceDir}\HydroLink-amd64.exe"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion
+Source: "{#MyPayload}"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion
 Source: "{#MyRepoRoot}\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyRepoRoot}\README.md"; DestDir: "{app}"; Flags: ignoreversion
 
@@ -119,7 +147,7 @@ begin
     if MsgBox('未检测到 Microsoft Edge WebView2 运行时。' + #13#10 +
               'HydroLink 的界面需要它（Windows 11 自带；Windows 10 可能需要安装）。' + #13#10#13#10 +
               '现在打开官方下载页吗？安装完可重新运行本安装程序。',
-              mbConfirmation, MB_YESNO) = IDYES then
+              mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
       ShellExec('open', WebView2URL, '', '', SW_SHOWNORMAL, ewNoWait, ErrCode);
     // 不阻断安装：核心服务端仍可使用（-no-gui），界面缺 WebView2 时才需要
   end;
@@ -134,9 +162,11 @@ begin
     DataDir := ExpandConstant('{userappdata}\hydrolink');
     if DirExists(DataDir) then
     begin
+      // 默认按钮是"否"：静默卸载（/SUPPRESSMSGBOXES）时 Inno 采用默认按钮，
+      // 这样绝不会不打招呼就删掉配对密钥/插件/设置。
       if MsgBox('是否同时删除用户数据？' + #13#10 + DataDir + #13#10#13#10 +
                 '里面包含配对密钥、已安装插件与设置。选择"否"将保留（重新安装后继续可用）。',
-                mbConfirmation, MB_YESNO) = IDYES then
+                mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
         DelTree(DataDir, True, True, True);
     end;
   end;

@@ -98,6 +98,29 @@ rm -rf /tmp/x && mkdir /tmp/x && cd /tmp/x && rpm2cpio <rpm> | cpio -idm   # 解
 - 前置：先构建 `desktop\bin\HydroLink-amd64.exe`（`desktop\build-windows.bat`，
   或在 Linux 上 `bash packaging/build-windows.sh` 交叉编译）
 
+踩过的坑（都已修，写在这里免得重犯）：
+
+- **`.bat` 必须保持纯 ASCII**：cmd.exe 按系统 ANSI 代码页读 `.bat`，UTF-8 中文注释
+  在 GBK 环境下会被解码成乱码，整份脚本的行都被拆坏（表现为
+  `'鐗堟湰' 不是内部或外部命令` 之类）。中文说明放本 README，脚本里只用英文。
+- **`.iss` 要存成 UTF-8 with BOM**：脚本里有中文（任务描述、卸载询问），
+  没有 BOM 时 Inno 可能按本地代码页解析导致乱码。
+- **版本号不能靠命令行兜底**：原先 `#define MyAppVersion "0.0.0"` 是默认值，
+  直接跑 ISCC 就会产出 `HydroLink-0.0.0-setup.exe`。现在 `.iss` 自己读
+  `desktop\VERSION`（`FileRead(FileOpen(...))` + `Trim`），`/DMyAppVersion=…`
+  仍可覆盖（CI 用）。
+- **路径从脚本位置推导**：用 Inno 预定义的 `SourcePath` 拼
+  `..\..\desktop\bin`，与当前工作目录无关；二进制缺失时用 `#error` 给出
+  该跑哪条命令（而不是让 ISCC 报 "Source file ... does not exist"）。
+- **`ChineseSimplified.isl` 不是 Inno Setup 自带的**：中文语言包要另外下载
+  （https://jrsoftware.org/files/istrans/ → 放进 Inno 的 `Languages\` 目录）。
+  `.iss` 里用 `#if FileExists(...)` 自动判断：有就用中文，没有就只用英文。
+- **静默卸载不能删用户数据**：卸载询问用 `MB_YESNO or MB_DEFBUTTON2`（默认"否"），
+  因为 `/SUPPRESSMSGBOXES` 下 Inno 采用默认按钮 —— 否则静默卸载会不问就删掉
+  `%AppData%\hydrolink`（配对密钥/插件/设置）。
+- **Inno Setup 下载地址**：`jrsoftware.org/files/is/6/` 目录里只有 `.issig` 签名文件，
+  实际安装包在 GitHub releases：https://github.com/jrsoftware/issrc/releases
+
 设计取舍（都在 iss 里注释了）：
 
 | 决策 | 取值 | 理由 |
@@ -120,6 +143,30 @@ rm -rf /tmp/x && mkdir /tmp/x && cd /tmp/x && rpm2cpio <rpm> | cpio -idm   # 解
    （证书是 .pfx 时用 signtool；用硬件令牌/云签名时把命令换成厂商提供的 CLI。）
 3. 只签 `HydroLink-amd64.exe` 也可以，但安装包本身不签的话 SmartScreen 仍会提示 ——
    所以最好连安装包一起签（上面的 `SignTool` 就是给安装包用的）。
+
+### ### 已验证程度
+
+我用 wine + Inno Setup 6.7.3 在本机跑通了完整链路（命令见下），**已实测**：
+
+- 编译：不传 `/D` 时自动读 `desktop/VERSION` → `dist/HydroLink-1.0.0-setup.exe`；
+  `/DMyAppVersion=9.9.9` 可覆盖；缺二进制时给出可读的 `#error`。
+- 安装（`/VERYSILENT`）：装到 `%LocalAppData%\Programs\HydroLink`，
+  含 `HydroLink.exe`/`LICENSE`/`README.md`，开始菜单快捷方式与卸载项
+  （`HKCU\...\Uninstall\com.hydro.hydrolink_is1`）都正确建立。
+- 卸载（`/VERYSILENT`）：程序目录删除，**`%AppData%\hydrolink` 用户数据保留**。
+
+未验证：WebView2 缺失时的提示分支、开机自启任务、桌面快捷方式、代码签名
+（这些需要在真实 Windows 上点一遍）。
+
+```bash
+# 本机复现（Linux + wine，一次性准备）
+curl -sSL -o /tmp/innosetup.exe \
+  https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe
+WINEPREFIX=/tmp/wine-inno wine /tmp/innosetup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-
+# 编译
+WINEPREFIX=/tmp/wine-inno wine "/tmp/wine-inno/drive_c/Program Files (x86)/Inno Setup 6/ISCC.exe" \
+  "$PWD/packaging/windows/hydrolink.iss"
+```
 
 ### 在 Linux 上出安装包（可选）
 
