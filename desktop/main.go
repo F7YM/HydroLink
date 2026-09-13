@@ -25,6 +25,7 @@ import (
 
 	"hydrolink-desktop/internal/api"
 	"hydrolink-desktop/internal/app"
+	"hydrolink-desktop/internal/applog"
 	"hydrolink-desktop/internal/gui"
 )
 
@@ -58,6 +59,13 @@ func main() {
 	srv, st, err := app.NewServer()
 	if err != nil {
 		log.Fatalf("init: %v", err)
+	}
+	// 文件日志（Windows GUI 子系统没有控制台，日志必须落盘）
+	if err := applog.Init(st.Dir()); err != nil {
+		log.Printf("warning: 日志文件不可用，仅输出到控制台: %v", err)
+	} else {
+		defer applog.Close()
+		srv.SetLogWriter(applog.Stdout())
 	}
 
 	cfg, _ := st.LoadConfig()

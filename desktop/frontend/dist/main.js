@@ -41,6 +41,8 @@
     $("stIp").textContent = st.ip;
     $("stApi").textContent = st.apiLevel;
     $("stDataDir").textContent = st.dataDir;
+    $("stLogFile").textContent = st.logFile || "（文件日志未启用）";
+    $("stLogFile").title = st.logFile || "";
     $("trustedCount").textContent = st.trustedCount;
 
     const list = $("trustedList");
@@ -149,6 +151,12 @@
       $("setMsg").style.color = "var(--md-error)";
     }
   }
+
+  $("stOpenLog").addEventListener("click", async () => {
+    try { await B().OpenLogFile(); } catch (e) {
+      $("stLogFile").textContent = "无法打开日志：" + String(e && e.message ? e.message : e);
+    }
+  });
 
   $("setSave").addEventListener("click", async () => {
     const port = parseInt($("setPort").value, 10);

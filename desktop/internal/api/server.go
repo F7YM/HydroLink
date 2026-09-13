@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -44,6 +45,9 @@ type Server struct {
 
 	srvMu   sync.Mutex
 	httpSrv *http.Server
+
+	// logOut 是日志的终端镜像目标（stdout + 日志文件；见 internal/applog）。
+	logOut io.Writer
 
 	// hydro is the HydroKit plugin API dispatcher (optional; mounted under
 	// /api/hydro/...). This keeps the route surface fixed as plugins grow.
@@ -137,8 +141,20 @@ func (s *Server) AddLog(message, level string) {
 		s.logs = s.logs[len(s.logs)-s.maxLogs:]
 	}
 	s.logMu.Unlock()
-	// Mirror to the terminal so headless/GUI launches show the server log.
-	fmt.Printf("[%s] [%s] %s\n", ts, level, message)
+	// Mirror to the terminal (and the log file) so headless/GUI launches keep
+	// a record — a Windows GUI build has no console at all.
+	out := s.logOut
+	if out == nil {
+		out = os.Stdout
+	}
+	fmt.Fprintf(out, "[%s] [%s] %s\n", ts, level, message)
+}
+
+// SetLogWriter redirects the terminal mirror of AddLog (stdout by default).
+func (s *Server) SetLogWriter(w io.Writer) {
+	s.logMu.Lock()
+	s.logOut = w
+	s.logMu.Unlock()
 }
 
 // Logs returns a copy of the log buffer.
