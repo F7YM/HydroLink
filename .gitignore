@@ -29,3 +29,6 @@ vela/src/services/buildInfo.js
 *.iml
 .vscode/
 .DS_Store
+
+# Android 发布产物（本地构建，不入库；仓库里保留的是签名用的 keystore）
+dist/*.apk

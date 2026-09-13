@@ -149,3 +149,16 @@ assets/hydrokit/{worker.html,worker.js}   与桌面同协议的宿主胶水
   · 卸载 → 手表启动器里对应条目消失、插件存储仍在（重装后设置还在）
 - 每完成一个里程碑：跑 `:app:testDebugUnitTest` + `:app:assembleDebug`，
   提交一次，并更新本文件的里程碑状态。
+
+## 打包
+
+```bash
+cd android
+./gradlew :app:assembleDebug     # app/build/outputs/apk/debug/app-debug.apk（排障用，开了 WebView 远程调试）
+./gradlew :app:assembleRelease   # app/build/outputs/apk/release/app-release.apk（发布用）
+```
+
+release 用仓库里的 `android/app/hydrolink-release.keystore` 签名（`build.gradle` 的
+`signingConfigs.release`，别名的指纹 SHA-256 `da555363…`，v2 签名方案 —— v2 从
+Android 7.0 起支持，正好是 minSdk 24）。**这个 keystore 从初始提交就在版本库里，
+升级必须一直用它**；debug 包是另一套签名，两者不能互相覆盖安装。
