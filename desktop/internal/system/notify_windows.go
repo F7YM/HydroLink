@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"sync"
+
+	"golang.org/x/sys/windows/registry"
 )
 
 // Windows 通知不用进程内 COM（beeep → go-toast）。
@@ -20,8 +23,9 @@ import (
 
 const toastAppID = "HydroLink"
 
-// notify 弹一条 toast。
-func notify(title, message string) error {
+// platformNotify 弹一条 toast。
+func platformNotify(title, message string) error {
+	ensureToastAppID()
 	script := fmt.Sprintf(`
 $ErrorActionPreference = 'SilentlyContinue'
 [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType=WindowsRuntime] > $null
@@ -51,4 +55,24 @@ func xmlEscape(s string) string {
 		"\"", "&quot;",
 	)
 	return r.Replace(s)
+}
+
+// toastAppOnce 只注册一次 AppUserModelID。
+var toastAppOnce sync.Once
+
+// ensureToastAppID 在 HKCU 注册 AUMID，让通知标题显示为 HydroLink
+// （未注册时 Windows 会显示成 "Windows PowerShell"）。失败忽略。
+func ensureToastAppID() {
+	toastAppOnce.Do(func() {
+		k, _, err := registry.CreateKey(
+			registry.CURRENT_USER,
+			`Software\Classes\AppUserModelId\`+toastAppID,
+			registry.SET_VALUE,
+		)
+		if err != nil {
+			return
+		}
+		defer k.Close()
+		_ = k.SetStringValue("DisplayName", "HydroLink")
+	})
 }

@@ -75,14 +75,16 @@ func windowsPath(p string) string {
 	return strings.ReplaceAll(p, "/", "\\")
 }
 
-// guessImageExt 依据文件头猜扩展名（封面数据可能是 PNG/JPEG/WebP）。
+// guessImageExt 依据文件头判断图片格式（封面数据可能是 PNG/JPEG/WebP）。
+// 各分支都按规范的 magic 校验，避免把任意数据误判成图片。
 func guessImageExt(data []byte) string {
 	switch {
-	case len(data) > 8 && string(data[1:4]) == "PNG":
+	case len(data) >= 8 && data[0] == 0x89 && string(data[1:4]) == "PNG" &&
+		data[4] == 0x0d && data[5] == 0x0a && data[6] == 0x1a && data[7] == 0x0a:
 		return ".png"
-	case len(data) > 3 && data[0] == 0xFF && data[1] == 0xD8:
+	case len(data) >= 3 && data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF:
 		return ".jpg"
-	case len(data) > 12 && string(data[8:12]) == "WEBP":
+	case len(data) >= 12 && string(data[0:4]) == "RIFF" && string(data[8:12]) == "WEBP":
 		return ".webp"
 	}
 	return ".img"
@@ -96,4 +98,17 @@ func fnv32(data []byte) uint32 {
 		h *= 16777619
 	}
 	return h
+}
+
+// mimeForImage 依据文件头返回 MIME（封面可能是 PNG/JPEG/WebP）。
+func mimeForImage(data []byte) string {
+	switch guessImageExt(data) {
+	case ".png":
+		return "image/png"
+	case ".webp":
+		return "image/webp"
+	case ".jpg":
+		return "image/jpeg"
+	}
+	return "application/octet-stream"
 }

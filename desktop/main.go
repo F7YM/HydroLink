@@ -18,7 +18,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gen2brain/beeep"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -50,11 +49,7 @@ func fatalExit(format string, args ...any) {
 }
 
 // Windows 托盘需要 ICO 数据（HICON），Linux 用 PNG。
-func init() {
-	// beeep shows this as the notification app name (dbus/notify-send -a).
-	beeep.AppName = "HydroLink"
-}
-
+//
 //go:embed icon.ico
 var trayICO []byte
 

@@ -57,5 +57,7 @@ func FetchAlbumArt(info MusicInfo) (*AlbumArt, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &AlbumArt{Bytes: data, ContentType: "image/jpeg", Source: raw}, nil
+	// 按文件头判断类型：Windows 的 SMTC 缩略图多为 PNG，硬写 image/jpeg 会让
+	// 下游（浏览器/手表）按错的 MIME 处理。
+	return &AlbumArt{Bytes: data, ContentType: mimeForImage(data), Source: raw}, nil
 }

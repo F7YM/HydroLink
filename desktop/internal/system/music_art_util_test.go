@@ -73,3 +73,17 @@ func TestCoverArtPathIsContentAddressed(t *testing.T) {
 		t.Error("不同内容不应共用文件")
 	}
 }
+
+func TestMimeForImage(t *testing.T) {
+	png := []byte{0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a}
+	if got := mimeForImage(png); got != "image/png" {
+		t.Errorf("PNG → %s", got)
+	}
+	jpg := []byte{0xFF, 0xD8, 0xFF, 0xE0}
+	if got := mimeForImage(jpg); got != "image/jpeg" {
+		t.Errorf("JPEG → %s", got)
+	}
+	if got := mimeForImage([]byte{1, 2, 3}); got != "application/octet-stream" {
+		t.Errorf("未知 → %s", got)
+	}
+}
