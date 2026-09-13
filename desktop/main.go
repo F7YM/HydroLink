@@ -84,10 +84,11 @@ func main() {
 		select {}
 	}
 
-	app := gui.NewApp(srv, st, listenPort)
-
-	// Window / taskbar icon (GTK on Linux; Windows uses the embedded .syso).
+	// Window / taskbar icon (GTK on Linux; Windows uses the embedded .syso) —
+	// the same PNG feeds the system tray pixmap.
 	windowIcon, _ := assets.ReadFile("frontend/dist/icon.png")
+
+	app := gui.NewApp(srv, st, listenPort, windowIcon)
 
 	err = wails.Run(&options.App{
 		Title:     "HydroLink",
@@ -102,6 +103,7 @@ func main() {
 		BackgroundColour: &options.RGBA{R: 18, G: 19, B: 24, A: 1},
 		OnStartup:        app.Startup,
 		OnShutdown:       app.Shutdown,
+		OnBeforeClose:    app.OnBeforeClose,
 		Bind:             []interface{}{app},
 		Linux: &linux.Options{
 			WindowIsTranslucent: false,

@@ -12,6 +12,7 @@ import (
 	"hydrolink-desktop/internal/api"
 	"hydrolink-desktop/internal/hydrokit"
 	"hydrolink-desktop/internal/store"
+	"hydrolink-desktop/internal/tray"
 )
 
 // App is bound to the Wails frontend (window.go.gui.App.*).
@@ -20,11 +21,90 @@ type App struct {
 	srv  *api.Server
 	st   *store.Store
 	port int
+
+	trayEnabled bool
+	trayIcon    []byte
+	tray        *tray.Tray
+	trayErr     string
 }
 
-// NewApp creates the desktop app bindings.
-func NewApp(srv *api.Server, st *store.Store, port int) *App {
-	return &App{srv: srv, st: st, port: port}
+// NewApp creates the desktop app bindings. trayIcon is the PNG used for the
+// system tray pixmap (usually frontend/dist/icon.png).
+func NewApp(srv *api.Server, st *store.Store, port int, trayIcon []byte) *App {
+	a := &App{srv: srv, st: st, port: port, trayIcon: trayIcon}
+	cfg, _ := st.LoadConfig()
+	a.trayEnabled = trayEnabledFrom(cfg)
+	return a
+}
+
+// trayEnabledFrom reads the persisted preference (missing key = enabled).
+func trayEnabledFrom(cfg store.Config) bool {
+	return cfg.TrayEnabled == nil || *cfg.TrayEnabled
+}
+
+// TrayRunning reports whether the tray icon is currently registered.
+func (a *App) TrayRunning() bool { return a.tray.Running() }
+
+// applyTray starts or stops the tray icon to match the preference. A failure
+// to start is recorded (and returned) so Settings can tell the user why.
+func (a *App) applyTray(enabled bool) error {
+	a.trayEnabled = enabled
+	if !enabled {
+		if a.tray != nil {
+			a.tray.Stop()
+			a.tray = nil
+			a.srv.AddLog("托盘图标已关闭", "info")
+		}
+		a.trayErr = ""
+		return nil
+	}
+	if a.tray.Running() {
+		return nil
+	}
+	t, err := tray.Start(tray.Options{
+		IconPNG:    a.trayIcon,
+		Title:      "HydroLink",
+		Subtitle:   "桌面服务端",
+		Logf:       func(msg string, _ ...any) { a.srv.AddLog(msg, "info") },
+		OnActivate: a.ShowWindow,
+		OnQuit:     a.Quit,
+	})
+	if err != nil {
+		a.trayErr = err.Error()
+		a.srv.AddLog("托盘图标启用失败: "+err.Error(), "warning")
+		return err
+	}
+	a.tray = t
+	a.trayErr = ""
+	a.srv.AddLog("托盘图标已启用（关闭窗口将最小化到托盘）", "success")
+	return nil
+}
+
+// ShowWindow brings the main window back from the tray.
+func (a *App) ShowWindow() {
+	if a.ctx == nil {
+		return
+	}
+	runtime.WindowShow(a.ctx)
+	runtime.WindowUnminimise(a.ctx)
+}
+
+// Quit exits the app (tray menu 退出).
+func (a *App) Quit() {
+	if a.ctx != nil {
+		runtime.Quit(a.ctx)
+	}
+}
+
+// OnBeforeClose hides the window instead of quitting while the tray icon is
+// active, so the HTTP server keeps serving the watch.
+func (a *App) OnBeforeClose(ctx context.Context) bool {
+	if !a.tray.Running() {
+		return false
+	}
+	runtime.WindowHide(ctx)
+	a.srv.AddLog("窗口已最小化到托盘（服务继续运行）", "info")
+	return true
 }
 
 // Startup is called by Wails when the window is ready.
@@ -41,6 +121,8 @@ func (a *App) Startup(ctx context.Context) {
 			runtime.EventsEmit(ctx, "plugins:wake", pkg)
 		})
 	}
+	// System tray (settings toggle; failure is non-fatal and reported in 设置).
+	_ = a.applyTray(a.trayEnabled)
 }
 
 // onPairRequest fires whenever the API server records a new pending pair.
@@ -60,8 +142,12 @@ func (a *App) onPairRequest(deviceID, deviceName string) {
 	}
 }
 
-// Shutdown is called by Wails on exit; stops the HTTP server.
+// Shutdown is called by Wails on exit; stops the HTTP server and the tray.
 func (a *App) Shutdown(ctx context.Context) {
+	if a.tray != nil {
+		a.tray.Stop()
+		a.tray = nil
+	}
 	a.srv.Stop()
 }
 
@@ -263,25 +349,36 @@ func (a *App) PluginBridgeLog(text string) {
 type Settings struct {
 	Port      int  `json:"port"`
 	AcceptAll bool `json:"acceptAll"`
+	// TrayEnabled 是托盘开关；TrayError 非空表示启用失败的原因。
+	TrayEnabled bool   `json:"trayEnabled"`
+	TrayError   string `json:"trayError"`
 }
 
 // GetSettings returns the current settings.
 func (a *App) GetSettings() Settings {
 	cfg, _ := a.st.LoadConfig()
-	return Settings{Port: a.port, AcceptAll: cfg.AcceptAll}
+	return Settings{
+		Port:        a.port,
+		AcceptAll:   cfg.AcceptAll,
+		TrayEnabled: trayEnabledFrom(cfg),
+		TrayError:   a.trayErr,
+	}
 }
 
-// SaveSettings persists settings; changing the port restarts the HTTP server.
-func (a *App) SaveSettings(port int, acceptAll bool) error {
+// SaveSettings persists settings; changing the port restarts the HTTP server
+// and the tray switch is applied immediately (no restart needed).
+func (a *App) SaveSettings(port int, acceptAll, trayEnabled bool) error {
 	if port < 1 || port > 65535 {
 		return fmt.Errorf("端口无效")
 	}
 	cfg, _ := a.st.LoadConfig()
 	cfg.AcceptAll = acceptAll
 	cfg.LastPort = port
+	cfg.TrayEnabled = &trayEnabled
 	if err := a.st.SaveConfig(cfg); err != nil {
 		return err
 	}
+	trayErr := a.applyTray(trayEnabled)
 	if port != a.port {
 		a.srv.Stop()
 		addr := fmt.Sprintf("0.0.0.0:%d", port)
@@ -295,7 +392,8 @@ func (a *App) SaveSettings(port int, acceptAll bool) error {
 	} else {
 		a.srv.AddLog("设置已保存", "info")
 	}
-	return nil
+	// 端口设置已生效；托盘失败只作为警告回传给前端，不回滚偏好。
+	return trayErr
 }
 
 func shortID(id string) string {

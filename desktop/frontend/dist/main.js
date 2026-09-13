@@ -143,20 +143,28 @@
     if (!s) return;
     if (document.activeElement !== $("setPort")) $("setPort").value = s.port;
     $("setAcceptAll").checked = !!s.acceptAll;
+    $("setTray").checked = !!s.trayEnabled;
+    if (s.trayError) {
+      $("setMsg").textContent = "托盘不可用：" + s.trayError;
+      $("setMsg").style.color = "var(--md-error)";
+    }
   }
 
   $("setSave").addEventListener("click", async () => {
     const port = parseInt($("setPort").value, 10);
     const acceptAll = $("setAcceptAll").checked;
+    const trayEnabled = $("setTray").checked;
     const msg = $("setMsg");
     try {
       const app = B();
-      await app.SaveSettings(port, acceptAll);
+      await app.SaveSettings(port, acceptAll, trayEnabled);
+      msg.style.color = "";
       msg.textContent = "已保存";
       setTimeout(() => (msg.textContent = ""), 2000);
       loadStatus();
       loadSettings();
     } catch (e) {
+      msg.style.color = "var(--md-error)";
       msg.textContent = String(e && e.message ? e.message : e);
     }
   });

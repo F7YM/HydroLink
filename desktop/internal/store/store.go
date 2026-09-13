@@ -39,6 +39,9 @@ type Config struct {
 	LastPort      int    `json:"last_port"`
 	AcceptAll     bool   `json:"accept_all"`
 	UseShizuku    bool   `json:"use_shizuku"` // kept for compatibility; unused on desktop
+	// TrayEnabled 控制是否在系统托盘区显示图标。指针语义：老配置文件里没有这个
+	// 键时视为"开启"（nil），显式写 false 才是用户关掉了托盘。
+	TrayEnabled *bool `json:"tray_enabled,omitempty"`
 }
 
 // Store owns the data directory and all persisted state.
