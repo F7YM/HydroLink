@@ -136,4 +136,42 @@
             </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
     </ScrollView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardCornerRadius="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="插件（HydroKit）"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="安装 .hpk 插件包（与桌面端同一套），插件可在手表上渲染界面、在手机端提供设置页"
+                    android:textSize="12sp"
+                    android:textColor="#9AA2B1" />
+
+                <Button
+                    android:id="@+id/btnPlugins"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="管理插件" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
 </LinearLayout>

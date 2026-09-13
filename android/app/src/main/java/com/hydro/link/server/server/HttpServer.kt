@@ -35,7 +35,7 @@ class HydroHttpServer(
             context = context,
             capabilities = com.hydro.link.server.hydrokit.AndroidKitCapabilities(
                 context = context,
-                port = { activePort },
+                port = { currentPort },
                 dataManagerProvider = { dataManager },
                 commandRunner = { cmd -> runCommandForPlugins(cmd) },
             ),
@@ -52,14 +52,17 @@ class HydroHttpServer(
             context = context,
             store = hydroKit.store,
             bridge = hydroKit.bridge,
-            portProvider = { activePort },
+            portProvider = { currentPort },
             log = { level, message -> addLog(message, level) },
         )
     }
 
-    /** 实际监听端口（start 之后确定）；插件宿主与 ABI 上下文用它拼 URL。 */
+    /** 实际监听端口（start 之后确定）；插件宿主、ABI 上下文与插件 WebUI 用它拼 URL。 */
     @Volatile
     private var activePort: Int = port
+
+    /** 供 UI 读取真实监听端口（可能由系统随机分配）。 */
+    val currentPort: Int get() = activePort
 
     /** 供 kit 能力端点执行命令：与 /api/commands/{id}/run 同一套逻辑（Shizuku / Shell）。 */
     private fun runCommandForPlugins(command: String): Triple<Boolean, String, Int> {

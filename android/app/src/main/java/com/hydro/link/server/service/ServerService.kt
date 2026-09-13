@@ -99,6 +99,9 @@ class ServerService : Service() {
 
     fun getInterconnectHandler(): InterconnectHandler? = interconnectHandler
 
+    /** 供 UI（插件页 / 插件 WebUI 页）读取运行时状态。 */
+    fun server(): HydroHttpServer? = httpServer
+
     companion object {
         const val EXTRA_PORT = "port"
         const val NOTIFICATION_ID = 1

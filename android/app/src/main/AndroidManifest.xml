@@ -71,6 +71,18 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
+        <activity
+            android:name=".ui.PluginsActivity"
+            android:exported="false"
+            android:label="插件"
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/Theme.HydroLinkServer" />
+
+        <activity
+            android:name=".ui.PluginWebUiActivity"
+            android:exported="false"
+            android:label="插件界面"
+            android:theme="@style/Theme.HydroLinkServer" />
     </application>
 
 </manifest>

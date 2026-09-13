@@ -35,6 +35,11 @@ class SettingsActivity : AppCompatActivity() {
         val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
         toolbar.setNavigationOnClickListener { finish() }
 
+        // 插件管理入口（HydroKit）
+        findViewById<android.view.View>(R.id.btnPlugins)?.setOnClickListener {
+            startActivity(com.hydro.link.server.ui.PluginsActivity.intent(this))
+        }
+
         switchShizuku = findViewById(R.id.switchShizuku)
         tvShizukuStatus = findViewById(R.id.tvShizukuStatus)
         tvAppName = findViewById(R.id.tvAppName)

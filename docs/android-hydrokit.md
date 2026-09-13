@@ -28,8 +28,8 @@
 | M4 | Worker 通道 | `WorkerBridge.kt`（长轮询/respond/超时/worker 离线快速失败+唤醒）+ `WorkerPlugin`（Runtime.Plugin ↔ worker）+ `WorkerRoutes`；kit 能力端点（store/context/system/notify/music/lock/commands/asset）留到 M6 | ✅ 完成 |
 | M5 | JS/WASM 宿主 | `assets/hydrokit/{worker.html,worker.js}`（移植桌面胶水，JS + WASM ABI v1）+ `PluginHostManager`（每插件一个隐藏 WebView）+ 同源宿主页路由 `HostPageRoutes` | ✅ 完成 |
 | M6 | 权限门控 + kit 能力 | `KitRoutes`（store/context/system/notify/music/lock/commands/asset，全部按 manifest 权限门控）+ `AndroidKitCapabilities`（接到通知/音乐/锁屏/命令/系统信息） | ✅ 完成 |
-| M7 | 插件 WebUI | 安卓端打开插件 `web/index.html`（同源指向本机服务端），供插件设置页使用 | ⏳ 待做 |
-| M8 | 安卓 UI 接入 | 插件列表（安装/卸载/打开 WebUI）、启动即加载磁盘插件、日志接入现有日志页 | ⏳ 待做 |
+| M7 | 插件 WebUI | `PluginWebUiActivity`：WebView 打开 `http://127.0.0.1:<port>/api/hydro/webui/<pkg>/index.html`（**同源**，页面直接调 kit），插件作者无需为安卓写第二套页面 | ✅ 完成 |
+| M8 | 安卓 UI 接入 | `PluginsActivity`（列表 + 从 SAF 选 `.hpk` 安装 + 卸载二次确认 + 打开界面 + worker 在线状态）、设置页入口、服务启动即 `startHosts()`、worker console 并入应用日志 | ✅ 完成 |
 | M9 | 文档与回归 | 更新 hydroplugin.md 的平台差异说明；跨端同一 `.hpk` 的安装/调用回归 | ⏳ 待做 |
 
 ## 已完成部分（M1 / M2）的验证
@@ -94,14 +94,18 @@ assets/hydrokit/{worker.html,worker.js}   与桌面同协议的宿主胶水
 
 ## 后续轮次的切入点
 
-- **M7 插件 WebUI**：安卓端需要能打开插件的 `web/index.html`（现在只有
-  `HydroKitRoutes` 在服务端提供这些资源）。做法：新增一个 Activity 承载 WebView，
-  加载 `http://127.0.0.1:<port>/api/hydro/webui/<pkg>/index.html`（**同源**，页面里
-  直接 `fetch('/api/hydro/worker/*')` 即可调用 kit 能力，与桌面端一致）。
-- **M8 安卓 UI 接入**：插件列表页（从文件选择器装 `.hpk`、卸载、打开 WebUI、
-  显示 worker 状态），并把插件日志并入现有日志页。
-- **M9 文档与回归**：`hydroplugin.md` 补平台差异（安卓 vs 桌面）、
-  同一 `.hpk` 双端回归、以及"权限在安卓端的实际表现"（通知需 POST_NOTIFICATIONS、
-  锁屏需无障碍开关等）。
+- **M9 文档与回归**（剩下的主要工作）：
+  1. `docs/hydroplugin.md` 补"平台差异"一节：桌面 vs 安卓（宿主实现、性能/能力差异、
+     通知/锁屏/命令在安卓上的前置条件）。
+  2. 跨端回归：同一 `.hpk` 在两端都能装、能出树（桌面已有 Go e2e；安卓已有
+     Node 跑真胶水的 e2e），把两者的期望字段对齐写进文档。
+  3. 安卓侧权限的实际表现写清楚：`notify` 需 POST_NOTIFICATIONS（已声明）、
+     `lock` 需无障碍服务开关、`commands` 走 Shizuku 或 `sh`、`system` 用 /proc 近似。
+- **真机验证清单**（需要你在手表/手机上过一遍）：
+  · 设置 → 管理插件 → 安装 `com.demo.weather.hpk` → 列表出现且 worker 变在线
+  · 手表进 Weather App（JS 插件）→ 应能出界面
+  · 安装 `com.hydro.deskbuddy.hpk`（WASM）→ 手表桌搭出钟表/歌名
+  · 插件「界面」按钮 → 打开 WebUI，改设置保存 → 手表下次刷新生效
+  · 卸载 → 手表启动器里对应条目消失、插件存储仍在（重装后设置还在）
 - 每完成一个里程碑：跑 `:app:testDebugUnitTest` + `:app:assembleDebug`，
   提交一次，并更新本文件的里程碑状态。
