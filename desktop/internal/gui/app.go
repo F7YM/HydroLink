@@ -69,6 +69,9 @@ func (a *App) applyTray(enabled bool) error {
 	if a.tray.Running() {
 		return nil
 	}
+	// 记下实际拿到的图标数据量：托盘起不来时这是第一个要看的地方
+	// （Windows 上曾出现"缺少 ICO 图标数据"就是因为构建/参数没接上）。
+	a.srv.AddLog(fmt.Sprintf("托盘图标数据: PNG %d 字节 / ICO %d 字节", len(a.trayIcon), len(a.trayICO)), "info")
 	t, err := tray.Start(tray.Options{
 		IconPNG:  a.trayIcon,
 		Title:    "HydroLink",

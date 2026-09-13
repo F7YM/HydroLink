@@ -22,7 +22,7 @@
 | 能力 | Linux | Windows | macOS |
 |---|---|---|---|
 | HTTP 服务 / 配对 / 命令 / 插件（JS+WASM） | ✅ | ✅ | ✅（同构代码） |
-| 系统托盘 | ✅ StatusNotifierItem(DBus) | ✅ Shell_NotifyIcon | ❌ 未实现（设置页会提示"托盘不可用"） |
+| 系统托盘 | ✅ StatusNotifierItem(DBus) | ✅ Shell_NotifyIcon（ICO 优先，缺 ICO 时由 PNG 自绘 HICON） | ❌ 未实现（设置页会提示"托盘不可用"） |
 | 音乐读取 / 控制 | ✅ playerctl (MPRIS) | ✅ WinRT SMTC | ⚠️ 仅 Apple Music，状态写死 Playing、无封面 |
 | 封面（`/api/music/art`） | ✅ file:// 与 http(s) | ✅ SMTC 缩略图落临时文件 | ❌ 无 artUrl（插件已不再请求封面） |
 | 锁屏 | ✅ loginctl/xdg 等 | ✅ rundll32 LockWorkStation | ⚠️ 需辅助功能授权，退路只息屏 |
@@ -43,6 +43,9 @@
   会被主动跳过。
 - **Windows 托盘探针**：`go run ./cmd/trayprobe`（windows-only），验证 ICO/HICON/
   Shell_NotifyIcon/菜单构建。
+- **`-tray-check`**：打印实际嵌入的图标字节数（PNG/ICO），并分别用 ICO 与 PNG
+  两条路径各起一次托盘后退出 —— 用来定位"托盘不出来/图标缺失"这类问题；
+  启动日志也会记录 `托盘图标数据: PNG … / ICO …`。
 
 ## 已知限制（未做，不是 bug）
 

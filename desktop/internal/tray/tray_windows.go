@@ -3,12 +3,15 @@
 package tray
 
 import (
+	"bytes"
 	"fmt"
+	"image/png"
 	"runtime"
 	"sync"
 	"syscall"
 	"unsafe"
 
+	"github.com/disintegration/imaging"
 	"golang.org/x/sys/windows"
 )
 
@@ -20,6 +23,7 @@ import (
 
 var (
 	modUser32  = windows.NewLazySystemDLL("user32.dll")
+	modGdi32   = windows.NewLazySystemDLL("gdi32.dll")
 	modShell32 = windows.NewLazySystemDLL("shell32.dll")
 	modKernel  = windows.NewLazySystemDLL("kernel32.dll")
 
@@ -177,13 +181,8 @@ const gwlpUserdata = ^uintptr(0) - 20 // GWLP_USERDATA = -21
 
 // Start 注册托盘图标；会话没有 explorer/托盘区时返回错误。
 func Start(opts Options) (*Tray, error) {
-	if len(opts.IconICO) == 0 {
-		return nil, fmt.Errorf("缺少 ICO 图标数据")
-	}
-	img, w, h, err := IconFromICO(opts.IconICO)
-	if err != nil {
-		return nil, fmt.Errorf("解析托盘 ICO 失败: %v", err)
-	}
+	// 图标来源：优先 ICO（资源格式最标准），没有就退回 PNG 自绘 HICON。
+	// 这样托盘不依赖 icon.ico 是否被打进二进制（缺 ICO 也不再整个托盘不可用）。
 	if opts.Title == "" {
 		opts.Title = DefaultTitle
 	}
@@ -196,7 +195,7 @@ func Start(opts Options) (*Tray, error) {
 		ready: make(chan error, 1),
 		done:  make(chan struct{}),
 	}
-	icon, err := createIcon(img, w, h)
+	icon, err := t.buildIcon()
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +210,35 @@ func Start(opts Options) (*Tray, error) {
 	return t, nil
 }
 
-func createIcon(img []byte, w, h int) (windows.Handle, error) {
+// buildIcon 依可用数据构造 HICON：ICO 优先，退化为 PNG。
+func (t *Tray) buildIcon() (windows.Handle, error) {
+	if len(t.opts.IconICO) > 0 {
+		img, w, h, err := IconFromICO(t.opts.IconICO)
+		if err == nil {
+			if hicon, err := iconFromICOImage(img, w, h); err == nil {
+				return hicon, nil
+			} else {
+				t.logf("tray: ICO 转 HICON 失败(%v)，改用 PNG", err)
+			}
+		} else {
+			t.logf("tray: ICO 解析失败(%v)，改用 PNG", err)
+		}
+	}
+	if len(t.opts.IconPNG) > 0 {
+		hicon, err := iconFromPNG(t.opts.IconPNG)
+		if err == nil {
+			return hicon, nil
+		}
+		return 0, fmt.Errorf("PNG 转 HICON 失败: %v", err)
+	}
+	if len(t.opts.IconICO) == 0 {
+		return 0, fmt.Errorf("缺少图标数据（ICO 与 PNG 都为空）")
+	}
+	return 0, fmt.Errorf("图标数据不可用")
+}
+
+// iconFromICOImage 用 CreateIconFromResourceEx 把 ICO 图像数据变成 HICON。
+func iconFromICOImage(img []byte, w, h int) (windows.Handle, error) {
 	if len(img) == 0 {
 		return 0, fmt.Errorf("ICO 图像数据为空")
 	}
@@ -241,15 +268,8 @@ func (t *Tray) run() {
 	className, _ := syscall.UTF16PtrFromString("HydroLinkTrayWindow")
 	title, _ := syscall.UTF16PtrFromString(t.opts.Title)
 
-	wc := wndClassEx{
-		CbSize:        uint32(unsafe.Sizeof(wndClassEx{})),
-		LpfnWndProc:   syscall.NewCallback(wndProc),
-		HInstance:     windows.Handle(hInstance),
-		LpszClassName: className,
-	}
-	atom, _, errno := procRegisterClassExW.Call(uintptr(unsafe.Pointer(&wc)))
-	if atom == 0 {
-		t.ready <- fmt.Errorf("RegisterClassExW 失败: %v", errno)
+	if err := ensureWindowClass(className, hInstance); err != nil {
+		t.ready <- err
 		return
 	}
 
@@ -288,6 +308,30 @@ func (t *Tray) run() {
 		procTranslateMessage.Call(uintptr(unsafe.Pointer(&msg)))
 		procDispatchMessageW.Call(uintptr(unsafe.Pointer(&msg)))
 	}
+}
+
+// 窗口类是全进程共享的：注册一次即可。重复注册会返回
+// ERROR_CLASS_ALREADY_EXISTS，而"设置里关掉托盘再打开"正好会走到这里
+// （曾经因此第二次启用必定失败）。
+var (
+	classOnce sync.Once
+	classErr  error
+)
+
+func ensureWindowClass(className *uint16, hInstance uintptr) error {
+	classOnce.Do(func() {
+		wc := wndClassEx{
+			CbSize:        uint32(unsafe.Sizeof(wndClassEx{})),
+			LpfnWndProc:   syscall.NewCallback(wndProc),
+			HInstance:     windows.Handle(hInstance),
+			LpszClassName: className,
+		}
+		atom, _, errno := procRegisterClassExW.Call(uintptr(unsafe.Pointer(&wc)))
+		if atom == 0 && errno != windows.ERROR_CLASS_ALREADY_EXISTS {
+			classErr = fmt.Errorf("RegisterClassExW 失败: %v", errno)
+		}
+	})
+	return classErr
 }
 
 var taskbarCreated uintptr
@@ -461,4 +505,112 @@ func (t *Tray) Running() bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return !t.stopped
+}
+
+// ---- PNG → HICON ----
+
+var (
+	procCreateDIBSection   = modGdi32.NewProc("CreateDIBSection")
+	procCreateBitmap       = modGdi32.NewProc("CreateBitmap")
+	procDeleteObject       = modGdi32.NewProc("DeleteObject")
+	procCreateIconIndirect = modUser32.NewProc("CreateIconIndirect")
+	procGetDC              = modUser32.NewProc("GetDC")
+	procReleaseDC          = modUser32.NewProc("ReleaseDC")
+)
+
+type bitmapInfoHeader struct {
+	Size          uint32
+	Width         int32
+	Height        int32
+	Planes        uint16
+	BitCount      uint16
+	Compression   uint32
+	SizeImage     uint32
+	XPelsPerMeter int32
+	YPelsPerMeter int32
+	ClrUsed       uint32
+	ClrImportant  uint32
+}
+
+type iconInfo struct {
+	FIcon    int32
+	XHotspot uint32
+	YHotspot uint32
+	HbmMask  windows.Handle
+	HbmColor windows.Handle
+}
+
+// iconFromPNG 把 PNG 画成 32bpp DIB 再包装成 HICON。
+// （CreateIconFromResourceEx 只吃 ICO/CUR 资源，PNG 必须自己搭 DIB。）
+func iconFromPNG(data []byte) (windows.Handle, error) {
+	src, err := png.Decode(bytes.NewReader(data))
+	if err != nil {
+		return 0, fmt.Errorf("解码 PNG 失败: %v", err)
+	}
+	b := src.Bounds()
+	w, h := b.Dx(), b.Dy()
+	if w <= 0 || h <= 0 {
+		return 0, fmt.Errorf("PNG 尺寸非法: %dx%d", w, h)
+	}
+	if w > 256 || h > 256 {
+		// 托盘图标不需要太大，超过就缩到 32（避免 CreateDIBSection 浪费内存）
+		src = imaging.Resize(src, 32, 32, imaging.Lanczos)
+		b = src.Bounds()
+		w, h = b.Dx(), b.Dy()
+	}
+
+	bi := bitmapInfoHeader{
+		Size:        uint32(unsafe.Sizeof(bitmapInfoHeader{})),
+		Width:       int32(w),
+		Height:      int32(-h), // 负数 = 自上而下，方便按行填充
+		Planes:      1,
+		BitCount:    32,
+		Compression: 0, // BI_RGB
+	}
+	hdc, _, _ := procGetDC.Call(0)
+	if hdc == 0 {
+		return 0, fmt.Errorf("GetDC 失败")
+	}
+	defer procReleaseDC.Call(0, hdc)
+
+	var bits unsafe.Pointer
+	hbmColor, _, errno := procCreateDIBSection.Call(
+		hdc,
+		uintptr(unsafe.Pointer(&bi)),
+		0, // DIB_RGB_COLORS
+		uintptr(unsafe.Pointer(&bits)),
+		0,
+		0,
+	)
+	if hbmColor == 0 || bits == nil {
+		return 0, fmt.Errorf("CreateDIBSection 失败: %v", errno)
+	}
+	defer procDeleteObject.Call(hbmColor)
+
+	// BGRA，DIB 的 alpha 会直接用于图标合成。
+	px := unsafe.Slice((*byte)(bits), w*h*4)
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			r, g, bl, a := src.At(b.Min.X+x, b.Min.Y+y).RGBA()
+			o := (y*w + x) * 4
+			px[o+0] = byte(bl >> 8)
+			px[o+1] = byte(g >> 8)
+			px[o+2] = byte(r >> 8)
+			px[o+3] = byte(a >> 8)
+		}
+	}
+
+	// 单色遮罩：32bpp 带 alpha 时可留空。
+	hbmMask, _, errno := procCreateBitmap.Call(uintptr(w), uintptr(h), 1, 1, 0)
+	if hbmMask == 0 {
+		return 0, fmt.Errorf("CreateBitmap 失败: %v", errno)
+	}
+	defer procDeleteObject.Call(hbmMask)
+
+	ii := iconInfo{FIcon: 1, HbmMask: windows.Handle(hbmMask), HbmColor: windows.Handle(hbmColor)}
+	hicon, _, errno := procCreateIconIndirect.Call(uintptr(unsafe.Pointer(&ii)))
+	if hicon == 0 {
+		return 0, fmt.Errorf("CreateIconIndirect 失败: %v", errno)
+	}
+	return windows.Handle(hicon), nil
 }

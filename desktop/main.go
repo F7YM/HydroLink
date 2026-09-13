@@ -29,6 +29,7 @@ import (
 	"hydrolink-desktop/internal/applog"
 	"hydrolink-desktop/internal/gui"
 	"hydrolink-desktop/internal/system"
+	"hydrolink-desktop/internal/tray"
 )
 
 //go:embed all:frontend/dist
@@ -62,7 +63,35 @@ func main() {
 	noGUI := flag.Bool("no-gui", false, "run headless (HTTP server only)")
 	port := flag.Int("port", 0, "listen port override")
 	musicProbe := flag.Bool("music-probe", false, "打印当前媒体信息（诊断用）后退出")
+	trayCheck := flag.Bool("tray-check", false, "诊断托盘图标数据与注册（起一次托盘后退出）")
 	flag.Parse()
+
+	// Window / taskbar icon (GTK on Linux; Windows uses the embedded .syso) —
+	// the same PNG feeds the system tray pixmap.
+	windowIconBytes, _ := assets.ReadFile("frontend/dist/icon.png")
+
+	if *trayCheck {
+		// 诊断"Windows 托盘不出来"：打印真实嵌入的图标数据量，并分别用
+		// ICO 与 PNG 两条路径各起一次托盘（wine 下也能跑，能验证 Win32 调用）。
+		fmt.Printf("icon.png=%d bytes, icon.ico=%d bytes\n", len(windowIconBytes), len(trayICO))
+		log.Printf("tray-check: png=%d ico=%d", len(windowIconBytes), len(trayICO))
+		try := func(name string, ico, png []byte) {
+			tr, err := tray.Start(tray.Options{
+				IconPNG: png, IconICO: ico, Title: "HydroLink",
+				Logf: func(f string, a ...any) { fmt.Printf("[%s] "+f+"\n", append([]any{name}, a...)...) },
+			})
+			if err != nil {
+				fmt.Printf("[%s] 失败: %v\n", name, err)
+				log.Printf("tray-check %s 失败: %v", name, err)
+				return
+			}
+			fmt.Printf("[%s] 注册成功\n", name)
+			tr.Stop()
+		}
+		try("ICO", trayICO, windowIconBytes)
+		try("PNG", nil, windowIconBytes)
+		return
+	}
 
 	if *musicProbe {
 		// 一条命令诊断"手表看不到音乐"：Windows 用 GUI 子系统构建时没有控制台，
@@ -117,11 +146,7 @@ func main() {
 		select {}
 	}
 
-	// Window / taskbar icon (GTK on Linux; Windows uses the embedded .syso) —
-	// the same PNG feeds the system tray pixmap.
-	windowIcon, _ := assets.ReadFile("frontend/dist/icon.png")
-
-	desktopApp := gui.NewApp(srv, st, listenPort, windowIcon, trayICO)
+	desktopApp := gui.NewApp(srv, st, listenPort, windowIconBytes, trayICO)
 
 	// Start the HTTP server before the window so the watch can already connect
 	// while the UI loads. A bind failure is NOT fatal here: the usual cause is
@@ -157,7 +182,7 @@ func main() {
 		Bind: []interface{}{desktopApp},
 		Linux: &linux.Options{
 			WindowIsTranslucent: false,
-			Icon:                windowIcon,
+			Icon:                windowIconBytes,
 			ProgramName:         "hydrolink",
 		},
 	})
