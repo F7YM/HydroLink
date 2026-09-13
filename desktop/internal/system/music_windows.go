@@ -47,7 +47,7 @@ func ControlMusic(action string) bool {
 	return winMusic.Control(action)
 }
 
-// MusicDiagnostics 返回最近一次查询的错误文本（供 -music-probe 诊断）。
+// MusicDiagnostics 返回最近一次查询的错误文本（由 /api/music 记入日志）。
 func MusicDiagnostics() string {
 	if err := winMusic.LastError(); err != nil {
 		return err.Error()

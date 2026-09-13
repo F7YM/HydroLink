@@ -151,21 +151,30 @@ func TestIsVirtualIface(t *testing.T) {
 	}
 }
 
-func TestIsPrivateV4(t *testing.T) {
-	priv := []string{"10.0.0.1", "172.16.0.1", "172.31.255.254", "192.168.1.1"}
-	for _, s := range priv {
-		if !isPrivateV4(net.ParseIP(s)) {
-			t.Errorf("%s 应判为私网", s)
+// 地址分类一次测清（原 TestIsPrivateV4 与 TestIsUsableLANIP 重叠，已合并）：
+// 局域网地址 = 私网段，且排除回环/链路本地与代理/VPN 段。
+func TestAddressClassification(t *testing.T) {
+	lan := []string{"192.168.1.10", "10.1.2.3", "172.16.5.5", "172.31.0.9"}
+	notLAN := []string{
+		"172.15.0.1", "172.32.0.1", "8.8.8.8", "203.0.113.9",
+		"198.18.0.1", "198.19.255.1", // Clash / sing-box fake-IP
+		"100.64.0.1", "100.101.102.103", // CGNAT / Tailscale
+		"127.0.0.1", "169.254.1.1", "0.0.0.0",
+	}
+	for _, s := range lan {
+		ip := net.ParseIP(s)
+		if !isPrivateV4(ip) || !isUsableLANIP(ip) {
+			t.Errorf("%s 应判为可用局域网地址", s)
 		}
 	}
-	pub := []string{"172.15.0.1", "172.32.0.1", "8.8.8.8", "203.0.113.9", "172.17.0.1"}
-	for _, s := range pub {
-		if s == "172.17.0.1" {
-			continue // docker 段属于私网，只是被判为虚拟网卡
+	for _, s := range notLAN {
+		if isUsableLANIP(net.ParseIP(s)) {
+			t.Errorf("%s 不应判为可用局域网地址", s)
 		}
-		if isPrivateV4(net.ParseIP(s)) {
-			t.Errorf("%s 不应判为私网", s)
-		}
+	}
+	// 172.17.0.1 是 docker 私网：地址本身是私网，只是网卡会被判为虚拟。
+	if !isPrivateV4(net.ParseIP("172.17.0.1")) {
+		t.Error("172.17.0.1 应仍是私网地址")
 	}
 }
 
@@ -190,26 +199,5 @@ func TestLocalIPIsUsable(t *testing.T) {
 	// 选中的地址必须真的挂在某个 up 的网卡上。
 	if info.Iface == "" {
 		t.Fatalf("未解析出网卡名 (%s)", info.IP)
-	}
-}
-
-// 代理/VPN 段绝不能当成"局域网地址"：198.18.0.0/15 是 Clash 系 fake-IP，
-// 100.64.0.0/10 是 CGNAT/Tailscale。
-func TestIsUsableLANIP(t *testing.T) {
-	usable := []string{"192.168.1.10", "10.1.2.3", "172.16.5.5", "172.31.0.9"}
-	for _, s := range usable {
-		if !isUsableLANIP(net.ParseIP(s)) {
-			t.Errorf("%s 应判为可用局域网地址", s)
-		}
-	}
-	unusable := []string{
-		"198.18.0.1", "198.19.255.1", // Clash / sing-box fake-IP
-		"100.64.0.1", "100.101.102.103", // CGNAT / Tailscale
-		"127.0.0.1", "169.254.1.1", "0.0.0.0", "8.8.8.8",
-	}
-	for _, s := range unusable {
-		if isUsableLANIP(net.ParseIP(s)) {
-			t.Errorf("%s 不应判为可用局域网地址", s)
-		}
 	}
 }

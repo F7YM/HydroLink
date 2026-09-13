@@ -527,6 +527,11 @@ func (s *Server) handlePerformance(w http.ResponseWriter) {
 
 func (s *Server) handleGetMusic(w http.ResponseWriter) {
 	info := system.GetMusic()
+	// 读取失败（如 Windows 上 SMTC 不可用）不能静默：记一条日志便于排查
+	// "手表看不到音乐"。成功路径不产生噪音。
+	if msg := system.MusicDiagnostics(); msg != "" {
+		s.AddLog("music: "+msg, "warning")
+	}
 	s.writeJSON(w, http.StatusOK, map[string]any{
 		"status":    "ok",
 		"has_media": info.HasMedia,

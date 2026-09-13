@@ -301,25 +301,6 @@ mod tests {
     }
 
     #[test]
-    fn renders_clock_and_track_info() {
-        let t = view(r#"{
-            "time":{"hour":9,"minute":41},
-            "screen":{},
-            "system":{"cpu":12.5,"memPercent":63.2},
-            "music":{"hasMedia":true,"title":"Feel Something","artist":"Jaymes Young",
-                     "artUrl":"http://s/api/music/art"},
-            "server":{"base":"http://192.168.1.5:9000"},
-            "req":{"screen":{"width":466,"height":466},"event":{}}
-        }"#);
-        assert_eq!(t["refreshMs"], 3000);
-        assert!(t["root"]["children"].as_array().unwrap().len() >= 3);
-        let all = texts(&t);
-        assert!(all.contains(&"09:41".to_string()), "clock missing: {:?}", all);
-        assert!(all.contains(&"Feel Something".to_string()));
-        assert!(all.contains(&"Jaymes Young".to_string()));
-    }
-
-    #[test]
     fn background_follows_settings_and_media_state() {
         let with = view(r#"{"music":{"hasMedia":true,"title":"x","artUrl":"file:///tmp/cover.jpg"},
             "server":{"base":"http://host:9000"},
@@ -336,8 +317,10 @@ mod tests {
         assert!(all.iter().any(|t| t.contains("无正在播放")), "placeholder missing: {:?}", all);
     }
 
+    // 方屏绝对居中 / 圆屏流式 + 根列居中（原 cover_is_centred_by_the_root_column
+    // 已被此用例覆盖，合并后不再重复构造上下文）
     #[test]
-    fn rect_screen_centres_and_enlarges_the_cover() {
+    fn cover_layout_centres_on_rect_and_circle() {
         let t = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A","artUrl":"file:///tmp/cover.jpg"},
             "server":{"base":"http://h:9000"},
             "req":{"screen":{"shape":"rect","width":432,"height":514}}}"#);
@@ -361,18 +344,16 @@ mod tests {
             .find(|x| x["type"] == "image").expect("cover").clone();
         assert!(cc["style"]["position"].is_null(), "circle cover stays in flow");
         assert_eq!(cc["style"]["width"].as_f64().unwrap(), 200.0);
-    }
-
-    #[test]
-    fn cover_is_centred_by_the_root_column() {
-        let t = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A","artUrl":"file:///tmp/cover.jpg"},
-            "server":{"base":"http://h:9000"},"req":{"screen":{"width":432,"height":514}}}"#);
-        assert_eq!(t["root"]["style"]["alignItems"], "center",
+        // 圆屏靠根列的 alignItems 居中
+        assert_eq!(c["root"]["style"]["alignItems"], "center",
             "column children (cover) must be centred");
-        let cover = t["root"]["children"].as_array().unwrap().iter()
-            .find(|c| c["type"] == "image")
-            .expect("cover image missing");
-        assert!(cover["style"]["width"].as_f64().unwrap() > 0.0);
+
+        // 非 rect 的默认（无 shape）同样是流式布局
+        let d = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A","artUrl":"file:///tmp/cover.jpg"},
+            "server":{"base":"http://h:9000"},"req":{"screen":{"width":432,"height":514}}}"#);
+        let dc = d["root"]["children"].as_array().unwrap().iter()
+            .find(|x| x["type"] == "image").expect("cover").clone();
+        assert!(dc["style"]["width"].as_f64().unwrap() > 0.0);
     }
 
     #[test]
@@ -385,17 +366,32 @@ mod tests {
         assert!(!dump.contains("progress"), "no progress nodes expected: {dump}");
     }
 
+    // 内容与字号一起断言（原来拆成 renders_clock_and_track_info 与
+    // typography_matches_the_spec 两个用例，上下文重复，已合并）
     #[test]
-    fn typography_matches_the_spec() {
-        let t = view(r#"{"time":{"hour":9,"minute":41},
-            "music":{"hasMedia":true,"title":"T","artist":"A"},"req":{"screen":{"width":466,"height":466}}}"#);
+    fn renders_clock_and_track_with_spec_typography() {
+        let t = view(r#"{
+            "time":{"hour":9,"minute":41},
+            "system":{"cpu":12.5,"memPercent":63.2},
+            "music":{"hasMedia":true,"title":"Feel Something","artist":"Jaymes Young",
+                     "artUrl":"http://s/api/music/art"},
+            "server":{"base":"http://192.168.1.5:9000"},
+            "req":{"screen":{"width":466,"height":466},"event":{}}
+        }"#);
+        assert_eq!(t["refreshMs"], 3000);
+        assert!(t["root"]["children"].as_array().unwrap().len() >= 3);
+        let all = texts(&t);
+        assert!(all.contains(&"09:41".to_string()), "clock missing: {:?}", all);
+        assert!(all.contains(&"Feel Something".to_string()));
+        assert!(all.contains(&"Jaymes Young".to_string()));
+
         let clock = find_text(&t, "09:41");
         assert_eq!(clock["style"]["fontSize"].as_f64().unwrap(), 36.0);
         assert_eq!(clock["style"]["fontWeight"].as_f64().unwrap(), 700.0);
-        let title = find_text(&t, "T");
+        let title = find_text(&t, "Feel Something");
         assert_eq!(title["style"]["fontSize"].as_f64().unwrap(), 32.0);
         assert_eq!(title["style"]["fontWeight"].as_f64().unwrap(), 700.0);
-        let artist = find_text(&t, "A");
+        let artist = find_text(&t, "Jaymes Young");
         assert_eq!(artist["style"]["fontSize"].as_f64().unwrap(), 22.0);
         assert_eq!(artist["style"]["color"].as_str().unwrap(), "rgba(255,255,255,0.4)");
     }

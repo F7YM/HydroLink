@@ -200,32 +200,28 @@ func TestRegisterMenuAndCallbacks(t *testing.T) {
 	if len(layout.Children) != 3 {
 		t.Fatalf("菜单应有 3 项，实际 %d", len(layout.Children))
 	}
-	want := []struct {
-		id    int32
-		label string
-		typ   string
-	}{
-		{MenuIDShow, "显示主窗口", ""},
-		{2, "", "separator"},
-		{MenuIDQuit, "退出", ""},
+	// 菜单内容不在这里重复硬编码：规格由 menu.go 定义、由 menu_test.go 钉住，
+	// 这里只验证 DBusMenu 渲染结果与规格一致。
+	spec := MenuEntries()
+	if len(layout.Children) != len(spec) {
+		t.Fatalf("菜单项数 = %d, 期望 %d", len(layout.Children), len(spec))
 	}
-	for i, w := range want {
+	for i, e := range spec {
 		var node layoutNode
 		if err := dbus.Store([]any{layout.Children[i].Value()}, &node); err != nil {
 			t.Fatalf("第 %d 项解码失败: %v", i, err)
 		}
-		if node.ID != w.id {
-			t.Errorf("第 %d 项 id = %d, 期望 %d", i, node.ID, w.id)
+		if node.ID != e.ID {
+			t.Errorf("第 %d 项 id = %d, 期望 %d", i, node.ID, e.ID)
 		}
-		if w.label != "" {
-			if got := fmt.Sprint(node.Props["label"].Value()); got != w.label {
-				t.Errorf("第 %d 项 label = %q, 期望 %q", i, got, w.label)
+		if e.Separator {
+			if got := fmt.Sprint(node.Props["type"].Value()); got != "separator" {
+				t.Errorf("第 %d 项 type = %q, 期望 separator", i, got)
 			}
+			continue
 		}
-		if w.typ != "" {
-			if got := fmt.Sprint(node.Props["type"].Value()); got != w.typ {
-				t.Errorf("第 %d 项 type = %q, 期望 %q", i, got, w.typ)
-			}
+		if got := fmt.Sprint(node.Props["label"].Value()); got != e.Label {
+			t.Errorf("第 %d 项 label = %q, 期望 %q", i, got, e.Label)
 		}
 	}
 

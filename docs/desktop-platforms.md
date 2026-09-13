@@ -36,16 +36,13 @@
 - **日志文件**：`<数据目录>/hydrolink.log`（Linux `~/.config/hydrolink/`、
   Windows `%AppData%\hydrolink\`、macOS `~/Library/Application Support/hydrolink/`）；
   超过 1 MiB 轮转为 `.log.1`。状态页「日志文件」一行显示完整路径（可自行复制打开）。
-- **`-music-probe`**：打印当前曲目与失败原因后退出。Windows GUI 子系统没有控制台，
-  所以同时写入日志文件；也可用 `--console` 版构建直接看输出。
+- **音乐读取失败会写日志**：`/api/music` 查询出错时记一条 `music: …` 警告
+  （Windows 上 SMTC 不可用这类情况不再静默）。
 - **启动日志含选择的网卡**：`local IP: 192.168.3.48 (iface wlp0s20f3, scored)`。
   若显示的地址手表连不上，先看这里——代理/VPN 的 TUN 网卡（Clash 的 198.18.x）
   会被主动跳过。
-- **Windows 托盘探针**：`go run ./cmd/trayprobe`（windows-only），验证 ICO/HICON/
-  Shell_NotifyIcon/菜单构建。
-- **`-tray-check`**：打印实际嵌入的图标字节数（PNG/ICO），并分别用 ICO 与 PNG
-  两条路径各起一次托盘后退出 —— 用来定位"托盘不出来/图标缺失"这类问题；
-  启动日志也会记录 `托盘图标数据: PNG … / ICO …`。
+- **托盘图标数据**：启动日志记录 `托盘图标数据: PNG … 字节 / ICO … 字节`，
+  托盘起不来时先看这一行（设置页会显示"托盘不可用：<原因>"）。
 
 ## 已知限制（未做，不是 bug）
 
@@ -62,6 +59,6 @@
 |---|---|
 | Linux | 全量 `go test ./...`、真机双实例、托盘注册/菜单/退出（会话总线实测） |
 | Windows 编译 | amd64/arm64 交叉编译通过（含 WinRT SMTC 与托盘代码） |
-| Windows 运行 | wine 实跑：数据目录=%AppData%、`cmd /c`、gopsutil、日志文件、插件注册/存储、托盘 `NIM_ADD` 与菜单构建、`-music-probe` 优雅降级（wine 无 SMTC → has_media=false） |
+| Windows 运行 | wine 实跑：数据目录=%AppData%、`cmd /c`、gopsutil、日志文件、插件注册/存储、托盘 `NIM_ADD` 与菜单构建、音乐查询在无 SMTC 环境下的优雅降级（has_media=false 且记日志） |
 | macOS | 全部内部包 `GOOS=darwin` 类型检查通过；**未在真机运行** |
 | 待真机确认 | Windows：托盘图标可见性与点击、真实曲目/封面、黑窗口是否消失；macOS：全部运行行为 |

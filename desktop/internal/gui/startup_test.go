@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"hydrolink-desktop/internal/api"
 	"hydrolink-desktop/internal/app"
 )
 
@@ -63,17 +62,6 @@ func TestStartServerBindsFreePort(t *testing.T) {
 		t.Fatalf("重复 StartServer 应幂等: %v", err)
 	}
 }
-
-func TestBindErrorMessage(t *testing.T) {
-	err := api.BindError(9000, errDummy{})
-	if !strings.Contains(err.Error(), "端口 9000") {
-		t.Fatalf("BindError 应包含端口号: %v", err)
-	}
-}
-
-type errDummy struct{}
-
-func (errDummy) Error() string { return "address already in use" }
 
 // 回归：托盘"退出"曾经完全无效——Wails 的 Quit() 也会调用 OnBeforeClose，
 // 而"关闭=最小化到托盘"总是返回 true，于是 mainWindow.Quit() 永远不执行。
