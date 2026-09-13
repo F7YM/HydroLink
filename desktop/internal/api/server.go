@@ -641,18 +641,4 @@ func truncate(s string, n int) string {
 	return s[:n]
 }
 
-// LocalIP returns the first non-loopback IPv4 address (for the GUI status).
-func LocalIP() string {
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		return "127.0.0.1"
-	}
-	for _, a := range addrs {
-		if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ip4 := ipnet.IP.To4(); ip4 != nil {
-				return ip4.String()
-			}
-		}
-	}
-	return "127.0.0.1"
-}
+// LocalIP returns the LAN address the watch should use (see localip.go).

@@ -34,7 +34,8 @@ func main() {
 	addr := fmt.Sprintf("0.0.0.0:%d", listenPort)
 	log.Printf("HydroLink desktop server v%s (api_level %d)", api.Version, api.APILevel)
 	log.Printf("listening on http://%s  (data dir: %s)", addr, st.Dir())
-	log.Printf("local IP: %s", api.LocalIP())
+	ipInfo := api.LocalIPInfo()
+	log.Printf("local IP: %s (iface %s, %s)", ipInfo.IP, ipInfo.Iface, ipInfo.Source)
 
 	if err := srv.ListenAndServe(addr); err != nil {
 		log.Fatalf("server: %v", err)

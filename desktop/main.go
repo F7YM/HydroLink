@@ -77,7 +77,8 @@ func main() {
 		log.Fatalf("server: %v", err)
 	}
 	log.Printf("HydroLink desktop server v%s (api_level %d) on %s", api.Version, api.APILevel, addr)
-	log.Printf("local IP: %s  |  data dir: %s", api.LocalIP(), st.Dir())
+	ipInfo := api.LocalIPInfo()
+	log.Printf("local IP: %s (iface %s, %s)  |  data dir: %s", ipInfo.IP, ipInfo.Iface, ipInfo.Source, st.Dir())
 
 	if *noGUI {
 		log.Printf("headless mode — press Ctrl+C to stop")
