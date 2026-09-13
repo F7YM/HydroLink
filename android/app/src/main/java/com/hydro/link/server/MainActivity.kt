@@ -56,6 +56,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnEnableAccessibility: MaterialButton
     private lateinit var tvNotificationStatus: TextView
     private lateinit var btnEnableNotification: MaterialButton
+    private lateinit var tvPostNotifStatus: TextView
+    private lateinit var btnPostNotif: MaterialButton
     private lateinit var tvNoRequests: TextView
     private lateinit var rvPairRequests: RecyclerView
 
@@ -89,6 +91,30 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Android 13+ 发通知要 POST_NOTIFICATIONS 运行时授权。没授权时
+     * NotificationManager.notify() 不报错但通知不出现——插件侧会以为成功，
+     * 是典型的"只在真机上才发现的静默失败"，所以进 App 就主动要一次。
+     */
+    private val notificationPermissionLauncher =
+        registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
+            if (!granted) {
+                Snackbar.make(
+                    findViewById(R.id.tabStatus),
+                    "未授予通知权限，插件通知将不可用（可在系统设置里开启）",
+                    Snackbar.LENGTH_LONG,
+                ).show()
+            }
+            refreshData()
+        }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) return
+        val granted = checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (!granted) notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -100,6 +126,7 @@ class MainActivity : AppCompatActivity() {
         if (ServerService.instance == null) {
             ServerService.start(this, port)
         }
+        requestNotificationPermissionIfNeeded()
         refreshData()
     }
 
@@ -119,6 +146,8 @@ class MainActivity : AppCompatActivity() {
         btnEnableAccessibility = findViewById(R.id.btnEnableAccessibility)
         tvNotificationStatus = findViewById(R.id.tvNotificationStatus)
         btnEnableNotification = findViewById(R.id.btnEnableNotification)
+        tvPostNotifStatus = findViewById(R.id.tvPostNotifStatus)
+        btnPostNotif = findViewById(R.id.btnPostNotif)
         tvNoRequests = findViewById(R.id.tvNoRequests)
         rvPairRequests = findViewById(R.id.rvPairRequests)
 
@@ -212,6 +241,18 @@ class MainActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
+        // POST_NOTIFICATIONS：Android 13+ 被拒后系统不再弹窗，只能去设置里开
+        btnPostNotif.setOnClickListener {
+            val intent = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+            } else {
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                    .setData(android.net.Uri.fromParts("package", packageName, null))
+            }
+            startActivity(intent)
+        }
+
         fabAddCommand.setOnClickListener {
             showAddCommandDialog()
         }
@@ -247,6 +288,22 @@ class MainActivity : AppCompatActivity() {
             tvNotificationStatus.text = getString(R.string.notification_not_enabled)
             tvNotificationStatus.setTextColor(getColor(R.color.md_theme_error))
             btnEnableNotification.visibility = View.VISIBLE
+        }
+
+        // 通知权限（POST_NOTIFICATIONS）：插件 notify 能力的前置条件
+        val nm = getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+        if (nm.areNotificationsEnabled()) {
+            tvPostNotifStatus.text = "已授权，插件可以发通知"
+            tvPostNotifStatus.setTextColor(getColor(R.color.md_theme_success))
+            btnPostNotif.visibility = View.GONE
+        } else {
+            tvPostNotifStatus.text = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                "未授权：Android 13+ 需授予「通知」权限，否则插件通知会被系统丢弃"
+            } else {
+                "未开启：系统里本应用的通知被关闭，插件通知会被丢弃"
+            }
+            tvPostNotifStatus.setTextColor(getColor(R.color.md_theme_error))
+            btnPostNotif.visibility = View.VISIBLE
         }
 
         // Interconnect status

@@ -67,11 +67,17 @@ GRADLE_USER_HOME=/home/float/.gradle \
    （`1.0.0-beta` < `1.0.0`）。
 4. 安装必须先解压到 `plugins/` 内的临时目录再整体替换，避免半成品；
    同时拒绝 `../` 之类的越界条目。
-5. **互联通道没有自定义请求头**：手表经 XMS Wearable 转发过来的请求是 UDP 报文，
+5. **通知权限是"静默失败"陷阱**：Android 13+ 未授予 POST_NOTIFICATIONS 时
+   `NotificationManager.notify()` 不抛异常、也不弹通知，插件会以为成功。
+   `AndroidKitCapabilities.notify` 先查 `areNotificationsEnabled()` 再发，
+   未授权直接返回 false（插件拿到 `{"status":"error"}`）；`MainActivity`
+   首次进入主动申请一次，状态页新增「通知权限」卡片可跳系统设置。
+6. **互联通道没有自定义请求头**：手表经 XMS Wearable 转发过来的请求是 UDP 报文，
    只有 method / path / body，`X-Hydro-Store` 传不进来。所以 `HttpServer.
-   handleInternalRequest` 也要把 `/api/hydro/*` 交给 `HydroKit.handle()`（否则互联
-   通道下插件页面直接 404），存储快照则按「请求头 → `store` 查询参数 → body `store`」
-   的顺序读取，两端一致。
+   handleInternalRequest` 也要把 `/api/hydro` 插件路由交给 `HydroKit.handle()`
+   （否则互联通道下插件页面直接 404），存储快照则按「请求头 → `store` 查询参数
+   → body `store`」的顺序读取，两端一致；路径/query 解析抽成
+   `HydroInterconnect`（纯函数，有 JVM 单测）。
 
 ## 落点（安卓端目录）
 
@@ -109,13 +115,18 @@ assets/hydrokit/{worker.html,worker.js}   与桌面同协议的宿主胶水
      通知/锁屏/命令在安卓上的前置条件）。
   2. 跨端回归：同一 `.hpk` 在两端都能装、能出树（桌面已有 Go e2e；安卓已有
      Node 跑真胶水的 e2e），把两者的期望字段对齐写进文档。
-  3. 安卓侧权限的实际表现写清楚：`notify` 需 POST_NOTIFICATIONS（已声明）、
+  3. 安卓侧权限的实际表现写清楚：`notify` 需 POST_NOTIFICATIONS（已声明，App
+     首次进入主动申请；未授权时能力返回 error 而非谎报成功）、
      `lock` 需无障碍服务开关、`commands` 走 Shizuku 或 `sh`、`system` 用 /proc 近似。
 - **真机验证清单**（需要你在手表/手机上过一遍）：
   · 设置 → 管理插件 → 安装 `com.demo.weather.hpk` → 列表出现且 worker 变在线
   · 手表进 Weather App（JS 插件）→ 应能出界面
   · 安装 `com.hydro.deskbuddy.hpk`（WASM）→ 手表桌搭出钟表/歌名
   · 插件「界面」按钮 → 打开 WebUI，改设置保存 → 手表下次刷新生效
+  · **互联通道**：手表不连同一 WiFi、只靠 XMS 互联时，插件 App 仍能出界面、
+    设置改动仍在（v0.4.1 修的就是这条：互联通道此前 `/api/hydro` 直接 404、
+    存储快照也传不进来）
+  · 状态页「通知权限」卡片显示已授权（否则插件 `notify` 返回 error，通知看不到）
   · 卸载 → 手表启动器里对应条目消失、插件存储仍在（重装后设置还在）
 - 每完成一个里程碑：跑 `:app:testDebugUnitTest` + `:app:assembleDebug`，
   提交一次，并更新本文件的里程碑状态。

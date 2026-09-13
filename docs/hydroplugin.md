@@ -368,7 +368,7 @@ worker poll/respond 报文、`View`/`Node` 字段、权限名）。跨端契约�
 
 | 权限 | 安卓上的实际表现 |
 |---|---|
-| `notify` | 走通知渠道；Android 13+ 需用户授予 POST_NOTIFICATIONS |
+| `notify` | 走通知渠道；Android 13+ 需用户授予「通知」权限（App 首次进入会主动申请，状态页可查看/跳设置）。未授权时 `notify` 返回 `error` —— 系统会静默丢弃通知，如实返回失败比谎报成功更有用 |
 | `music` | 依赖 MediaSession / 通知监听（未授权时返回 `hasMedia:false`） |
 | `lock` | 需要用户在系统设置里开启无障碍服务，否则返回失败 |
 | `commands` | 走 Shizuku（需授权）或 `sh -c`（受应用沙箱限制） |

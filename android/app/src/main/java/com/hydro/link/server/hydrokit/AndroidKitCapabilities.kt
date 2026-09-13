@@ -83,6 +83,10 @@ class AndroidKitCapabilities(
     override fun notify(title: String, text: String): Boolean {
         return try {
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            // Android 13+ 起发通知需要 POST_NOTIFICATIONS 运行时授权；没授权时
+            // nm.notify() 不抛异常但通知不会出现，插件会误以为成功（"静默失败"）。
+            // 这里如实返回 false，插件拿到 {"status":"error"} 可自行降级。
+            if (!nm.areNotificationsEnabled()) return false
             val channelId = "hydrokit_plugin"
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 if (nm.getNotificationChannel(channelId) == null) {
@@ -108,6 +112,14 @@ class AndroidKitCapabilities(
         } catch (e: Exception) {
             false
         }
+    }
+
+    /** 通知权限是否已授予（Android 13+ 需要 POST_NOTIFICATIONS）——供 UI/诊断用。 */
+    fun notifyPermissionGranted(): Boolean = try {
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.areNotificationsEnabled()
+    } catch (e: Exception) {
+        false
     }
 
     override fun lock(): Boolean =
