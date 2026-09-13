@@ -38,6 +38,10 @@ func (s *Server) handleMusicArt(w http.ResponseWriter, r *http.Request) {
 	blurF, _ := strconv.ParseFloat(q.Get("blur"), 64)
 	dimF, _ := strconv.ParseFloat(q.Get("dim"), 64)
 	size, _ := strconv.Atoi(q.Get("size"))
+	// w/h: 输出裁剪到屏幕尺寸（cover 语义），避免客户端 background-size 不生效
+	// 时方图在更高屏幕上出现黑边。
+	width, _ := strconv.Atoi(q.Get("w"))
+	height, _ := strconv.Atoi(q.Get("h"))
 	if blurF <= 0 && dimF <= 0 && size <= 0 {
 		w.Header().Set("Content-Type", art.ContentType)
 		w.Header().Set("Cache-Control", "no-store")
@@ -45,7 +49,7 @@ func (s *Server) handleMusicArt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cachePath := s.artCachePath(art.Source, blurF, dimF, size)
+	cachePath := s.artCachePath(art.Source, blurF, dimF, size, width, height)
 	if data, err := os.ReadFile(cachePath); err == nil {
 		w.Header().Set("Content-Type", "image/jpeg")
 		w.Header().Set("Cache-Control", "no-store")
@@ -58,7 +62,7 @@ func (s *Server) handleMusicArt(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnsupportedMediaType, map[string]any{"status": "error", "message": "无法解码封面: " + err.Error()})
 		return
 	}
-	out := processArt(src, blurF, dimF, size)
+	out := processArt(src, blurF, dimF, size, width, height)
 	var buf bytes.Buffer
 	if err := jpeg.Encode(&buf, out, &jpeg.Options{Quality: 86}); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]any{"status": "error", "message": err.Error()})
@@ -72,11 +76,14 @@ func (s *Server) handleMusicArt(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(buf.Bytes())
 }
 
-// processArt resizes (fit into size x size when size > 0), blurs (radius in
-// output pixels) and dims (factor 0..1 = share of brightness kept).
-func processArt(src image.Image, blur, dim float64, size int) image.Image {
+// processArt crops to w x h when both > 0 (cover semantics), otherwise fits
+// into size x size, then blurs (radius in output pixels) and dims (factor =
+// share of brightness kept).
+func processArt(src image.Image, blur, dim float64, size, w, h int) image.Image {
 	out := src
-	if size > 0 && (src.Bounds().Dx() > size || src.Bounds().Dy() > size) {
+	if w > 0 && h > 0 {
+		out = imaging.Fill(out, w, h, imaging.Center, imaging.Lanczos)
+	} else if size > 0 && (src.Bounds().Dx() > size || src.Bounds().Dy() > size) {
 		out = imaging.Fit(out, size, size, imaging.Lanczos)
 	}
 	if blur > 0 {
@@ -108,8 +115,8 @@ func blendBlack(src image.Image, dim float64) image.Image {
 	return dst
 }
 
-func (s *Server) artCachePath(source string, blur, dim float64, size int) string {
-	key := fmt.Sprintf("%s|%.2f|%.2f|%d", source, blur, dim, size)
+func (s *Server) artCachePath(source string, blur, dim float64, size, w, h int) string {
+	key := fmt.Sprintf("%s|%.2f|%.2f|%d|%d|%d", source, blur, dim, size, w, h)
 	sum := sha1.Sum([]byte(key))
 	name := hex.EncodeToString(sum[:]) + ".jpg"
 	return filepath.Join(s.store.Dir(), "cache", "music-art", name)

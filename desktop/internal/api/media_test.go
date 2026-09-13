@@ -42,7 +42,7 @@ func TestProcessArtBlurAndDim(t *testing.T) {
 	src := synthImage(400, 400)
 
 	// dim only: brightness scales down, size preserved
-	dimmed := processArt(src, 0, 0.3, 0)
+	dimmed := processArt(src, 0, 0.3, 0, 0, 0)
 	if dimmed.Bounds().Dx() != 400 || dimmed.Bounds().Dy() != 400 {
 		t.Fatalf("dim changed bounds: %v", dimmed.Bounds())
 	}
@@ -57,7 +57,7 @@ func TestProcessArtBlurAndDim(t *testing.T) {
 	}
 
 	// resize + blur + dim: output is square-sized and edges soften
-	blurred := processArt(src, 26, 0.3, 200)
+	blurred := processArt(src, 26, 0.3, 200, 0, 0)
 	if blurred.Bounds().Dx() != 200 || blurred.Bounds().Dy() != 200 {
 		t.Fatalf("size not applied: %v", blurred.Bounds())
 	}
@@ -87,6 +87,14 @@ func edgeDelta(img image.Image, y, x0, x1, x2 int) uint32 {
 		return (a - b) >> 8
 	}
 	return (b - a) >> 8
+}
+
+func TestProcessArtCropsToScreenSize(t *testing.T) {
+	// w/h（cover 语义）：方图裁成屏幕比例，避免客户端出现黑边
+	out := processArt(synthImage(400, 400), 26, 0.3, 0, 432, 514)
+	if out.Bounds().Dx() != 432 || out.Bounds().Dy() != 514 {
+		t.Fatalf("crop size = %v, want 432x514", out.Bounds())
+	}
 }
 
 func TestMusicArtEndpointWithoutMedia(t *testing.T) {
@@ -125,9 +133,9 @@ func TestWorkerSystemPermission(t *testing.T) {
 func TestArtCachePathStable(t *testing.T) {
 	st := store.NewIn(t.TempDir())
 	srv := New(st)
-	a := srv.artCachePath("file:///x/cover.jpg", 26, 0.3, 466)
-	b := srv.artCachePath("file:///x/cover.jpg", 26, 0.3, 466)
-	c := srv.artCachePath("file:///x/cover.jpg", 20, 0.3, 466)
+	a := srv.artCachePath("file:///x/cover.jpg", 26, 0.3, 466, 0, 0)
+	b := srv.artCachePath("file:///x/cover.jpg", 26, 0.3, 466, 0, 0)
+	c := srv.artCachePath("file:///x/cover.jpg", 20, 0.3, 466, 0, 0)
 	if a != b {
 		t.Fatalf("cache path not stable: %s vs %s", a, b)
 	}

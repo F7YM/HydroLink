@@ -122,11 +122,17 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
     let background = if !has_media {
         String::new()
     } else if !server_base.is_empty() {
-        let size = if screen_w > 0.0 { screen_w.round() as i64 } else { 466 };
+        // 直接要屏幕尺寸的裁切图（w/h=cover 语义），方屏上不会出现上下黑边
+        let (sw, sh) = if screen_w > 0.0 && screen_h > 0.0 {
+            (screen_w.round() as i64, screen_h.round() as i64)
+        } else {
+            (466, 466)
+        };
         format!(
-            "{}/api/music/art?size={}&blur={}&dim={}&k={}",
+            "{}/api/music/art?w={}&h={}&blur={}&dim={}&k={}",
             server_base.trim_end_matches('/'),
-            size,
+            sw,
+            sh,
             blur.round() as i64,
             // keep two decimals for dim
             (dim * 100.0).round() / 100.0,
@@ -170,7 +176,8 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
     if is_rect {
         cover_style["position"] = json!("absolute");
         cover_style["left"] = json!(((canvas_w - cover_size) / 2.0).round());
-        cover_style["top"] = json!(((canvas_h - cover_size) / 2.0).round());
+        // 略低于屏幕中心，避免压住上方的歌手行
+        cover_style["top"] = json!(((canvas_h - cover_size) / 2.0 + 26.0).round());
     } else {
         cover_style["marginTop"] = json!(18);
     }
@@ -303,7 +310,8 @@ mod tests {
             "storage":{"blur":12,"dim":0.5}}"#);
         let bg = with["root"]["style"]["backgroundImage"].as_str().unwrap_or("");
         assert!(bg.starts_with("http://host:9000/api/music/art?"), "bg: {bg}");
-        assert!(bg.contains("size=466") && bg.contains("blur=12") && bg.contains("dim=0.5"), "bg: {bg}");
+        assert!(bg.contains("w=466") && bg.contains("h=466"), "bg must carry screen size: {bg}");
+        assert!(bg.contains("blur=12") && bg.contains("dim=0.5"), "bg: {bg}");
         let without = view(r#"{"music":{"hasMedia":false},"server":{"base":"http://host:9000"}}"#);
         assert!(without["root"]["style"]["backgroundImage"].is_null(), "no media -> no background image");
         let all = texts(&without);
@@ -321,7 +329,7 @@ mod tests {
         assert_eq!(style["position"], "absolute", "rect cover must be absolutely centred");
         // canvas: 480 x (514*480/432=571.1)；290 的封面 → left 95 / top 141
         assert_eq!(style["left"].as_f64().unwrap(), 95.0);
-        assert_eq!(style["top"].as_f64().unwrap(), 141.0);
+        assert_eq!(style["top"].as_f64().unwrap(), 167.0); // 中心 141 + 26
         assert_eq!(style["width"].as_f64().unwrap(), 290.0);
         // 圆心与画布中心一致
         let cx = style["left"].as_f64().unwrap() + style["width"].as_f64().unwrap() / 2.0;
