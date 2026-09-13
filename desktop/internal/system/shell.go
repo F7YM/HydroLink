@@ -23,6 +23,8 @@ func RunCommand(command string) ShellResult {
 	} else {
 		cmd = exec.Command("sh", "-c", command)
 	}
+	// Windows 上不隐藏会闪控制台窗口（GUI 子系统应用尤其明显）。
+	cmd.SysProcAttr = hideWindowAttr()
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf

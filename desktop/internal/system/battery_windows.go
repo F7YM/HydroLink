@@ -10,8 +10,11 @@ import (
 
 // batteryInfo queries the battery via PowerShell Win32_Battery.
 func batteryInfo() BatteryInfo {
-	out, err := exec.Command("powershell", "-NoProfile", "-Command",
-		"$b=Get-CimInstance Win32_Battery; if($b){\"$($b.EstimatedChargeRemaining);$($b.BatteryStatus)\"}").Output()
+	cmd := exec.Command("powershell", "-NoProfile", "-Command",
+		"$b=Get-CimInstance Win32_Battery; if($b){\"$($b.EstimatedChargeRemaining);$($b.BatteryStatus)\"}")
+	// 不隐藏的话每次查电池都会闪一个 PowerShell 黑窗口。
+	cmd.SysProcAttr = hideWindowAttr()
+	out, err := cmd.Output()
 	if err != nil {
 		return BatteryInfo{HasBattery: false}
 	}

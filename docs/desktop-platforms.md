@@ -25,8 +25,9 @@
 | 系统托盘 | ✅ StatusNotifierItem(DBus) | ✅ Shell_NotifyIcon（ICO 优先，缺 ICO 时由 PNG 自绘 HICON） | ❌ 未实现（设置页会提示"托盘不可用"） |
 | 音乐读取 / 控制 | ✅ playerctl (MPRIS) | ✅ WinRT SMTC | ⚠️ 仅 Apple Music，状态写死 Playing、无封面 |
 | 封面（`/api/music/art`） | ✅ file:// 与 http(s) | ✅ SMTC 缩略图落临时文件 | ❌ 无 artUrl（插件已不再请求封面） |
-| 锁屏 | ✅ loginctl/xdg 等 | ✅ rundll32 LockWorkStation | ⚠️ 需辅助功能授权，退路只息屏 |
-| 电池 | ✅ /sys | ✅ PowerShell Win32_Battery | ✅ pmset |
+| 锁屏 | ✅ loginctl/xdg 等 | ✅ rundll32 LockWorkStation（同样隐藏子进程窗口） | ⚠️ 需辅助功能授权，退路只息屏 |
+| 执行命令 | ✅ `sh -c` | ✅ `cmd /c`（`CREATE_NO_WINDOW`，不闪黑窗） | ✅ `sh -c` |
+| 电池 | ✅ /sys | ✅ PowerShell Win32_Battery（`CREATE_NO_WINDOW`，不闪黑窗） | ✅ pmset |
 | 文件日志 | ✅ | ✅（GUI 子系统唯一可观测通道） | ✅ |
 | 单实例 | ✅ | ✅ | ✅（Wails 锁） |
 | 托盘开关（设置） | ✅ | ✅ | ❌ 显示"托盘不可用" |
@@ -43,6 +44,20 @@
   会被主动跳过。
 - **托盘图标数据**：启动日志记录 `托盘图标数据: PNG … 字节 / ICO … 字节`，
   托盘起不来时先看这一行（设置页会显示"托盘不可用：<原因>"）。
+
+## 启动可见性（"闪一下就没了"这类问题）
+
+- **窗口隐藏创建**（`StartHidden`）：Wails 会在 `OnStartup` 之前建窗口，而
+  `OnStartup` 是并发的、`SingleInstance` 判定在其后。老代码因此会"先显示窗口再
+  退出" —— 第二次启动（双击两次、或应用已藏在托盘里又点了一次图标）就会闪一下。
+  现在窗口先隐藏，只有确认继续运行才 `WindowShow`；第二次启动完全不显示窗口，
+  由在跑的实例收到 `OnSecondInstanceLaunch` 后把窗口调出来。
+- **致命错误可见**：GUI 子系统（Windows）与 .desktop 启动（Linux）都看不到
+  stdout，`log.Fatalf` 等于"无声消失"。现在统一走 `fatalExit`：写日志 + 弹原生
+  错误框（Windows `MessageBoxW`；Linux 有 zenity/kdialog 就用，20s 超时不阻塞）。
+- **端口被别的程序占用**不再退出：窗口留着并提示"可在设置里更换端口"。
+- **已知边角**：已有一个实例在跑、而你用 `-port` 指定了另一个端口再启动时，
+  第二个实例仍可能极短暂地走一遍 Wails 的锁退出流程（同一端口的情况不会）。
 
 ## 已知限制（未做，不是 bug）
 

@@ -100,6 +100,7 @@ func (a *App) ShowWindow() {
 	}
 	runtime.WindowShow(a.ctx)
 	runtime.WindowUnminimise(a.ctx)
+	a.srv.AddLog("窗口已显示", "info")
 }
 
 // Quit exits the app (tray menu 退出).
@@ -156,8 +157,18 @@ func (a *App) OnSecondInstance(data options.SecondInstanceData) {
 }
 
 // Startup is called by Wails when the window is ready.
+//
+// 窗口用 StartHidden 创建（见 main.go）：Wails 在 Startup 之前就把窗口建出来了，
+// 若启动阶段就要退出（第二次启动、端口被占后放弃），用户会看到窗口"闪一下就没了"。
+// 这里在确认要继续运行时才显式显示窗口。
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
+	showOnSuccess := true
+	defer func() {
+		if showOnSuccess {
+			a.ShowWindow()
+		}
+	}()
 	// The listener may still be missing if main could not bind it (port taken
 	// by a foreign program). Retry once and surface a real dialog if it fails.
 	if !a.srv.Started() {
@@ -167,6 +178,8 @@ func (a *App) Startup(ctx context.Context) {
 				// 第二次启动（通常双击了两次）。单实例锁会把请求转给在跑的
 				// 实例，这里安静退出即可。注意 runtime.Quit 在 GTK 主循环起来
 				// 之前是空操作（只会打 gtk_main_quit 断言），所以直接退出进程。
+				// 窗口始终不显示 → 用户不会再看到"闪一下"。
+				showOnSuccess = false
 				a.srv.AddLog("已有实例在运行，本次启动退出", "info")
 				os.Exit(0)
 			}

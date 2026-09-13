@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/gen2brain/beeep"
@@ -31,6 +32,17 @@ import (
 
 //go:embed all:frontend/dist
 var assets embed.FS
+
+// fatalExit 报告致命错误并退出：写日志 + 尽力弹原生错误框。
+//
+// 之前直接 log.Fatalf，而 GUI 子系统（Windows）和 .desktop 启动（Linux）都
+// 看不到 stdout —— 失败表现为"闪一下就退出"，无法排查。
+func fatalExit(format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+	log.Printf("fatal: %s", msg)
+	fatalDialog("HydroLink 无法启动", msg)
+	os.Exit(1)
+}
 
 // Windows 托盘需要 ICO 数据（HICON），Linux 用 PNG。
 //
@@ -67,7 +79,7 @@ func main() {
 
 	srv, st, err := app.NewServer()
 	if err != nil {
-		log.Fatalf("init: %v", err)
+		fatalExit("初始化失败: %v", err)
 	}
 	// 文件日志（Windows GUI 子系统没有控制台，日志必须落盘）
 	if err := applog.Init(st.Dir()); err != nil {
@@ -97,9 +109,9 @@ func main() {
 		addr := fmt.Sprintf("0.0.0.0:%d", listenPort)
 		if err := srv.Start(addr); err != nil {
 			if api.AnotherInstanceRunning(listenPort) {
-				log.Fatalf("已有 HydroLink 实例在运行（端口 %d），本次启动退出", listenPort)
+				fatalExit("已有 HydroLink 实例在运行（端口 %d），本次启动退出", listenPort)
 			}
-			log.Fatalf("%v", api.BindError(listenPort, err))
+			fatalExit("%v", api.BindError(listenPort, err))
 		}
 		log.Printf("listening on %s", addr)
 		log.Printf("headless mode — press Ctrl+C to stop")
@@ -120,11 +132,14 @@ func main() {
 	}
 
 	err = wails.Run(&options.App{
-		Title:     "HydroLink",
-		Width:     960,
-		Height:    640,
-		MinWidth:  820,
-		MinHeight: 560,
+		Title: "HydroLink",
+		// 先隐藏创建，由 App.Startup 决定是否显示：第二次启动/启动失败时
+		// 不会出现"窗口闪一下又消失"。
+		StartHidden: true,
+		Width:       960,
+		Height:      640,
+		MinWidth:    820,
+		MinHeight:   560,
 		AssetServer: &assetserver.Options{
 			Assets:  assets,
 			Handler: assetAPIProxy(srv),
@@ -147,6 +162,6 @@ func main() {
 		},
 	})
 	if err != nil {
-		log.Fatalf("wails: %v", err)
+		fatalExit("窗口创建失败: %v", err)
 	}
 }
