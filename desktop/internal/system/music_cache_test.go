@@ -112,3 +112,35 @@ func TestControlInvalidatesCache(t *testing.T) {
 		t.Fatal("控制失败应返回 false")
 	}
 }
+
+type panickyMusic struct{ ctlPanic bool }
+
+func (p *panickyMusic) read() (MusicInfo, error) { panic("boom in backend") }
+func (p *panickyMusic) control(action string) (bool, error) {
+	if p.ctlPanic {
+		panic("boom in control")
+	}
+	return true, nil
+}
+
+// 平台侧（WinRT / playerctl）如果 panic，只能降级成"没有在放音乐"，
+// 绝不能把一次查询失败扩散成进程故障。
+func TestBackendPanicIsContained(t *testing.T) {
+	c := newCachedMusicBackend(&panickyMusic{}, time.Second)
+	info := c.Get() // 不应 panic
+	if info.HasMedia {
+		t.Fatalf("panic 后应返回 hasMedia=false，实际 %+v", info)
+	}
+	if c.LastError() == nil {
+		t.Fatal("panic 应被记录为错误")
+	}
+	// 失败会按 TTL 缓存，不会每次请求都 panic 一次
+	_ = c.Get()
+}
+
+func TestControlPanicIsNotFatal(t *testing.T) {
+	c := newCachedMusicBackend(&panickyMusic{ctlPanic: true}, time.Second)
+	if c.Control("playpause") {
+		t.Fatal("后端 panic 时控制应返回 false")
+	}
+}

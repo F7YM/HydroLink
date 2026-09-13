@@ -63,6 +63,33 @@
 - **已知边角**：同端口第二次启动时，我们的"已有实例在运行"兜底分支（`os.Exit`）
   可能先于 Wails 的 `SetupSingleInstance` 执行；两条路径都不会显示窗口，行为一致。
 
+## 真机排查（Windows 崩溃用）
+
+Windows 上若出现"窗口/托盘一起消失"（硬崩，访问违例会直接干掉进程，Go 的
+`recover` 拦不住），用自检参数逐项隔离。**控制台版**可直接看输出；GUI 版输出同时
+写进 `<数据目录>/hydrolink.log`：
+
+```bat
+rem 逐项自检（每项打印"开始/结果"，崩了就停在那一行）
+HydroLink-amd64-console.exe -selftest=all
+HydroLink-amd64-console.exe -selftest=music,cover      rem 只查音乐/封面
+HydroLink-amd64-console.exe -selftest=notify           rem 只查系统通知（beeep → go-toast COM）
+HydroLink-amd64-console.exe -selftest=tray             rem 只查托盘
+HydroLink-amd64-console.exe -selftest=loop -selftest-times=50   rem 模拟手表轮询 music+cover
+
+rem 二分定位：正常启动但把可疑项关掉
+HydroLink-amd64.exe -no-cover          rem 不读 SMTC 缩略图（手写 vtable 那一段）
+HydroLink-amd64.exe -no-notify         rem 不发系统通知（beeep→go-toast 手搓 COM）
+HydroLink-amd64.exe -no-cover -no-notify
+```
+
+日志里已有的面包屑（崩溃时最后一条就是崩溃点）：
+
+- `music: 当前曲目 "X" — "Y"（播放中=…，封面读取=…）`（切歌时一条）
+- `music: 读取封面 start（"X"）` / `music: 读取封面 ok: file://…`
+- `发送配对系统通知: <设备名>`
+- `tray: 已注册（Windows，hwnd=…）`
+
 ## 已知限制（未做，不是 bug）
 
 - macOS 托盘（`NSStatusItem` 需要 cgo/ObjC）；macOS 无 `.app`/签名/公证。

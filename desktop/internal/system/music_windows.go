@@ -60,6 +60,7 @@ type smtcBackend struct{}
 func (s *smtcBackend) read() (MusicInfo, error) {
 	sess, err := currentSession()
 	if err != nil {
+		logf("music: 获取 SMTC 会话失败: %v", err)
 		return MusicInfo{}, err
 	}
 	if sess == nil {
@@ -67,7 +68,11 @@ func (s *smtcBackend) read() (MusicInfo, error) {
 	}
 	props, err := mediaProperties(sess)
 	if err != nil {
+		logf("music: 读取媒体属性失败: %v", err)
 		return MusicInfo{}, err
+	}
+	if props == nil {
+		return MusicInfo{HasMedia: false}, nil
 	}
 	title, _ := props.GetTitle()
 	artist, _ := props.GetArtist()
@@ -77,12 +82,55 @@ func (s *smtcBackend) read() (MusicInfo, error) {
 		Artist:   artist,
 		Playing:  trackingPlaying(sess),
 	}
-	// 封面读取失败不影响标题/艺术家（很多曲目本来就没有封面）。
-	if art, err := coverArtURL(props); err == nil {
-		info.ArtURL = art
+	// 切歌时留一条面包屑：若进程随后硬崩，日志最后一行就是线索。
+	if key := title + "|" + artist; key != lastTrackKey {
+		lastTrackKey = key
+		logf("music: 当前曲目 %q — %q（播放中=%v，封面读取=%v）", title, artist, info.Playing, coverArtOn())
+	}
+	if coverArtOn() {
+		// 封面读取失败不影响标题/艺术家（很多曲目本来就没有封面）。
+		logf("music: 读取封面 start（%q）", title)
+		if art, err := coverArtURL(props); err == nil {
+			info.ArtURL = art
+			logf("music: 读取封面 ok: %s", art)
+		} else {
+			logf("music: 封面不可用: %v", err)
+		}
 	}
 	return info, nil
 }
+
+// MusicSelfTest 直接查一次（不走缓存）并返回结果与错误文本，供 -selftest 使用。
+func MusicSelfTest() (MusicInfo, string) {
+	info, err := (&smtcBackend{}).read()
+	if err != nil {
+		return MusicInfo{}, err.Error()
+	}
+	return info, ""
+}
+
+// CoverArtSelfTest 只走封面读取链路，供 -selftest 使用。
+func CoverArtSelfTest() (string, string) {
+	sess, err := currentSession()
+	if err != nil {
+		return "", "获取会话失败: " + err.Error()
+	}
+	if sess == nil {
+		return "", "当前没有媒体会话（先随便放首歌再试）"
+	}
+	props, err := mediaProperties(sess)
+	if err != nil {
+		return "", "读取媒体属性失败: " + err.Error()
+	}
+	url, err := coverArtURL(props)
+	if err != nil {
+		return "", err.Error()
+	}
+	return url, ""
+}
+
+// lastTrackKey 用于把面包屑限制在"切歌"频率，避免每 2 秒刷一行。
+var lastTrackKey string
 
 func (s *smtcBackend) control(action string) (bool, error) {
 	sess, err := currentSession()
@@ -233,8 +281,12 @@ func mediaProperties(sess *control.GlobalSystemMediaTransportControlsSession) (*
 
 // trackingPlaying 读取播放状态（只有 Playing 才算 true）。
 func trackingPlaying(sess *control.GlobalSystemMediaTransportControlsSession) bool {
+	if sess == nil {
+		return false
+	}
 	info, err := sess.GetPlaybackInfo()
-	if err != nil {
+	if err != nil || info == nil {
+		// 没有播放信息是正常情况（例如会话刚建立），不能当错误也不能解引用。
 		return false
 	}
 	status, err := info.GetPlaybackStatus()
@@ -246,6 +298,9 @@ func trackingPlaying(sess *control.GlobalSystemMediaTransportControlsSession) bo
 
 // coverArtURL 把 SMTC 的缩略图读成临时文件并返回 file:// URL。
 func coverArtURL(props *control.GlobalSystemMediaTransportControlsSessionMediaProperties) (string, error) {
+	if props == nil {
+		return "", fmt.Errorf("媒体属性为空")
+	}
 	ref, err := props.GetThumbnail()
 	if err != nil {
 		return "", fmt.Errorf("读取封面引用失败: %v", err)

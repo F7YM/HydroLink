@@ -28,6 +28,7 @@ import (
 	"hydrolink-desktop/internal/app"
 	"hydrolink-desktop/internal/applog"
 	"hydrolink-desktop/internal/gui"
+	"hydrolink-desktop/internal/system"
 )
 
 // showWindowOnStartup 恒为 true：窗口由 Wails 在 DOM 就绪后显示（见下方
@@ -49,14 +50,13 @@ func fatalExit(format string, args ...any) {
 }
 
 // Windows 托盘需要 ICO 数据（HICON），Linux 用 PNG。
-//
-//go:embed icon.ico
-var trayICO []byte
-
 func init() {
 	// beeep shows this as the notification app name (dbus/notify-send -a).
 	beeep.AppName = "HydroLink"
 }
+
+//go:embed icon.ico
+var trayICO []byte
 
 // assetAPIProxy forwards page-origin /api/* requests (the plugin worker's
 // poll/respond/kit calls and future frontend API calls) to the HydroLink API
@@ -74,12 +74,27 @@ func assetAPIProxy(srv *api.Server) http.Handler {
 
 func main() {
 	noGUI := flag.Bool("no-gui", false, "run headless (HTTP server only)")
+	selfTest := flag.String("selftest", "", "自检并退出: music,cover,notify,tray,ip,all（真机排查崩溃用）")
+	noCover := flag.Bool("no-cover", false, "不读取封面缩略图（排查崩溃用）")
+	noNotify := flag.Bool("no-notify", false, "不发系统通知（排查崩溃用）")
+	selfTestRounds := flag.Int("selftest-times", 30, "配合 -selftest=loop：循环轮数")
 	port := flag.Int("port", 0, "listen port override")
 	flag.Parse()
 
 	// Window / taskbar icon (GTK on Linux; Windows uses the embedded .syso) —
 	// the same PNG feeds the system tray pixmap.
 	windowIconBytes, _ := assets.ReadFile("frontend/dist/icon.png")
+
+	// 诊断开关：先应用开关，再决定是自检还是正常启动。
+	system.SetCoverArtEnabled(!*noCover)
+	system.SetNotifyEnabled(!*noNotify)
+	if *selfTest != "" {
+		if *selfTestRounds > 0 {
+			selfTestTimes = *selfTestRounds
+		}
+		runSelfTest(*selfTest)
+		return
+	}
 
 	srv, st, err := app.NewServer()
 	if err != nil {
@@ -173,4 +188,10 @@ func main() {
 	if err != nil {
 		fatalExit("窗口创建失败: %v", err)
 	}
+}
+
+// loadedIcons 返回嵌入的窗口/托盘图标字节（自检与正常启动共用）。
+func loadedIcons() struct{ png, ico []byte } {
+	png, _ := assets.ReadFile("frontend/dist/icon.png")
+	return struct{ png, ico []byte }{png: png, ico: trayICO}
 }

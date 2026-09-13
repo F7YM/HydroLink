@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gen2brain/beeep"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -15,6 +14,7 @@ import (
 	"hydrolink-desktop/internal/applog"
 	"hydrolink-desktop/internal/hydrokit"
 	"hydrolink-desktop/internal/store"
+	"hydrolink-desktop/internal/system"
 	"hydrolink-desktop/internal/tray"
 )
 
@@ -212,7 +212,12 @@ func (a *App) onPairRequest(deviceID, deviceName string) {
 		name = "Unknown"
 	}
 	// System notification (works even when the window is not focused).
-	_ = beeep.Notify("HydroLink 配对请求", name+" 请求连接", "")
+	// 前后各留一条面包屑：通知是平台相关代码（Windows 走 beeep→go-toast 的 COM），
+	// 万一进程在这里出问题，日志能指出是通知这一步。
+	a.srv.AddLog("发送配对系统通知: "+name, "info")
+	if err := system.Notify("HydroLink 配对请求", name+" 请求连接"); err != nil {
+		a.srv.AddLog("系统通知发送失败: "+err.Error(), "warning")
+	}
 	// Push to the frontend so it can raise a modal immediately.
 	if a.ctx != nil {
 		runtime.EventsEmit(a.ctx, "pair:request", map[string]string{

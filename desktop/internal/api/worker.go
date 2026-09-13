@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gen2brain/beeep"
-
 	"hydrolink-desktop/internal/hydrokit"
 	"hydrolink-desktop/internal/store"
 	"hydrolink-desktop/internal/system"
@@ -155,7 +153,7 @@ func (h *WorkerHandler) handleNotify(w http.ResponseWriter, r *http.Request) {
 	if !h.requirePermission(w, body.Package, "notify") {
 		return
 	}
-	_ = beeep.Notify(body.Title, body.Text, "")
+	_ = system.Notify(body.Title, body.Text)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 

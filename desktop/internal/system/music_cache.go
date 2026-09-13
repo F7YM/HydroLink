@@ -1,6 +1,7 @@
 package system
 
 import (
+	"fmt"
 	"sync"
 	"time"
 )
@@ -59,7 +60,7 @@ func (c *cachedMusicBackend) Get() MusicInfo {
 	c.inflight = ch
 	c.mu.Unlock()
 
-	info, err := c.backend.read()
+	info, err := c.readSafely()
 
 	c.mu.Lock()
 	c.err = err
@@ -75,9 +76,25 @@ func (c *cachedMusicBackend) Get() MusicInfo {
 	return info
 }
 
+// readSafely 调用后端并兜住 panic。
+//
+// 平台侧是跨进程/跨 COM 的调用（Windows 的 WinRT、Linux 的 playerctl），
+// 一个 nil 解引用就会 panic；这里把它降级成"没有在放音乐 + 记日志"，
+// 绝不让一次查询失败拖垮进程。
+func (c *cachedMusicBackend) readSafely() (info MusicInfo, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("音乐查询 panic: %v", r)
+			logf("system: 音乐查询 panic: %v", r)
+			info = MusicInfo{HasMedia: false}
+		}
+	}()
+	return c.backend.read()
+}
+
 // Control 执行播放控制；成功后作废缓存，让下一次 Get 立刻反映新状态。
 func (c *cachedMusicBackend) Control(action string) bool {
-	ok, err := c.backend.control(action)
+	ok, err := c.controlSafely(action)
 	if err == nil && ok {
 		c.mu.Lock()
 		c.fetched = time.Time{}
@@ -85,6 +102,18 @@ func (c *cachedMusicBackend) Control(action string) bool {
 		c.mu.Unlock()
 	}
 	return err == nil && ok
+}
+
+// controlSafely 同样兜住平台侧 panic（例如 WinRT 调用里的 nil 解引用）。
+func (c *cachedMusicBackend) controlSafely(action string) (ok bool, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("音乐控制 panic: %v", r)
+			logf("system: 音乐控制 panic: %v", r)
+			ok = false
+		}
+	}()
+	return c.backend.control(action)
 }
 
 // LastError 返回最近一次查询的错误（仅用于日志/诊断）。

@@ -9,6 +9,7 @@ import (
 	"hydrolink-desktop/internal/api"
 	"hydrolink-desktop/internal/hydrokit"
 	"hydrolink-desktop/internal/store"
+	"hydrolink-desktop/internal/system"
 )
 
 // NewServer builds a store + API server with the HydroKit dispatcher mounted:
@@ -32,6 +33,12 @@ func NewServer() (*api.Server, *store.Store, error) {
 			log.Printf("hydrokit: skip plugin %s: %v", info.ID, err)
 		}
 	}
+	// 平台层（音乐/电池等）的面包屑与错误写进应用日志：进程若被硬崩掉，
+	// 日志里最后一条就是崩溃点。
+	system.SetLogger(func(format string, args ...any) {
+		srv.AddLog(fmt.Sprintf(format, args...), "info")
+	})
+
 	srv.SetHydroHandler(hydrokit.NewHandler(rt))
 	srv.SetWorkerHandler(api.NewWorkerHandler(bridge, st))
 	srv.SetWorkerBridge(bridge)
