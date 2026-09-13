@@ -30,6 +30,10 @@ import (
 	"hydrolink-desktop/internal/gui"
 )
 
+// showWindowOnStartup 恒为 true：窗口由 Wails 在 DOM 就绪后显示（见下方
+// StartHidden 处的说明）。保留成常量是为了让 main_test.go 能钉住它。
+const showWindowOnStartup = true
+
 //go:embed all:frontend/dist
 var assets embed.FS
 
@@ -133,9 +137,14 @@ func main() {
 
 	err = wails.Run(&options.App{
 		Title: "HydroLink",
-		// 先隐藏创建，由 App.Startup 决定是否显示：第二次启动/启动失败时
-		// 不会出现"窗口闪一下又消失"。
-		StartHidden: true,
+		// 窗口必须交给 Wails 自己显示（onDomReady 时 ShowWindow）。
+		//
+		// 千万别开 StartHidden：Wails 的 Windows 实现在 onDomReady 里
+		// `if StartHidden { return }` —— 直接不显示窗口；而 OnStartup 是并发的
+		// 协程、跑在窗口就绪之前，从那里调 WindowShow 是无效的。结果是进程活着
+		// 但窗口永远不出现（托盘关掉时毫无入口，第二次启动才会被单实例通知捞
+		// 出来）。Linux 实现因为 Hide() 之后又 gtk_widget_show_all() 而看不出问题。
+		StartHidden: !showWindowOnStartup,
 		Width:       960,
 		Height:      640,
 		MinWidth:    820,

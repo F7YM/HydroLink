@@ -47,17 +47,21 @@
 
 ## 启动可见性（"闪一下就没了"这类问题）
 
-- **窗口隐藏创建**（`StartHidden`）：Wails 会在 `OnStartup` 之前建窗口，而
-  `OnStartup` 是并发的、`SingleInstance` 判定在其后。老代码因此会"先显示窗口再
-  退出" —— 第二次启动（双击两次、或应用已藏在托盘里又点了一次图标）就会闪一下。
-  现在窗口先隐藏，只有确认继续运行才 `WindowShow`；第二次启动完全不显示窗口，
-  由在跑的实例收到 `OnSecondInstanceLaunch` 后把窗口调出来。
+- **窗口必须由 Wails 显示**（`StartHidden` 恒为 false，`main_test.go` 钉住）：
+  Wails 在 `onDomReady` 里才 `ShowWindow`，而 `OnStartup` 是并发协程、跑在窗口
+  就绪之前 —— 从那里调 `WindowShow` 无效。一旦开启 `StartHidden`，Windows 实现
+  会 `if StartHidden { return }` 直接不显示窗口，进程活着但窗口永不出现；托盘
+  关掉时毫无入口，只有第二次启动会被单实例通知捞出来（"打开就闪退、第二次才行"）。
+  Linux 实现因为 `Hide()` 之后又 `gtk_widget_show_all()` 而看不出这个问题。
+- **第二实例不闪窗口**不需要 `StartHidden`：Wails 的 `SetupSingleInstance` 在
+  窗口创建之前就 `os.Exit`（Windows/Linux 皆然），并把消息转给在跑的实例
+  （`OnSecondInstanceLaunch` → 唤起窗口）。
 - **致命错误可见**：GUI 子系统（Windows）与 .desktop 启动（Linux）都看不到
   stdout，`log.Fatalf` 等于"无声消失"。现在统一走 `fatalExit`：写日志 + 弹原生
   错误框（Windows `MessageBoxW`；Linux 有 zenity/kdialog 就用，20s 超时不阻塞）。
 - **端口被别的程序占用**不再退出：窗口留着并提示"可在设置里更换端口"。
-- **已知边角**：已有一个实例在跑、而你用 `-port` 指定了另一个端口再启动时，
-  第二个实例仍可能极短暂地走一遍 Wails 的锁退出流程（同一端口的情况不会）。
+- **已知边角**：同端口第二次启动时，我们的"已有实例在运行"兜底分支（`os.Exit`）
+  可能先于 Wails 的 `SetupSingleInstance` 执行；两条路径都不会显示窗口，行为一致。
 
 ## 已知限制（未做，不是 bug）
 

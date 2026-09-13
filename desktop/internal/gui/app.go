@@ -158,28 +158,22 @@ func (a *App) OnSecondInstance(data options.SecondInstanceData) {
 
 // Startup is called by Wails when the window is ready.
 //
-// 窗口用 StartHidden 创建（见 main.go）：Wails 在 Startup 之前就把窗口建出来了，
-// 若启动阶段就要退出（第二次启动、端口被占后放弃），用户会看到窗口"闪一下就没了"。
-// 这里在确认要继续运行时才显式显示窗口。
+// 注意：这里是 Wails 起的协程，运行时机早于 mainWindow.Run()（窗口由 Wails 在
+// Run 里显示）。因此这里**不能**依赖调用 WindowShow 来让窗口出现——曾经用
+// StartHidden + 此处 ShowWindow，结果是窗口永远不显示（第二次启动才会被
+// 单实例通知捞出来）。窗口显示交回 Wails 默认行为。
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
-	showOnSuccess := true
-	defer func() {
-		if showOnSuccess {
-			a.ShowWindow()
-		}
-	}()
 	// The listener may still be missing if main could not bind it (port taken
 	// by a foreign program). Retry once and surface a real dialog if it fails.
 	if !a.srv.Started() {
 		if err := a.StartServer(); err != nil {
 			// 端口被占先分清"自己人"还是"别人"：
 			if api.AnotherInstanceRunning(a.port) {
-				// 第二次启动（通常双击了两次）。单实例锁会把请求转给在跑的
-				// 实例，这里安静退出即可。注意 runtime.Quit 在 GTK 主循环起来
-				// 之前是空操作（只会打 gtk_main_quit 断言），所以直接退出进程。
-				// 窗口始终不显示 → 用户不会再看到"闪一下"。
-				showOnSuccess = false
+				// 第二次启动（通常双击了两次）。Wails 的单实例锁会把请求转给
+				// 在跑的实例（并在此之前的 SetupSingleInstance 里退出本进程，
+				// 此时窗口都还没创建）；这里作为兜底同样安静退出。
+				// runtime.Quit 在 GTK 主循环起来之前是空操作，所以直接退出进程。
 				a.srv.AddLog("已有实例在运行，本次启动退出", "info")
 				os.Exit(0)
 			}
