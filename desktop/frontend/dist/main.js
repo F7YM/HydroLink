@@ -251,7 +251,6 @@
     const plugins = await api("GetPlugins");
     window.__plugins = plugins || [];
     const list = $("pluginList");
-    if ($("pluginCount")) $("pluginCount").textContent = plugins ? plugins.length : 0;
     if (!plugins || plugins.length === 0) {
       list.innerHTML = `<p class="empty">暂无插件，点击上方按钮安装 .hpk</p>`;
       return;
@@ -439,17 +438,22 @@
   // showConfirm 支持两种用法：
   //   showConfirm(deviceId, name)            删除受信设备（旧用法）
   //   showConfirm({title, text, ok, action}) 通用二级确认
+  // 文案节点容错：缺节点时只跳过文案，绝不能连弹窗一起不显示
+  function setText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  }
   function showConfirm(a, b) {
     if (typeof a === "string") {
       confirmAction = async () => { await api("DeleteTrustedDevice", a); loadStatus(); };
-      $("confirmTitle").textContent = "删除设备";
-      $("confirmText").textContent = `确定删除设备「${b || a}」吗？\n此操作不可撤销。`;
-      $("confirmOk").textContent = "删除";
+      setText("confirmTitle", "删除设备");
+      setText("confirmText", `确定删除设备「${b || a}」吗？\n此操作不可撤销。`);
+      setText("confirmOk", "删除");
     } else {
       confirmAction = a.action || null;
-      $("confirmTitle").textContent = a.title || "确认";
-      $("confirmText").textContent = a.text || "";
-      $("confirmOk").textContent = a.ok || "确定";
+      setText("confirmTitle", a.title || "确认");
+      setText("confirmText", a.text || "");
+      setText("confirmOk", a.ok || "确定");
     }
     $("confirmModal").classList.remove("hidden");
   }
