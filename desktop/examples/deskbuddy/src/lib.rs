@@ -128,11 +128,14 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
         } else {
             (466, 466)
         };
+        // size=<长边> 作为兼容：旧版服务端（不认 w/h）仍会缩放到屏幕尺寸，
+        // 新版优先使用 w/h 做 cover 裁切。
         format!(
-            "{}/api/music/art?w={}&h={}&blur={}&dim={}&k={}",
+            "{}/api/music/art?w={}&h={}&size={}&blur={}&dim={}&k={}",
             server_base.trim_end_matches('/'),
             sw,
             sh,
+            sw.max(sh),
             blur.round() as i64,
             // keep two decimals for dim
             (dim * 100.0).round() / 100.0,
@@ -311,6 +314,7 @@ mod tests {
         let bg = with["root"]["style"]["backgroundImage"].as_str().unwrap_or("");
         assert!(bg.starts_with("http://host:9000/api/music/art?"), "bg: {bg}");
         assert!(bg.contains("w=466") && bg.contains("h=466"), "bg must carry screen size: {bg}");
+        assert!(bg.contains("size=466"), "bg keeps size= as a fallback for older servers: {bg}");
         assert!(bg.contains("blur=12") && bg.contains("dim=0.5"), "bg: {bg}");
         let without = view(r#"{"music":{"hasMedia":false},"server":{"base":"http://host:9000"}}"#);
         assert!(without["root"]["style"]["backgroundImage"].is_null(), "no media -> no background image");
