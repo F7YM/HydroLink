@@ -386,7 +386,8 @@
 
   // ---- plugin WebUI overlay (served same-origin via the asset proxy) ----
   function openWebUI(id) {
-    $("webuiTitle").textContent = "WebUI · " + id;
+    const p = (window.__plugins || []).find((x) => x.id === id);
+    $("webuiTitle").textContent = (p && p.name) || id;
     $("webuiFrame").src = "/api/hydro/webui/" + encodeURIComponent(id) + "/index.html";
     $("webuiModal").classList.remove("hidden");
   }

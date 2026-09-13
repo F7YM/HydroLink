@@ -322,9 +322,11 @@ env.hydro_log(ptr, len)               # 可选，调试输出（进桌面端日�
 插件的 `web/` 目录是它与用户交互的桌面界面——典型用途：**插件设置**、**向 HydroApp 同步信息**（写入存储 → 手表 App 下一次 view/refresh 呈现）。
 
 - **服务**：Kit 以 `GET /api/hydro/webui/{package}/{path}` 同源提供（`index.html` 为默认入口，路径防逃逸、仅限包内 `web/` 目录）；桌面端在插件 Tab 为含 `web/index.html` 的插件提供"界面"按钮，以遮罩层内嵌打开
+- **标题**：遮罩层标题显示**插件名**（manifest `name`），不显示 `WebUI` 字样或包 id；插件页自身的 `<h1>` 用同一个插件名（页面名不要重复"设置"等后缀）
 - **同源**：WebUI 页面与桌面应用同源（asset server 代理），直接 `fetch('/api/hydro/worker/*')` 即可调用 **kit 能力**（按插件 manifest 权限校验，如 `storage`/`notify`）
 - **同步到 HydroApp**：WebUI 写入 `kit.storage`（`scope:'server'`）后，手表 App（插件树的 `view()`）在下次渲染时读取即可生效——桌面写、手表读；手表输入走事件回写（§4/§6）
 - **示例**：`com.demo.weather`（随源码分发：`desktop/examples/com.demo.weather.hpk`）的 `web/index.html`——城市设置（服务端存储，保存后手表 App 副标题同步）+ 通知演示
+- **反馈文案**：保存成功只提示"保存成功"（短、不带生效时机/实现细节的长句）
 
 ## 10. 开发与调试
 
@@ -347,6 +349,8 @@ curl -X POST 'http://127.0.0.1:9000/api/hydro/com.demo.weather/app/main/view?sha
 - 每插件多请求并发排队策略的多 Worker 化（第一版单插件串行处理）
 
 ## 版本记录
+
+- v0.3.4（2026-09-06）：§9 **WebUI 标题与文案约定**（标题=插件名，不出现 `WebUI`/包 id；保存成功只提示"保存成功"）；桌搭/天气示例页按此调整。
 
 - v0.1（草案，2026-09-06）：首版规范。与桌面 HydroKit Go 实现同步演进；实现与本文档冲突时以本文档为准（需评审修订）。
 - v0.1.1（2026-09-06）：§5 通道实现定为**长轮询**（poll/respond，无 WebSocket 依赖）；§2 生命周期补充"启动即建 + 按需唤起"。

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>桌搭 · 设置</title>
+  <title>桌搭</title>
   <style>
     * { box-sizing: border-box; margin: 0; }
     body { font-family: system-ui, "Noto Sans CJK SC", sans-serif; background: #121318; color: #e8eaf0; padding: 24px; max-width: 560px; }
@@ -30,8 +30,7 @@
   </style>
 </head>
 <body>
-  <h1>桌搭 · 设置</h1>
-  <p class="hint">排版与背景的调参项存在服务端存储，手表上 3 秒内生效（刷新周期）。</p>
+  <h1>桌搭</h1>
 
   <div class="card">
     <div class="row"><label>字体缩放</label><input type="range" id="fontScale" min="0.6" max="2" step="0.1"><span class="val" id="fontScaleV"></span></div>
@@ -94,7 +93,7 @@
     $('save').addEventListener('click', async function () {
       var s = collect();
       for (var k in s) await store('set', k, s[k]);
-      msg('已保存——手表 3 秒内生效。');
+      msg('保存成功');
     });
     $('reset').addEventListener('click', async function () {
       for (var k in DEFAULTS) await store('remove', k);

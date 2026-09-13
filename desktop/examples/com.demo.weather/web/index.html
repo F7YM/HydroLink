@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>示例天气 · 设置</title>
+  <title>示例天气</title>
   <style>
     * { box-sizing: border-box; margin: 0; }
     body { font-family: system-ui, "Noto Sans CJK SC", sans-serif; background: #121318; color: #e8eaf0; padding: 24px; max-width: 520px; }
@@ -19,7 +19,7 @@
   </style>
 </head>
 <body>
-  <h1>示例天气 · 设置</h1>
+  <h1>示例天气</h1>
   <p class="hint">WebUI 属于插件包（web/）。城市存服务端（scope:'server'）——保存后手表"示例天气"App 下次打开/刷新即同步；手表端的输入（城市）同样写回。省电模式存手表端（scope:'watch'，设备本机偏好），在手表上切换。</p>
 
   <div class="card">
@@ -55,7 +55,7 @@
       var v = document.getElementById('place').value.trim();
       if (!v) { show('城市不能为空'); return; }
       await store('set', 'place', v);
-      show('已保存城市「' + v + '」—— 手表 App 下次打开/刷新生效。');
+      show('保存成功');
     });
     document.getElementById('beep').addEventListener('click', async function () {
       await fetch('/api/hydro/worker/notify', {
