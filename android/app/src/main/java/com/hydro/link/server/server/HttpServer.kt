@@ -29,9 +29,55 @@ class HydroHttpServer(
     private val gson = Gson()
     private val dataManager = DataManager.get(context)
 
-    /** HydroKit 插件平台（商店 + 运行时 + worker 通道 + 路由）。 */
+    /** HydroKit 插件平台（商店 + 运行时 + worker 通道 + 宿主 + 路由）。 */
     val hydroKit: com.hydro.link.server.hydrokit.HydroKit by lazy {
-        com.hydro.link.server.hydrokit.HydroKit(context) { level, message -> addLog(message, level) }
+        com.hydro.link.server.hydrokit.HydroKit(
+            context = context,
+            capabilities = com.hydro.link.server.hydrokit.AndroidKitCapabilities(
+                context = context,
+                port = { activePort },
+                dataManagerProvider = { dataManager },
+                commandRunner = { cmd -> runCommandForPlugins(cmd) },
+            ),
+            hostAssets = com.hydro.link.server.hydrokit.HostAssetProvider { name ->
+                try { context.assets.open("hydrokit/$name").use { it.readBytes() } } catch (e: Exception) { null }
+            },
+            log = { level, message -> addLog(message, level) },
+        )
+    }
+
+    /** 插件 worker 宿主（WebView）：每个插件一个，隐藏运行。 */
+    val pluginHosts: com.hydro.link.server.hydrokit.PluginHostManager by lazy {
+        com.hydro.link.server.hydrokit.PluginHostManager(
+            context = context,
+            store = hydroKit.store,
+            bridge = hydroKit.bridge,
+            portProvider = { activePort },
+            log = { level, message -> addLog(message, level) },
+        )
+    }
+
+    /** 实际监听端口（start 之后确定）；插件宿主与 ABI 上下文用它拼 URL。 */
+    @Volatile
+    private var activePort: Int = port
+
+    /** 供 kit 能力端点执行命令：与 /api/commands/{id}/run 同一套逻辑（Shizuku / Shell）。 */
+    private fun runCommandForPlugins(command: String): Triple<Boolean, String, Int> {
+        val config = dataManager.loadConfig()
+        if (config.useShizuku) {
+            if (!ShizukuManager.isReady()) return Triple(false, "Shizuku 未就绪", -1)
+            val (ok, out, code) = ShizukuManager.executeCommandSync(command)
+            return Triple(ok, out, code)
+        }
+        return try {
+            val process = java.lang.ProcessBuilder("sh", "-c", command)
+                .redirectErrorStream(true).start()
+            val out = process.inputStream.bufferedReader().readText()
+            val code = process.waitFor()
+            Triple(code == 0, out, code)
+        } catch (e: Exception) {
+            Triple(false, "命令执行失败: ${e.message}", -1)
+        }
     }
     private val musicController = MusicController(context)
     private val logBuffer = Collections.synchronizedList(mutableListOf<LogEntry>())
@@ -50,6 +96,12 @@ class HydroHttpServer(
     }
 
     fun getLogs(): List<LogEntry> = logBuffer.toList()
+
+    override fun start(timeout: Int, daemon: Boolean) {
+        super.start(timeout, daemon)
+        // NanoHTTPD 支持端口 0（随机分配）：start 之后才能拿到真实端口
+        activePort = listeningPort
+    }
 
     override fun serve(session: IHTTPSession): Response {
         val uri = session.uri
@@ -170,12 +222,17 @@ class HydroHttpServer(
                     if (out == null) {
                         jsonResp(mapOf("status" to "error", "message" to "Not found"), Response.Status.NOT_FOUND)
                     } else {
-                        val resp = newFixedLengthResponse(
-                            Response.Status.values().firstOrNull { it.requestStatus == out.status }
-                                ?: Response.Status.OK,
-                            out.contentType,
-                            out.body,
-                        )
+                        val status = Response.Status.values().firstOrNull { it.requestStatus == out.status }
+                            ?: Response.Status.OK
+                        val resp = if (out.bytes != null) {
+                            // 二进制（如 wasm）：必须按字节返回，不能走字符串编码
+                            newFixedLengthResponse(
+                                status, out.contentType,
+                                ByteArrayInputStream(out.bytes), out.bytes.size.toLong(),
+                            )
+                        } else {
+                            newFixedLengthResponse(status, out.contentType, out.body)
+                        }
                         out.headers.forEach { (k, v) -> resp.addHeader(k, v) }
                         resp
                     }

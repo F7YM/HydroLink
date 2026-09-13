@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HydroKit worker</title>
+</head>
+<body>
+<!--
+  隐藏的插件 worker 宿主页（安卓端）。
+
+  由 PluginHostManager 以 file:///android_asset/hydrokit/worker.html?package=…&base=…&entry=…&runtime=…
+  加载；页内脚本通过本机 HTTP 服务端的长轮询领取请求、调用插件代码、回填结果。
+  页面不渲染任何界面，也不与用户交互。
+-->
+<script src="worker.js"></script>
+</body>
+</html>

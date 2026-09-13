@@ -13,16 +13,24 @@ data class HydroHttpRequest(
     val body: String? = null,
 )
 
-/** 平台无关的 HTTP 响应。 */
-data class HydroHttpResponse(
+/**
+ * 平台无关的 HTTP 响应。
+ *
+ * [bytes] 非空时按二进制原样返回（插件资产里的 wasm 不能走字符串编码，
+ * 否则字节会被 UTF-8 重新编码破坏）；否则用 [body] 文本。
+ */
+class HydroHttpResponse(
     val status: Int,
     val contentType: String = "application/json",
     val body: String = "",
+    val bytes: ByteArray? = null,
     val headers: Map<String, String> = mapOf("Cache-Control" to "no-store"),
 ) {
     companion object {
         fun json(body: String, status: Int = 200) = HydroHttpResponse(status, "application/json", body)
         fun text(body: String, status: Int) = HydroHttpResponse(status, "text/plain; charset=utf-8", body)
+        fun binary(data: ByteArray, contentType: String, status: Int = 200) =
+            HydroHttpResponse(status, contentType, "", data)
 
         /** 204：插件表示"无需更新"（对应桌面端 view == nil）。 */
         fun noContent() = HydroHttpResponse(204, "application/json", "")

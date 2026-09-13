@@ -40,9 +40,9 @@ class ServerService : Service() {
                 it.addLog("服务已启动 · 端口 $port", "success")
             }
             httpServer = server
-            // 载入已安装的 HydroKit 插件（坏插件跳过，只记日志）
+            // 载入已安装的 HydroKit 插件并拉起它们的 worker 宿主（WebView）
             try {
-                val loaded = server.hydroKit.loadInstalledPlugins()
+                val loaded = server.hydroKit.startHosts(server.pluginHosts)
                 if (loaded.isNotEmpty()) {
                     server.addLog("HydroKit: 已加载插件 ${loaded.joinToString(", ")}", "success")
                 }
@@ -60,6 +60,8 @@ class ServerService : Service() {
 
     private fun stopServer() {
         try {
+            // 先停插件宿主（隐藏 WebView），再停 HTTP
+            httpServer?.pluginHosts?.destroyAll()
             interconnectHandler?.stop()
             interconnectHandler = null
             httpServer?.stop()

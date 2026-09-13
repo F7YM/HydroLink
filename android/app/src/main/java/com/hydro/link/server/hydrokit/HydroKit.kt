@@ -18,6 +18,8 @@ import java.io.File
  */
 class HydroKit(
     context: Context,
+    capabilities: KitCapabilities = KitCapabilities.NONE,
+    hostAssets: HostAssetProvider = HostAssetProvider.NONE,
     log: (level: String, message: String) -> Unit = { _, _ -> },
 ) : Runtime.Host {
 
@@ -29,13 +31,14 @@ class HydroKit(
     val runtime: Runtime = Runtime(this)
 
     private val kitRoutes = HydroKitRoutes(runtime, store) { level, message -> logFn(level, message) }
-    private val workerRoutes = WorkerRoutes(bridge)
+    private val kitApis = KitRoutes(store, bridge, capabilities) { msg -> logFn("info", msg) }
+    private val hostPages = HostPageRoutes(hostAssets)
 
     override fun log(level: String, message: String) = logFn(level, message)
 
-    /** 服务器入口：worker 端点优先，其次插件路由；都不匹配返回 null。 */
+    /** 服务器入口：宿主页 → kit/worker 端点 → 插件路由；都不匹配返回 null。 */
     fun handle(req: HydroHttpRequest): HydroHttpResponse? =
-        workerRoutes.handle(req) ?: kitRoutes.handle(req)
+        hostPages.handle(req) ?: kitApis.handle(req) ?: kitRoutes.handle(req)
 
     /**
      * 启动时把磁盘上已安装的插件注册进运行时。
@@ -64,6 +67,7 @@ class HydroKit(
     fun install(hpk: File): PluginStore.Installed {
         val info = store.install(hpk)
         hotSwap(info.id)
+        hosts?.ensure(info.id)
         return info
     }
 
@@ -71,6 +75,7 @@ class HydroKit(
     @Throws(HydroException::class)
     fun uninstall(packageId: String): Boolean {
         runtime.unregister(packageId)
+        hosts?.destroy(packageId)
         bridge.disconnect(packageId)
         return store.uninstall(packageId)
     }
@@ -79,9 +84,21 @@ class HydroKit(
     @Throws(HydroException::class)
     fun hotSwap(packageId: String) {
         runtime.unregister(packageId)
+        hosts?.destroy(packageId)   // 版本可能变了，宿主必须重建
         bridge.disconnect(packageId)
         val manifest = store.manifest(packageId)
         runtime.register(WorkerPlugin(packageId, manifest, bridge))
+    }
+
+    /** worker 宿主管理器（WebView）。attach 之后安装/卸载会自动联动宿主。 */
+    var hosts: PluginHostManager? = null
+
+    /** 服务器启动后调用：注册磁盘插件并拉起它们的 worker 宿主。 */
+    fun startHosts(manager: PluginHostManager): List<String> {
+        hosts = manager
+        val ids = loadInstalledPlugins()
+        ids.forEach { manager.ensure(it) }
+        return ids
     }
 
     /** 插件清单里是否声明了某权限（kit 能力门控用）。 */
