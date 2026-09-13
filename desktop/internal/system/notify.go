@@ -8,11 +8,7 @@ package system
 //     `RPC_E_CHANGED_MODE`；它的回退还会起带控制台窗口的 PowerShell。
 //   - Linux/macOS：beeep（dbus / osascript），一直很稳。
 //
-// 可用 SetNotifyEnabled(false) 关掉，用于二分定位"是不是通知把进程搞崩了"。
+// 失败只返回 error 由调用方记日志，不影响进程存活。
 func Notify(title, message string) error {
-	if !notifyEnabled() {
-		logf("system: 通知已禁用（排查模式），跳过: %s", title)
-		return nil
-	}
 	return platformNotify(title, message)
 }

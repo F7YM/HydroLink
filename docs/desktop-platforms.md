@@ -63,53 +63,41 @@
 - **已知边角**：同端口第二次启动时，我们的"已有实例在运行"兜底分支（`os.Exit`）
   可能先于 Wails 的 `SetupSingleInstance` 执行；两条路径都不会显示窗口，行为一致。
 
-## 真机排查（Windows 崩溃用）
+## 诊断入口
 
-Windows 上若出现"窗口/托盘一起消失"（硬崩，访问违例会直接干掉进程，Go 的
-`recover` 拦不住），用自检参数逐项隔离。**控制台版**可直接看输出；GUI 版输出同时
-写进 `<数据目录>/hydrolink.log`：
+- **日志文件**：`<数据目录>/hydrolink.log`（Windows `%AppData%\hydrolink\`、
+  Linux `~/.config/hydrolink/`、macOS `~/Library/Application Support/hydrolink/`），
+  超 1 MiB 轮转为 `.log.1`；状态页「日志文件」一行显示完整路径。
+  音乐/通知等平台层只在**出错时**写日志（如 `music: 封面不可用`、`系统通知发送失败`、
+  `system: 音乐查询 panic`），不会逐次刷屏。
+- **托盘图标数据**：启动日志里 `托盘图标数据: PNG … 字节 / ICO … 字节`，
+  托盘起不来时先看这一行（设置页会显示"托盘不可用：<原因>"）。
+- **启动网卡**：`local IP: 192.168.3.48 (iface wlp0s20f3, default-route)` ——
+  手表连不上时先看这里（代理/VPN 的 TUN 网卡会被主动跳过）。
+- **崩溃留痕**：托盘回调与 Wails 事件回调都带 recover，panic 会连堆栈写进日志
+  （非 HTTP handler 的 goroutine panic 不受 net/http 保护，曾表现为"窗口与托盘
+  一起消失"）。非 Windows 平台若窗口起不来，`fatalExit` 会尝试弹 zenity/kdialog。
 
-```bat
-rem 逐项自检（每项打印"开始/结果"，崩了就停在那一行）
-HydroLink-amd64-console.exe -selftest=all
-HydroLink-amd64-console.exe -selftest=music,cover      rem 只查音乐/封面
-HydroLink-amd64-console.exe -selftest=notify           rem 只查系统通知（beeep → go-toast COM）
-HydroLink-amd64-console.exe -selftest=tray             rem 只查托盘
-HydroLink-amd64-console.exe -selftest=loop -selftest-times=50   rem 模拟手表轮询 music+cover
+### 修过的真机坑（留档，避免重犯）
 
-rem 二分定位：正常启动但把可疑项关掉
-HydroLink-amd64.exe -no-cover          rem 不读 SMTC 缩略图（手写 vtable 那一段）
-HydroLink-amd64.exe -no-notify         rem 不发系统通知（beeep→go-toast 手搓 COM）
-HydroLink-amd64.exe -no-cover -no-notify
-```
-
-真机已知问题与对应修法（Windows，2026-09-13 实测）：
-
-- **通知完全发不出去**：`beeep` → `go-toast` 的 `pushCOM` 调 `ole.RoInitialize(MTA)`
-  时线程已被设成 STA → `RPC_E_CHANGED_MODE`；它的失败回退还会起**带控制台窗口**的
-  PowerShell（闪黑窗来源之一）。修法：Windows 改用 PowerShell 的 WinRT 投影弹 toast
-  （不碰进程内 COM、子进程窗口隐藏），Linux/macOS 继续用 beeep。
-- **取封面超时**：在 STA 线程上发起 WinRT 异步操作时，完成回调要投递到该 STA 的
-  消息队列，而 Go 不泵消息 → `IAsyncInfo::GetStatus` 永远不是 Completed。
-  修法：所有 WinRT 调用固定在一个**常驻专属 MTA 线程**上串行执行
+- **WinRT 接口是"扁平"的**：每个接口只继承 `IInspectable`，`requires` 只表示
+  "实现类还要实现这些接口"，**基接口方法不内联进 vtable** —— 基接口能力
+  （`IClosable::Close`、`IInputStream::ReadAsync`）必须另外 `QueryInterface`。
+  按经典 COM 继承去写会让槽位整体偏移，调用到野函数指针 → 进程**静默终止**。
+  权威布局对照 windows-rs 的 `*_Vtbl` 与 `define_interface!` 行；守护测试见
+  `internal/system/winrt_layout_windows_test.go`。
+- **WinRT 线程模态**：apartment 一旦设定不可更改。在 STA 线程上发起 WinRT 异步
+  操作，完成回调要投递到该 STA 的消息队列而 Go 不泵消息 → 异步永远不完成
+  （表现为"读取封面超时"）。所以所有 WinRT 调用固定在一个常驻专属 MTA 线程上
   （`internal/system/winrt_thread_windows.go`）。
-- **WinRT 接口是"扁平"的**（重要）：每个接口只继承 `IInspectable`，`requires`
-  只表示"实现类还必须实现这些接口"，**基接口方法不会内联进 vtable** —— 基接口
-  能力（`IClosable::Close`、`IInputStream::ReadAsync`）必须另外 `QueryInterface`。
-  按经典 COM 继承去写会让槽位整体偏移，调用到野函数指针 → 进程**静默终止**
-  （无 Go panic 堆栈、无错误输出，表现就是"窗口和托盘一起消失"）。
-  权威布局可对照 windows-rs 生成代码里的 `*_Vtbl` 与 `define_interface!` 行
-  （IID 一并核对）。守护测试：`internal/system/winrt_layout_windows_test.go`。
-- **回调 panic 会杀进程**：非 HTTP handler 的 goroutine 里 panic 不受 net/http
-  保护，而 GUI 子系统没有控制台，堆栈写进没人看的 stderr → "窗口和托盘一起消失"。
-  修法：托盘回调（`safeCall`）与 Wails 事件回调（`App.safeGo`）加 recover + 记堆栈。
-
-日志里已有的面包屑（崩溃时最后一条就是崩溃点）：
-
-- `music: 当前曲目 "X" — "Y"（播放中=…，封面读取=…）`（切歌时一条）
-- `music: 读取封面 start（"X"）` / `music: 读取封面 ok: file://…`
-- `发送配对系统通知: <设备名>`
-- `tray: 已注册（Windows，hwnd=…）`
+- **Windows 通知不用进程内 COM**：beeep→go-toast 会在真机上撞公寓模态
+  （`RPC_E_CHANGED_MODE`），且其回退会起带控制台窗口的 PowerShell。改用
+  PowerShell 的 WinRT 投影（子进程窗口隐藏），并注册 HKCU AppUserModelId
+  让通知显示为 HydroLink。
+- **GUI 子系统（`-H windowsgui`）没有控制台**：所以日志必须落文件，致命错误要
+  弹原生错误框（`fatalExit` → `MessageBoxW`），否则失败表现为"闪一下就没了"。
+- **子进程控制台**：查电池的 PowerShell、执行命令的 `cmd /c` 都要
+  `CREATE_NO_WINDOW`（`hideWindowAttr()`），否则会闪黑窗。
 
 ## 已知限制（未做，不是 bug）
 

@@ -158,7 +158,6 @@ func readStreamReference(ref *streams.IRandomAccessStreamReference) ([]byte, err
 	if err := roInitialize(); err != nil {
 		return nil, err
 	}
-	trace("cover: OpenReadAsync")
 	op, err := ref.OpenReadAsync()
 	if err != nil {
 		return nil, fmt.Errorf("OpenReadAsync 失败: %v", err)
@@ -170,14 +169,12 @@ func readStreamReference(ref *streams.IRandomAccessStreamReference) ([]byte, err
 	defer closeWith(ptr)
 
 	// 流本体：QI 到 IRandomAccessStream（WithContentType 只有 ContentType 一个方法）
-	trace("cover: QueryInterface(IRandomAccessStream)")
 	streamQI, err := queryInterface(ptr, iidIRandomAccessStream)
 	if err != nil {
 		return nil, err
 	}
 	stream := (*iRandomAccessStream)(streamQI)
 
-	trace("cover: get_Size")
 	size, err := stream.GetSize()
 	if err != nil {
 		return nil, fmt.Errorf("读取封面流大小失败: %v", err)
@@ -189,7 +186,6 @@ func readStreamReference(ref *streams.IRandomAccessStreamReference) ([]byte, err
 		return nil, fmt.Errorf("封面过大: %d 字节", size)
 	}
 
-	trace("cover: GetInputStreamAt(0)")
 	in, err := stream.GetInputStreamAt(0)
 	if err != nil {
 		return nil, fmt.Errorf("获取输入流失败: %v", err)
@@ -201,7 +197,6 @@ func readStreamReference(ref *streams.IRandomAccessStreamReference) ([]byte, err
 		}
 	}()
 
-	trace("cover: BufferCreate(%d)", size)
 	buffer, err := streams.BufferCreate(uint32(size))
 	if err != nil {
 		return nil, fmt.Errorf("分配缓冲失败: %v", err)
@@ -211,19 +206,16 @@ func readStreamReference(ref *streams.IRandomAccessStreamReference) ([]byte, err
 		return nil, fmt.Errorf("Buffer 转 IBuffer 失败")
 	}
 
-	trace("cover: ReadAsync")
 	readOp, err := in.ReadAsync(ibuf, uint32(size), 0 /* InputStreamOptions.None */)
 	if err != nil {
 		return nil, fmt.Errorf("ReadAsync 失败: %v", err)
 	}
 	defer readOp.Release()
 
-	trace("cover: 等待 ReadAsync 完成")
 	if err := awaitIUnknown(readOp); err != nil {
 		return nil, err
 	}
 
-	trace("cover: 读取缓冲长度")
 	n, err := buffer.GetLength()
 	if err != nil {
 		return nil, fmt.Errorf("读取缓冲长度失败: %v", err)
@@ -232,7 +224,6 @@ func readStreamReference(ref *streams.IRandomAccessStreamReference) ([]byte, err
 		return nil, fmt.Errorf("封面读取结果为 0 字节")
 	}
 
-	trace("cover: DataReader.ReadBytes(%d)", n)
 	reader, err := streams.DataReaderFromBuffer(ibuf)
 	if err != nil {
 		return nil, fmt.Errorf("创建 DataReader 失败: %v", err)
@@ -242,7 +233,6 @@ func readStreamReference(ref *streams.IRandomAccessStreamReference) ([]byte, err
 	if err != nil {
 		return nil, fmt.Errorf("读取封面字节失败: %v", err)
 	}
-	trace("cover: 完成，共 %d 字节", len(data))
 	return data, nil
 }
 

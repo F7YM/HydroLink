@@ -63,7 +63,6 @@ func (s *smtcBackend) read() (MusicInfo, error) {
 }
 
 func (s *smtcBackend) readOnWinRTThread() (MusicInfo, error) {
-	trace("music: 步骤 1/5 获取 SMTC 会话")
 	sess, err := currentSession()
 	if err != nil {
 		logf("music: 获取 SMTC 会话失败: %v", err)
@@ -72,7 +71,6 @@ func (s *smtcBackend) readOnWinRTThread() (MusicInfo, error) {
 	if sess == nil {
 		return MusicInfo{HasMedia: false}, nil
 	}
-	trace("music: 步骤 2/5 读取媒体属性")
 	props, err := mediaProperties(sess)
 	if err != nil {
 		logf("music: 读取媒体属性失败: %v", err)
@@ -81,7 +79,6 @@ func (s *smtcBackend) readOnWinRTThread() (MusicInfo, error) {
 	if props == nil {
 		return MusicInfo{HasMedia: false}, nil
 	}
-	trace("music: 步骤 3/5 取标题/艺术家")
 	title, _ := props.GetTitle()
 	artist, _ := props.GetArtist()
 	info := MusicInfo{
@@ -90,56 +87,19 @@ func (s *smtcBackend) readOnWinRTThread() (MusicInfo, error) {
 		Artist:   artist,
 		Playing:  trackingPlaying(sess),
 	}
-	trace("music: 步骤 4/5 完成（标题=%q 艺术家=%q 播放中=%v）", title, artist, info.Playing)
-	// 切歌时留一条面包屑：若进程随后硬崩，日志最后一行就是线索。
-	if key := title + "|" + artist; key != lastTrackKey {
-		lastTrackKey = key
-		logf("music: 当前曲目 %q — %q（播放中=%v，封面读取=%v）", title, artist, info.Playing, coverArtOn())
-	}
-	if coverArtOn() {
-		// 封面读取失败不影响标题/艺术家（很多曲目本来就没有封面）。
-		trace("music: 步骤 5/5 读取封面（%q）", title)
-		if art, err := coverArtURL(props); err == nil {
-			info.ArtURL = art
-			logf("music: 读取封面 ok: %s", art)
-		} else {
-			logf("music: 封面不可用: %v", err)
-		}
+	// 封面读取失败不影响标题/艺术家（很多曲目本来就没有封面）。
+	if art, err := coverArtURL(props); err == nil {
+		info.ArtURL = art
+	} else if key := title + "|" + artist; key != lastNoCoverKey {
+		// 每首曲子只提示一次，避免 2 秒一轮的轮询把日志刷满。
+		lastNoCoverKey = key
+		logf("music: 封面不可用（%q）: %v", title, err)
 	}
 	return info, nil
 }
 
-// MusicSelfTest 直接查一次（不走缓存），供 -selftest 使用。
-func MusicSelfTest() (MusicInfo, error) {
-	return (&smtcBackend{}).read()
-}
-
-// CoverArtSelfTest 只走封面读取链路，供 -selftest 使用。
-func CoverArtSelfTest() (string, error) {
-	return runWinRT(coverArtSelfTestOnWinRTThread)
-}
-
-func coverArtSelfTestOnWinRTThread() (string, error) {
-	sess, err := currentSession()
-	if err != nil {
-		return "", fmt.Errorf("获取会话失败: %w", err)
-	}
-	if sess == nil {
-		return "", fmt.Errorf("当前没有媒体会话（先放首歌再试）")
-	}
-	props, err := mediaProperties(sess)
-	if err != nil {
-		return "", fmt.Errorf("读取媒体属性失败: %w", err)
-	}
-	url, err := coverArtURL(props)
-	if err != nil {
-		return "", err
-	}
-	return url, nil
-}
-
-// lastTrackKey 用于把面包屑限制在"切歌"频率，避免每 2 秒刷一行。
-var lastTrackKey string
+// lastNoCoverKey 记录上一次"没有封面"的曲目，用于去重日志。
+var lastNoCoverKey string
 
 func (s *smtcBackend) control(action string) (bool, error) {
 	return runWinRT(func() (bool, error) { return s.controlOnWinRTThread(action) })
@@ -253,7 +213,6 @@ func currentSession() (*control.GlobalSystemMediaTransportControlsSession, error
 	if err := roInitialize(); err != nil {
 		return nil, err
 	}
-	trace("music:   · RoGetActivationFactory(RequestAsync)")
 	op, err := control.GlobalSystemMediaTransportControlsSessionManagerRequestAsync()
 	if err != nil {
 		return nil, fmt.Errorf("获取 SMTC 管理器失败: %v", err)
@@ -262,7 +221,6 @@ func currentSession() (*control.GlobalSystemMediaTransportControlsSession, error
 	if err != nil {
 		return nil, err
 	}
-	trace("music:   · 等待完成 ok，QueryInterface(Manager)")
 	qi, err := queryInterface(ptr, control.SignatureiGlobalSystemMediaTransportControlsSessionManager)
 	if err != nil {
 		return nil, err
