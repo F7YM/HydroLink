@@ -55,6 +55,22 @@ class PluginHostManager(
             // 真机上排障用：chrome://inspect 可以打开隐藏的插件宿主页看 console
             WebView.setWebContentsDebuggingEnabled(true)
         }
+        // 把系统 WebView 版本写进应用日志：真机上"插件加载不出来"的第一嫌疑就是
+        // WebView 被禁用/裁剪，日志里直接能看到。
+        try {
+            val pkg = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                WebView.getCurrentWebViewPackage()
+            } else {
+                null
+            }
+            if (pkg == null) {
+                log("warning", "hydrokit: 系统 WebView 不可用，JS/WASM 插件无法运行")
+            } else {
+                log("info", "hydrokit: 系统 WebView ${pkg.packageName} ${pkg.versionName}")
+            }
+        } catch (e: Throwable) {
+            log("warning", "hydrokit: 读取系统 WebView 信息失败: ${e.message}")
+        }
     }
 
     private fun baseUrl(): String = "http://127.0.0.1:${portProvider()}"
@@ -80,6 +96,17 @@ class PluginHostManager(
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun startHost(packageId: String, info: PluginStore.Installed) {
+        // 系统 WebView 被禁用/裁剪（部分定制 ROM）时构造 WebView 会抛异常。这里必须
+        // 兜住：本方法跑在主线程，异常冒出去就是宿主 App 崩溃——插件不该把 App 拖崩。
+        try {
+            startHostOrThrow(packageId, info)
+        } catch (e: Throwable) {
+            hosts.remove(packageId)
+            log("error", "hydrokit: 启动插件 $packageId 的宿主失败（系统 WebView 可用？）: ${e.message}")
+        }
+    }
+
+    private fun startHostOrThrow(packageId: String, info: PluginStore.Installed) {
         val url = buildString {
             append(baseUrl())
             append("/api/hydro/worker/host?file=worker.html")
