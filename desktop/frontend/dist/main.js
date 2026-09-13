@@ -249,8 +249,9 @@
 
   async function loadPlugins() {
     const plugins = await api("GetPlugins");
+    window.__plugins = plugins || [];
     const list = $("pluginList");
-    $("pluginCount").textContent = plugins ? plugins.length : 0;
+    if ($("pluginCount")) $("pluginCount").textContent = plugins ? plugins.length : 0;
     if (!plugins || plugins.length === 0) {
       list.innerHTML = `<p class="empty">暂无插件，点击上方按钮安装 .hpk</p>`;
       return;
@@ -269,18 +270,28 @@
             ${meta}
             <div class="chips">${apps}${wids}${perms}</div>
           </div>
-          <div style="display:flex;gap:6px;align-items:center">
-            ${p.hasWeb ? `<button class="ok" data-pweb="${esc(p.id)}">WebUI</button>` : ""}
+          <div style="display:flex;gap:4px;align-items:center">
+            ${p.hasWeb ? `<button class="icon-btn webui-btn" data-pweb="${esc(p.id)}" title="打开 WebUI">
+              <svg viewBox="0 0 24 24"><path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 14H4V8h16v10zm-9-2h2v-2h-2v2zm0-8h2V6h-2v2zm4 4h2v-2h-2v2zm-8 0h2v-2H7v2z"/></svg>
+            </button>` : ""}
             ${p.builtin
               ? `<span class="muted">内置</span>`
-              : `<button class="danger" data-pdel="${esc(p.id)}">卸载</button>`}
+              : `<button class="icon-btn" data-pdel="${esc(p.id)}" title="卸载">
+              <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM8 9h8v10H8V9zm7.5-5-1-1h-5l-1 1H5v2h14V4h-3.5z"/></svg>
+            </button>`}
           </div>
         </div>`;
     }).join("");
     list.querySelectorAll("[data-pdel]").forEach((b) =>
-      b.addEventListener("click", async () => {
-        await api("UninstallPlugin", b.dataset.pdel);
-        loadPlugins();
+      b.addEventListener("click", () => {
+        const id = b.dataset.pdel;
+        const p = (plugins || []).find((x) => x.id === id) || {};
+        showConfirm({
+          title: "卸载插件",
+          text: `确定卸载「${p.name || id}」v${p.version || ""} 吗？\n插件的服务端存储会保留。`,
+          ok: "卸载",
+          action: async () => { await api("UninstallPlugin", id); loadPlugins(); }
+        });
       }));
     list.querySelectorAll("[data-pweb]").forEach((b) =>
       b.addEventListener("click", () => openWebUI(b.dataset.pweb)));
@@ -312,7 +323,15 @@
       `<span class="tag permission">${esc(PERM_LABELS[p] || p)}</span>`).join("");
     const apps = (info.apps || []).map((a) => esc(a.name || a.id)).join("、");
     const wids = (info.widgets || []).map((w) => esc(w.name || w.id)).join("、");
-    $("pipName").textContent = `${info.name || info.id}  v${info.version}`;
+    const installed = (window.__plugins || []).find((x) => x.id === info.id);
+    let kind = "安装";
+    if (installed) {
+      kind = installed.version === info.version ? "重装" : "更新";
+    }
+    $("pipTitle").textContent = (info.name || info.id) + (installed ? `（${kind}）` : "");
+    $("pipVersion").textContent = installed
+      ? `v${installed.version} → v${info.version}`
+      : `v${info.version}`;
     $("pipMeta").innerHTML = `<span class="tag">${esc(info.id)}</span>` +
       (apps ? `<span class="tag">应用：${apps}</span>` : "") +
       (wids ? `<span class="tag">组件：${wids}</span>` : "");
@@ -414,24 +433,35 @@
   });
 
   // ---- delete confirm dialog ----
-  let confirmTarget = null;
+  let confirmAction = null;
 
-  function showConfirm(deviceId, name) {
-    confirmTarget = { id: deviceId, name: name };
-    $("confirmText").textContent =
-      `确定删除设备「${name || deviceId}」吗？\n此操作不可撤销。`;
+  // showConfirm 支持两种用法：
+  //   showConfirm(deviceId, name)            删除受信设备（旧用法）
+  //   showConfirm({title, text, ok, action}) 通用二级确认
+  function showConfirm(a, b) {
+    if (typeof a === "string") {
+      confirmAction = async () => { await api("DeleteTrustedDevice", a); loadStatus(); };
+      $("confirmTitle").textContent = "删除设备";
+      $("confirmText").textContent = `确定删除设备「${b || a}」吗？\n此操作不可撤销。`;
+      $("confirmOk").textContent = "删除";
+    } else {
+      confirmAction = a.action || null;
+      $("confirmTitle").textContent = a.title || "确认";
+      $("confirmText").textContent = a.text || "";
+      $("confirmOk").textContent = a.ok || "确定";
+    }
     $("confirmModal").classList.remove("hidden");
   }
 
   $("confirmOk").addEventListener("click", async () => {
-    if (confirmTarget) await api("DeleteTrustedDevice", confirmTarget.id);
+    const action = confirmAction;
+    confirmAction = null;
     $("confirmModal").classList.add("hidden");
-    confirmTarget = null;
-    loadStatus();
+    if (action) await action();
   });
   $("confirmCancel").addEventListener("click", () => {
     $("confirmModal").classList.add("hidden");
-    confirmTarget = null;
+    confirmAction = null;
   });
 
   if (window.runtime && window.runtime.EventsOn) {

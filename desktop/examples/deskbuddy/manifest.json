@@ -1,7 +1,7 @@
 {
-  "id": "com.demo.deskbuddy",
+  "id": "com.hydro.deskbuddy",
   "name": "桌搭",
-  "version": "0.6.4",
+  "version": "0.7.0",
   "runtime": "wasm",
   "entry": "plugin.wasm",
   "apps": [

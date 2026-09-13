@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -49,6 +50,86 @@ type PluginInfo struct {
 	Builtin     bool         `json:"builtin"`
 	HasWeb      bool         `json:"hasWeb"`
 	Error       string       `json:"error,omitempty"`
+}
+
+// CompareVersions orders dotted versions (numeric segments compared as
+// numbers, non-numeric fall back to string compare). Returns -1/0/1.
+func CompareVersions(a, b string) int {
+	as := strings.Split(strings.TrimSpace(a), ".")
+	bs := strings.Split(strings.TrimSpace(b), ".")
+	n := len(as)
+	if len(bs) > n {
+		n = len(bs)
+	}
+	for i := 0; i < n; i++ {
+		// 缺失段按 0 处理（"1.0" == "1.0.0"）
+		av, bv := "0", "0"
+		if i < len(as) {
+			av = as[i]
+		}
+		if i < len(bs) {
+			bv = bs[i]
+		}
+		if c := cmpSegment(av, bv); c != 0 {
+			return c
+		}
+	}
+	return 0
+}
+
+// cmpSegment compares one version segment: numeric when possible; otherwise the
+// numeric prefix decides and a segment carrying a suffix ("0-beta") sorts below
+// the bare number ("0") — i.e. prereleases are older.
+func cmpSegment(av, bv string) int {
+	an, aerr := strconv.Atoi(av)
+	bn, berr := strconv.Atoi(bv)
+	if aerr == nil && berr == nil {
+		switch {
+		case an < bn:
+			return -1
+		case an > bn:
+			return 1
+		}
+		return 0
+	}
+	ap, aok := leadingInt(av)
+	bp, bok := leadingInt(bv)
+	if aok && bok {
+		switch {
+		case ap < bp:
+			return -1
+		case ap > bp:
+			return 1
+		}
+		aSuffix := len(av) > len(strconv.Itoa(ap))
+		bSuffix := len(bv) > len(strconv.Itoa(bp))
+		if aSuffix != bSuffix {
+			if aSuffix {
+				return -1
+			}
+			return 1
+		}
+	}
+	if av < bv {
+		return -1
+	}
+	if av > bv {
+		return 1
+	}
+	return 0
+}
+
+// leadingInt returns the leading integer of a segment ("12beta" -> 12, true).
+func leadingInt(s string) (int, bool) {
+	i := 0
+	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+		i++
+	}
+	if i == 0 {
+		return 0, false
+	}
+	n, err := strconv.Atoi(s[:i])
+	return n, err == nil
 }
 
 // ErrPluginCanceled is returned when the user cancels an install dialog.
@@ -202,8 +283,15 @@ func (s *Store) InstallPlugin(zipPath string) (PluginInfo, error) {
 	widgets := orEmpty(m.Widgets)
 
 	target := filepath.Join(s.PluginsDir(), m.ID)
-	if _, err := os.Stat(target); err == nil {
-		return PluginInfo{}, fmt.Errorf("插件已存在（先卸载再安装）: %s", m.ID)
+	// 已安装：允许同版本重装、更高版本更新；禁止降级。
+	if raw, err := os.ReadFile(filepath.Join(target, "manifest.json")); err == nil {
+		var existing PluginManifest
+		if json.Unmarshal(raw, &existing) == nil && existing.Version != "" {
+			switch CompareVersions(m.Version, existing.Version) {
+			case -1:
+				return PluginInfo{}, fmt.Errorf("不允许降级：已安装 v%s，安装包为 v%s", existing.Version, m.Version)
+			}
+		}
 	}
 	if err := os.MkdirAll(s.PluginsDir(), 0o755); err != nil {
 		return PluginInfo{}, err
@@ -230,6 +318,12 @@ func (s *Store) InstallPlugin(zipPath string) (PluginInfo, error) {
 	}
 	if _, err := os.Stat(filepath.Join(tmp, m.Entry)); err != nil {
 		return PluginInfo{}, fmt.Errorf("解压后缺少入口文件 %s", m.Entry)
+	}
+	// 更新/重装：先移除旧目录再落位（插件存储在 plugins-storage 下，不受影响）
+	if _, err := os.Stat(target); err == nil {
+		if err := os.RemoveAll(target); err != nil {
+			return PluginInfo{}, fmt.Errorf("替换旧版本失败: %v", err)
+		}
 	}
 	if err := os.Rename(tmp, target); err != nil {
 		return PluginInfo{}, fmt.Errorf("安装失败: %v", err)

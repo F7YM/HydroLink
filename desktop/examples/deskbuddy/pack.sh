@@ -17,7 +17,7 @@ cp target/wasm32-unknown-unknown/release/hydro_deskbuddy.wasm plugin.wasm
 echo "== package .hpk =="
 python3 - <<'PY'
 import zipfile, os
-out = '../com.demo.deskbuddy.hpk'
+out = '../com.hydro.deskbuddy.hpk'
 files = ['manifest.json', 'plugin.wasm']
 for root, _dirs, names in os.walk('web'):
     for n in names:

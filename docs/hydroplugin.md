@@ -276,7 +276,7 @@ env.hydro_log(ptr, len)               # 可选，调试输出（进桌面端日�
 
 ```json
 {
-  "abi": 1, "package": "com.demo.deskbuddy",
+  "abi": 1, "package": "com.hydro.deskbuddy",
   "surface": "app", "item": "main",
   "req": { "trigger": "open", "event": {...}, "screen": {...}, "store": {...} },
   "time":   { "unix": 0, "iso": "...", "hour": 9, "minute": 41 },

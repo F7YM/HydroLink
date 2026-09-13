@@ -103,7 +103,7 @@
         <!-- 插件 -->
         <section class="panel" id="tab-plugins">
           <div class="card">
-            <div class="card-title">HydroPlugin <span class="badge" id="pluginCount">0</span></div>
+            <div class="card-title">HydroPlugin</div>
             <div class="card-actions">
               <button class="btn" id="pluginInstall">安装插件 (.hpk/.zip)</button>
             </div>
@@ -154,13 +154,12 @@
     <!-- 插件安装确认弹窗（权限 + 安全提醒） -->
     <div class="modal hidden" id="pluginConfirmModal">
       <div class="modal-card">
-        <div class="modal-title">安装插件</div>
-        <p class="modal-text" id="pipName">-</p>
+        <div class="modal-title" id="pipTitle">插件</div>
+        <p class="modal-text" id="pipVersion">v-</p>
         <div class="chips" id="pipMeta" style="margin: 4px 0 10px;"></div>
         <div class="card-title">请求的权限</div>
         <div class="chips" id="pipPerms" style="margin-bottom: 10px;"></div>
-        <p class="pip-warn">⚠ 安全提醒：插件代码将以桌面端同等权限运行（可访问本机服务与数据目录），
-请只安装你信任的来源的插件。</p>
+        <p class="pip-warn">插件代码将以桌面端同等权限运行（可访问本机服务与数据目录），请只安装你信任的来源的插件。</p>
         <div class="modal-actions">
           <button class="btn ghost" id="pipCancel">取消</button>
           <button class="btn" id="pipOk">安装</button>
@@ -184,8 +183,7 @@
     <!-- 二次确认弹窗 -->
     <div class="modal hidden" id="confirmModal">
       <div class="modal-card">
-        <div class="modal-title">删除设备</div>
-        <p class="modal-text" id="confirmText">-</p>
+        <div class="modal-title" id="confirmTitle">删除设备</div>
         <div class="modal-actions">
           <button class="btn ghost" id="confirmCancel">取消</button>
           <button class="btn danger-solid" id="confirmOk">删除</button>

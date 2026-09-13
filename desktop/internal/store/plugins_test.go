@@ -138,17 +138,58 @@ func TestInstallRejects(t *testing.T) {
 	}
 }
 
-func TestInstallDuplicate(t *testing.T) {
+func TestReinstallUpdateAndDowngrade(t *testing.T) {
 	s := testStore(t)
-	p := buildZip(t, map[string]string{
-		"manifest.json": validManifest,
-		"server.js":     "x",
-	})
-	if _, err := s.InstallPlugin(p); err != nil {
-		t.Fatal(err)
+	v := func(ver string) string {
+		return strings.Replace(validManifest, `"version": "0.1.0"`, `"version": "`+ver+`"`, 1)
 	}
-	if _, err := s.InstallPlugin(p); err == nil || !strings.Contains(err.Error(), "已存在") {
-		t.Fatalf("second install err = %v, want already installed", err)
+	install := func(ver string) error {
+		p := buildZip(t, map[string]string{"manifest.json": v(ver), "server.js": "x"})
+		_, err := s.InstallPlugin(p)
+		return err
+	}
+
+	if err := install("0.1.0"); err != nil {
+		t.Fatalf("first install: %v", err)
+	}
+	// 同版本重装：允许
+	if err := install("0.1.0"); err != nil {
+		t.Fatalf("reinstall same version should be allowed: %v", err)
+	}
+	// 更高版本：允许（更新）
+	if err := install("0.2.0"); err != nil {
+		t.Fatalf("update to higher version should be allowed: %v", err)
+	}
+	if got := s.ListPlugins(); len(got) != 1 || got[0].Version != "0.2.0" {
+		t.Fatalf("version not updated: %+v", got)
+	}
+	// 更低版本：拒绝
+	err := install("0.1.9")
+	if err == nil || !strings.Contains(err.Error(), "不允许降级") {
+		t.Fatalf("downgrade err = %v, want 不允许降级", err)
+	}
+	// 拒绝后原版本仍在
+	if got := s.ListPlugins(); len(got) != 1 || got[0].Version != "0.2.0" {
+		t.Fatalf("existing install damaged by rejected downgrade: %+v", got)
+	}
+}
+
+func TestCompareVersions(t *testing.T) {
+	cases := []struct {
+		a, b string
+		want int
+	}{
+		{"0.1.0", "0.1.0", 0},
+		{"0.2.0", "0.1.9", 1},
+		{"0.1.9", "0.2.0", -1},
+		{"1.0", "1.0.0", 0},
+		{"0.10.0", "0.9.0", 1},
+		{"0.2.0-beta", "0.2.0", -1},
+	}
+	for _, c := range cases {
+		if got := CompareVersions(c.a, c.b); got != c.want {
+			t.Fatalf("CompareVersions(%q,%q) = %d, want %d", c.a, c.b, got, c.want)
+		}
 	}
 }
 

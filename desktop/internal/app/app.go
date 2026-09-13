@@ -55,6 +55,8 @@ func registerDiskPlugin(rt *hydrokit.Runtime, bridge *hydrokit.WorkerBridge, st 
 		return err
 	}
 	hm := toManifest(m)
+	// 更新/重装：先注销旧注册再注册新清单（实现热替换）
+	rt.Unregister(id)
 	return rt.Register(hydrokit.NewJSPlugin(&hm, bridge))
 }
 

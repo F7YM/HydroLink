@@ -217,7 +217,7 @@ func TestDeskBuddyPluginChain(t *testing.T) {
 	defer ts.Close()
 	_ = st
 
-	bundle := hydrokit.WasmBundle("com.demo.deskbuddy", "plugin.wasm", ts.URL)
+	bundle := hydrokit.WasmBundle("com.hydro.deskbuddy", "plugin.wasm", ts.URL)
 	cmd, marker := runWorker(t, nodePath, string(bundle))
 	defer func() { _ = cmd.Process.Kill() }()
 
@@ -231,7 +231,7 @@ func TestDeskBuddyPluginChain(t *testing.T) {
 	var body string
 	deadline := time.Now().Add(25 * time.Second)
 	for time.Now().Before(deadline) {
-		code, b := call("/api/hydro/com.demo.deskbuddy/app/main/view", "")
+		code, b := call("/api/hydro/com.hydro.deskbuddy/app/main/view", "")
 		if code == http.StatusOK {
 			body = b
 			break
@@ -262,23 +262,23 @@ func TestDeskBuddyPluginChain(t *testing.T) {
 
 	// fontScale setting (WebUI) scales every text node: 36 -> 54
 	if code, _ := call("/api/hydro/worker/store",
-		`{"package":"com.demo.deskbuddy","op":"set","key":"fontScale","value":1.5}`); code != http.StatusOK {
+		`{"package":"com.hydro.deskbuddy","op":"set","key":"fontScale","value":1.5}`); code != http.StatusOK {
 		t.Fatalf("store set fontScale -> %d", code)
 	}
 	time.Sleep(400 * time.Millisecond)
-	if code, tuned := call("/api/hydro/com.demo.deskbuddy/app/main/view", ""); code != http.StatusOK ||
+	if code, tuned := call("/api/hydro/com.hydro.deskbuddy/app/main/view", ""); code != http.StatusOK ||
 		!strings.Contains(tuned, `"fontSize":54`) {
 		t.Fatalf("fontScale not applied (%d):\n%s", code, tuned)
 	}
-	_, _ = call("/api/hydro/worker/store", `{"package":"com.demo.deskbuddy","op":"clear"}`)
+	_, _ = call("/api/hydro/worker/store", `{"package":"com.hydro.deskbuddy","op":"clear"}`)
 
 	// cover tap -> effects executed host-side (music toggle + storage marker)
-	if code, evt := call("/api/hydro/com.demo.deskbuddy/app/main/event",
+	if code, evt := call("/api/hydro/com.hydro.deskbuddy/app/main/event",
 		`{"event":{"handler":"toggle","source":"tap"}}`); code != http.StatusOK {
 		t.Fatalf("event -> %d: %s", code, evt)
 	}
 	if code, kv := call("/api/hydro/worker/store",
-		`{"package":"com.demo.deskbuddy","op":"get","key":"lastToggleAt"}`); code != http.StatusOK ||
+		`{"package":"com.hydro.deskbuddy","op":"get","key":"lastToggleAt"}`); code != http.StatusOK ||
 		!strings.Contains(kv, `"found":true`) {
 		t.Fatalf("storage effect was not executed by the host (%d): %s", code, kv)
 	}
@@ -292,7 +292,7 @@ func TestShippedDeskBuddyPackage(t *testing.T) {
 	if err != nil {
 		t.Skip("node not available")
 	}
-	hpk, err := filepath.Abs(filepath.Join("..", "..", "examples", "com.demo.deskbuddy.hpk"))
+	hpk, err := filepath.Abs(filepath.Join("..", "..", "examples", "com.hydro.deskbuddy.hpk"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,7 +309,7 @@ func TestShippedDeskBuddyPackage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("install shipped package: %v", err)
 	}
-	if info.Runtime != "wasm" || info.ID != "com.demo.deskbuddy" {
+	if info.Runtime != "wasm" || info.ID != "com.hydro.deskbuddy" {
 		t.Fatalf("shipped package manifest wrong: %+v", info)
 	}
 
@@ -326,7 +326,7 @@ func TestShippedDeskBuddyPackage(t *testing.T) {
 						"release", "hydro_deskbuddy.wasm"))
 					packed, perr := readZipEntry(hpk, "plugin.wasm")
 					if err == nil && perr == nil && !bytes.Equal(fresh, packed) {
-						t.Fatalf("打包产物与源码不一致：请重新打包 com.demo.deskbuddy.hpk（fresh %d vs packed %d bytes）",
+						t.Fatalf("打包产物与源码不一致：请重新打包 com.hydro.deskbuddy.hpk（fresh %d vs packed %d bytes）",
 							len(fresh), len(packed))
 					}
 				}
@@ -354,7 +354,7 @@ func TestShippedDeskBuddyPackage(t *testing.T) {
 	var body string
 	deadline := time.Now().Add(25 * time.Second)
 	for time.Now().Before(deadline) {
-		code, b := call("/api/hydro/com.demo.deskbuddy/app/main/view", "")
+		code, b := call("/api/hydro/com.hydro.deskbuddy/app/main/view", "")
 		if code == http.StatusOK {
 			body = b
 			break
@@ -378,12 +378,12 @@ func TestShippedDeskBuddyPackage(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/hydro/list", nil))
-	if !strings.Contains(rr.Body.String(), "com.demo.deskbuddy") {
+	if !strings.Contains(rr.Body.String(), "com.hydro.deskbuddy") {
 		t.Fatalf("deskbuddy missing from plugin list: %s", rr.Body.String())
 	}
 
 	// the committed package ships a WebUI (web/index.html)
-	wreq, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/hydro/webui/com.demo.deskbuddy/index.html", nil)
+	wreq, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/hydro/webui/com.hydro.deskbuddy/index.html", nil)
 	wr := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(wr, wreq)
 	if wr.Code != http.StatusOK || !strings.Contains(wr.Body.String(), "桌搭") {
