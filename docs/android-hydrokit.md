@@ -24,9 +24,9 @@
 |---|---|---|---|
 | M1 | 核心模型与注册表 | `Model.kt`（Node/View/Request/Event/Screen/Manifest）、`Runtime.kt`（注册/注销/查询/list/dispatch） | ✅ 完成 |
 | M2 | 插件包仓库 | `PluginStore.kt`：安装（zip/顶层目录/路径逃逸防护）、重装/升级/**禁止降级**、卸载保留存储、runtime/entry 判定、插件 KV 存储 | ✅ 完成 |
-| M3 | HTTP 路由 | `/api/hydro/list`、`/api/hydro/{pkg}/{surface}/{item}/{view,refresh,event}`（含 `X-Hydro-Store`、`?shape&width&height&dpr&dt`）、`/api/hydro/webui/...` 静态资源 | ⏳ 待做 |
-| M4 | Worker 通道 | `WorkerBridge`（长轮询/respond/超时/唤醒）+ `JsPlugin` 适配层；`/api/hydro/worker/{poll,respond,store,context,system,notify,music,lock,commands,asset}` | ⏳ 待做 |
-| M5 | JS/WASM 宿主 | 隐藏 WebView + 宿主胶水（移植桌面 `WorkerBundle`/`WasmBundle` 的 JS）；安装/卸载/启动时生命周期；版本变化时重启宿主 | ⏳ 待做 |
+| M3 | HTTP 路由 | `HydroKitRoutes.kt`：`/api/hydro/list`、`/api/hydro/{pkg}/{surface}/{item}/{view,refresh,event}`（含 `X-Hydro-Store`、`?shape&width&height&dpr&dt`、204/400/404/405 语义）、`/api/hydro/webui/...` 静态资源；已接进 NanoHTTPD | ✅ 完成 |
+| M4 | Worker 通道 | `WorkerBridge.kt`（长轮询/respond/超时/worker 离线快速失败+唤醒）+ `WorkerPlugin`（Runtime.Plugin ↔ worker）+ `WorkerRoutes`；kit 能力端点（store/context/system/notify/music/lock/commands/asset）留到 M6 | ✅ 完成 |
+| M5 | JS/WASM 宿主 | 隐藏 WebView + 宿主胶水（移植桌面 `WorkerBundle`/`WasmBundle` 的 JS）；安装/卸载/启动时生命周期；版本变化时重启宿主 | ⏳ **下一步** |
 | M6 | 权限门控 | manifest.permissions → kit 能力（storage/notify/music/lock/commands/fetch/system） | ⏳ 待做 |
 | M7 | 插件 WebUI | 安卓端打开插件 `web/index.html`（同源指向本机服务端），供插件设置页使用 | ⏳ 待做 |
 | M8 | 安卓 UI 接入 | 插件列表（安装/卸载/打开 WebUI）、启动即加载磁盘插件、日志接入现有日志页 | ⏳ 待做 |
@@ -41,8 +41,9 @@ GRADLE_USER_HOME=/home/float/.gradle \
   --no-daemon -Dkotlin.compiler.execution.strategy=in-process :app:testDebugUnitTest
 ```
 
-- 39 个 JVM 单测全绿：`ManifestTest`（清单校验 7）、`RuntimeTest`（注册与路由 13）、
-  `PluginStoreTest`（安装/升级/降级/逃逸/存储 19）。
+- **74 个 JVM 单测全绿**：`ManifestTest` 7、`RuntimeTest` 13、`PluginStoreTest` 19、
+  `HydroKitRoutesTest` 18（HTTP 语义）、`WorkerBridgeTest` 11（长轮询/超时/离线唤醒）、
+  `WorkerPluginTest` 6（含进程内端到端：Runtime → WorkerPlugin → Bridge → 假 worker → View）。
 - **真实插件包回归**：直接安装仓库里已发布的
   `desktop/examples/com.demo.weather.hpk`（JS）与 `com.hydro.deskbuddy.hpk`（WASM），
   断言 id/name/version/runtime/entry/permissions/`web/index.html` 均正确解出 ——
@@ -59,9 +60,22 @@ GRADLE_USER_HOME=/home/float/.gradle \
 4. 安装必须先解压到 `plugins/` 内的临时目录再整体替换，避免半成品；
    同时拒绝 `../` 之类的越界条目。
 
+## 已接入位置
+
+- `HydroHttpServer.serve()`：`/api/hydro*` 交给 `HydroKit.handle()`（worker 端点优先）。
+- `ServerService.startServer()`：启动时 `hydroKit.loadInstalledPlugins()` 把磁盘插件
+  注册进运行时，坏插件跳过并记日志。
+- `HydroKit.install/uninstall/hotSwap`：安装/卸载/更新后**热注册**，无需重启 App。
+
 ## 后续轮次的切入点
 
-- M3 从 `HydroKitRoutes` 开始：先把 `/api/hydro/list` 与 view/refresh/event 打通
-  （可先用"假插件"直接返回固定树，不依赖 WebView），再接 `WorkerBridge`。
+- **M5（下一步）**：隐藏 WebView 宿主。要点：
+  1. 在 `app/src/main/assets/hydrokit/` 放宿主页 `worker.html` + `kit.js`，
+     把桌面端 `WorkerBundle`/`WasmBundle` 的 JS 胶水移植过来（同样是
+     `fetch(poll) → 调用 server.js / wasm 的 hydro_view → fetch(respond)`）。
+  2. 用 `WebView`（`javaScriptEnabled=true`，`addJavascriptInterface` 不需要——
+     全部走 fetch 到本机服务端）承载；每个插件一个宿主页实例。
+  3. 生命周期：安装/启动时启动宿主；卸载/版本变化时销毁重建；
+     收到 `bridge.onNeedWake` 时拉起宿主。
 - 每完成一个里程碑：跑 `:app:testDebugUnitTest` + `:app:assembleDebug`，
   提交一次，并更新本文件的里程碑状态。

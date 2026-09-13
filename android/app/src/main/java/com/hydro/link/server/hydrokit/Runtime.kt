@@ -135,9 +135,13 @@ class Runtime(private val host: Host = Host.NOP) {
     }
 }
 
-/** 启动器面向的插件摘要（runtime.go PluginSummary）。 */
+/**
+ * 启动器面向的插件摘要（runtime.go PluginSummary）。
+ * JSON 里字段名是 "package"（与桌面端 `json:"package"` 一致），
+ * Kotlin 侧为避免与关键字混淆命名为 pkg，用 @SerializedName 对齐。
+ */
 data class PluginSummary(
-    val pkg: Package,
+    @com.google.gson.annotations.SerializedName("package") val pkg: Package,
     val apps: List<Item>,
     val widgets: List<Item>,
 )

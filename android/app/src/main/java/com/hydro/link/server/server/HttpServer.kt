@@ -28,6 +28,11 @@ class HydroHttpServer(
 
     private val gson = Gson()
     private val dataManager = DataManager.get(context)
+
+    /** HydroKit 插件平台（商店 + 运行时 + worker 通道 + 路由）。 */
+    val hydroKit: com.hydro.link.server.hydrokit.HydroKit by lazy {
+        com.hydro.link.server.hydrokit.HydroKit(context) { level, message -> addLog(message, level) }
+    }
     private val musicController = MusicController(context)
     private val logBuffer = Collections.synchronizedList(mutableListOf<LogEntry>())
     private val maxLogs = 100
@@ -60,11 +65,13 @@ class HydroHttpServer(
 
         try {
             // Parse body for POST
+            var rawBody: String? = null
             val bodyJson: JsonObject? = if (method == Method.POST) {
                 try {
                     val files = HashMap<String, String>()
                     session.parseBody(files)
                     val jsonStr = files["postData"]
+                    rawBody = jsonStr
                     jsonStr?.let {
                         try { gson.fromJson(it, JsonObject::class.java) } catch (e: Exception) { null }
                     }
@@ -146,6 +153,32 @@ class HydroHttpServer(
                 cleanUri.matches(Regex("/commands/\\d+/run")) && method == Method.POST -> {
                     val cmdId = cleanUri.split("/")[2].toInt()
                     withTrusted(headers) { handleRunCommand(cmdId) }
+                }
+
+                // ---- HydroKit（插件平台）----
+                // /api/hydro/list、/api/hydro/{pkg}/{surface}/{item}/{view|refresh|event}、
+                // /api/hydro/webui/...、/api/hydro/worker/{poll,respond}
+                cleanUri.startsWith("/api/hydro") -> {
+                    val req = com.hydro.link.server.hydrokit.HydroHttpRequest(
+                        method = method.name,
+                        path = cleanUri,
+                        query = session.parameters.entries.associate { (k, v) -> k to (v.firstOrNull() ?: "") },
+                        headers = headers.entries.associate { (k, v) -> k.lowercase() to v },
+                        body = rawBody,
+                    )
+                    val out = hydroKit.handle(req)
+                    if (out == null) {
+                        jsonResp(mapOf("status" to "error", "message" to "Not found"), Response.Status.NOT_FOUND)
+                    } else {
+                        val resp = newFixedLengthResponse(
+                            Response.Status.values().firstOrNull { it.requestStatus == out.status }
+                                ?: Response.Status.OK,
+                            out.contentType,
+                            out.body,
+                        )
+                        out.headers.forEach { (k, v) -> resp.addHeader(k, v) }
+                        resp
+                    }
                 }
 
                 // ---- Root / health check ----

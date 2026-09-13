@@ -40,6 +40,15 @@ class ServerService : Service() {
                 it.addLog("服务已启动 · 端口 $port", "success")
             }
             httpServer = server
+            // 载入已安装的 HydroKit 插件（坏插件跳过，只记日志）
+            try {
+                val loaded = server.hydroKit.loadInstalledPlugins()
+                if (loaded.isNotEmpty()) {
+                    server.addLog("HydroKit: 已加载插件 ${loaded.joinToString(", ")}", "success")
+                }
+            } catch (e: Exception) {
+                server.addLog("HydroKit 插件加载失败: ${e.message}", "warning")
+            }
             // Start interconnect handler (XMS Wearable SDK based)
             interconnectHandler = InterconnectHandler(this, server, port).also { it.start() }
             httpServer?.addLog("Interconnect 已启动", "info")
