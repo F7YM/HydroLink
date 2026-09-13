@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/gen2brain/beeep"
+	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"hydrolink-desktop/internal/api"
@@ -26,6 +27,10 @@ type App struct {
 	trayIcon    []byte
 	tray        *tray.Tray
 	trayErr     string
+
+	// quitting 由托盘"退出"置位。Wails 的 Quit() 会先问 OnBeforeClose
+	// （用于"关闭=最小化到托盘"），若那里仍返回 true，退出就被自己拦掉了。
+	quitting bool
 }
 
 // NewApp creates the desktop app bindings. trayIcon is the PNG used for the
@@ -62,10 +67,12 @@ func (a *App) applyTray(enabled bool) error {
 		return nil
 	}
 	t, err := tray.Start(tray.Options{
-		IconPNG:    a.trayIcon,
-		Title:      "HydroLink",
-		Subtitle:   "桌面服务端",
-		Logf:       func(msg string, _ ...any) { a.srv.AddLog(msg, "info") },
+		IconPNG:  a.trayIcon,
+		Title:    "HydroLink",
+		Subtitle: "桌面服务端",
+		Logf: func(format string, args ...any) {
+			a.srv.AddLog(fmt.Sprintf(format, args...), "info")
+		},
 		OnActivate: a.ShowWindow,
 		OnQuit:     a.Quit,
 	})
@@ -91,15 +98,28 @@ func (a *App) ShowWindow() {
 
 // Quit exits the app (tray menu 退出).
 func (a *App) Quit() {
+	a.srv.AddLog("收到退出请求，正在退出", "info")
+	// 必须先置位：Wails Linux/Windows 的 Quit() 会回调 OnBeforeClose，
+	// 否则"关闭=最小化到托盘"会把退出请求当成关窗而拦下。
+	a.quitting = true
 	if a.ctx != nil {
 		runtime.Quit(a.ctx)
 	}
 }
 
+// closeDecision reports whether a window-close request should only hide the
+// window (tray icon active) instead of quitting.
+//
+// 这条规则曾经把托盘"退出"一起吃掉：Wails 的 Quit() 也会走 OnBeforeClose，
+// 只要它还返回 true，mainWindow.Quit() 就永远不执行。
+func closeDecision(quitting, trayRunning bool) bool {
+	return !quitting && trayRunning
+}
+
 // OnBeforeClose hides the window instead of quitting while the tray icon is
 // active, so the HTTP server keeps serving the watch.
 func (a *App) OnBeforeClose(ctx context.Context) bool {
-	if !a.tray.Running() {
+	if !closeDecision(a.quitting, a.tray.Running()) {
 		return false
 	}
 	runtime.WindowHide(ctx)
@@ -107,9 +127,45 @@ func (a *App) OnBeforeClose(ctx context.Context) bool {
 	return true
 }
 
+// StartServer binds the HTTP listener. main calls it before wails.Run so the
+// server is up before the window loads; a failure is not fatal there because
+// the most common cause is a second launch, which the single-instance lock
+// handles (and Startup retries the bind).
+func (a *App) StartServer() error {
+	if a.srv.Started() {
+		return nil
+	}
+	if err := a.srv.Start(fmt.Sprintf("0.0.0.0:%d", a.port)); err != nil {
+		return api.BindError(a.port, err)
+	}
+	a.srv.AddLog(fmt.Sprintf("服务已启动，监听端口 %d", a.port), "success")
+	return nil
+}
+
+// OnSecondInstance is called in the ALREADY RUNNING instance when the user
+// launches HydroLink again: bring the window back instead of erroring.
+func (a *App) OnSecondInstance(data options.SecondInstanceData) {
+	a.srv.AddLog("检测到第二次启动，已唤起现有窗口", "info")
+	a.ShowWindow()
+}
+
 // Startup is called by Wails when the window is ready.
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
+	// The listener may still be missing if main could not bind it (port taken
+	// by a foreign program). Retry once and surface a real dialog if it fails.
+	if !a.srv.Started() {
+		if err := a.StartServer(); err != nil {
+			a.srv.AddLog("启动失败: "+err.Error(), "warning")
+			_, _ = runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
+				Type:    runtime.ErrorDialog,
+				Title:   "HydroLink 无法启动",
+				Message: err.Error(),
+			})
+			runtime.Quit(ctx)
+			return
+		}
+	}
 	a.srv.AddLog("桌面端已启动", "success")
 	// Popup + system notification on every new pairing request.
 	a.srv.SetPairCallback(a.onPairRequest)

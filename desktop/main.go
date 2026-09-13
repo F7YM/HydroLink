@@ -72,15 +72,16 @@ func main() {
 	// persisted to cfg.LastPort — only a manual GUI port change (SaveSettings)
 	// updates the remembered port, so ad-hoc runs never change the default.
 
-	addr := fmt.Sprintf("0.0.0.0:%d", listenPort)
-	if err := srv.Start(addr); err != nil {
-		log.Fatalf("server: %v", err)
-	}
-	log.Printf("HydroLink desktop server v%s (api_level %d) on %s", api.Version, api.APILevel, addr)
+	log.Printf("HydroLink desktop server v%s (api_level %d)", api.Version, api.APILevel)
 	ipInfo := api.LocalIPInfo()
 	log.Printf("local IP: %s (iface %s, %s)  |  data dir: %s", ipInfo.IP, ipInfo.Iface, ipInfo.Source, st.Dir())
 
 	if *noGUI {
+		addr := fmt.Sprintf("0.0.0.0:%d", listenPort)
+		if err := srv.Start(addr); err != nil {
+			log.Fatalf("%v", api.BindError(listenPort, err))
+		}
+		log.Printf("listening on %s", addr)
 		log.Printf("headless mode — press Ctrl+C to stop")
 		select {}
 	}
@@ -89,7 +90,18 @@ func main() {
 	// the same PNG feeds the system tray pixmap.
 	windowIcon, _ := assets.ReadFile("frontend/dist/icon.png")
 
-	app := gui.NewApp(srv, st, listenPort, windowIcon)
+	desktopApp := gui.NewApp(srv, st, listenPort, windowIcon)
+
+	// Start the HTTP server before the window so the watch can already connect
+	// while the UI loads. A bind failure is NOT fatal here: the usual cause is
+	// a second launch, and Wails' single-instance lock exits that one (the
+	// first instance gets OnSecondInstanceLaunch). If the port is genuinely
+	// taken by another program, Startup retries and shows a dialog.
+	if err := desktopApp.StartServer(); err != nil {
+		log.Printf("warning: %v", err)
+	} else {
+		log.Printf("listening on 0.0.0.0:%d", listenPort)
+	}
 
 	err = wails.Run(&options.App{
 		Title:     "HydroLink",
@@ -102,10 +114,16 @@ func main() {
 			Handler: assetAPIProxy(srv),
 		},
 		BackgroundColour: &options.RGBA{R: 18, G: 19, B: 24, A: 1},
-		OnStartup:        app.Startup,
-		OnShutdown:       app.Shutdown,
-		OnBeforeClose:    app.OnBeforeClose,
-		Bind:             []interface{}{app},
+		OnStartup:        desktopApp.Startup,
+		OnShutdown:       desktopApp.Shutdown,
+		OnBeforeClose:    desktopApp.OnBeforeClose,
+		// Second launch focuses the existing instance instead of dying on a
+		// port conflict (Windows users double-click the exe twice all the time).
+		SingleInstanceLock: &options.SingleInstanceLock{
+			UniqueId:               "com.hydrolink.desktop",
+			OnSecondInstanceLaunch: desktopApp.OnSecondInstance,
+		},
+		Bind: []interface{}{desktopApp},
 		Linux: &linux.Options{
 			WindowIsTranslucent: false,
 			Icon:                windowIcon,

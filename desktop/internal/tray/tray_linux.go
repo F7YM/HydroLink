@@ -388,6 +388,7 @@ func (m *dbusMenu) Event(id int32, eventID string, data dbus.Variant, timestamp 
 	if eventID != "clicked" {
 		return nil
 	}
+	m.t.logf("tray: 菜单点击 id=%d", id)
 	switch id {
 	case menuIDShow:
 		if m.t.opts.OnActivate != nil {

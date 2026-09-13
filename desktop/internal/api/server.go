@@ -184,6 +184,19 @@ func (s *Server) Start(addr string) error {
 }
 
 // Stop gracefully shuts the HTTP server down (no-op if not running).
+// Started reports whether the HTTP listener is currently running.
+func (s *Server) Started() bool {
+	s.srvMu.Lock()
+	defer s.srvMu.Unlock()
+	return s.httpSrv != nil
+}
+
+// BindError explains a listen failure in user terms (the most common cause by
+// far is "HydroLink is already running").
+func BindError(port int, err error) error {
+	return fmt.Errorf("端口 %d 无法监听（可能已有 HydroLink 实例在运行，或被其他程序占用）: %v", port, err)
+}
+
 func (s *Server) Stop() {
 	s.srvMu.Lock()
 	srv := s.httpSrv
