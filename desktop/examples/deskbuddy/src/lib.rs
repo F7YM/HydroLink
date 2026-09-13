@@ -118,8 +118,13 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
         ]);
     }
 
+    // 只有"有音乐 **且** 服务端确实拿到封面"时才铺背景/封面。
+    // 否则（macOS 的 Apple Music、Windows 上无缩略图的曲目）请求 /api/music/art
+    // 会得到 400，手表那边背景变黑/空白。
+    let has_art = has_media && !art_url.is_empty();
+
     let server_base = text(&ctx, &["server", "base"]);
-    let background = if !has_media {
+    let background = if !has_art {
         String::new()
     } else if !server_base.is_empty() {
         // 直接要屏幕尺寸的裁切图（w/h=cover 语义），方屏上不会出现上下黑边
@@ -159,7 +164,9 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
     // 弧条：0°=12 点方向、顺时针；左侧弧以 270°（9 点）为中心，右侧以 90°（3 点）
 
 
-    let cover_src = if !server_base.is_empty() {
+    let cover_src = if !has_art {
+        String::new()
+    } else if !server_base.is_empty() {
         let size = if screen_w > 0.0 { screen_w.round() as i64 } else { 466 };
         format!("{}/api/music/art?size={}&k={}",
             server_base.trim_end_matches('/'), size, track_key(&ctx))
@@ -185,12 +192,19 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
         cover_style["marginTop"] = json!(18);
     }
 
-    let cover = if has_media && !cover_src.is_empty() {
+    let cover = if !cover_src.is_empty() {
         json!({
             "type": "image",
             "props": { "src": cover_src },
             "events": { "tap": "toggle" },
             "style": cover_style
+        })
+    } else if has_media {
+        // 有音乐但没有封面：给一个中性占位，别显示"无正在播放的媒体"。
+        json!({
+            "type": "text",
+            "props": { "text": "♪" },
+            "style": { "fontSize": 64, "color": "#3a4150", "textAlign": "center", "width": "100%", "marginTop": 30 }
         })
     } else {
         json!({
@@ -307,7 +321,7 @@ mod tests {
 
     #[test]
     fn background_follows_settings_and_media_state() {
-        let with = view(r#"{"music":{"hasMedia":true,"title":"x"},
+        let with = view(r#"{"music":{"hasMedia":true,"title":"x","artUrl":"file:///tmp/cover.jpg"},
             "server":{"base":"http://host:9000"},
             "req":{"screen":{"width":466,"height":466}},
             "storage":{"blur":12,"dim":0.5}}"#);
@@ -324,7 +338,7 @@ mod tests {
 
     #[test]
     fn rect_screen_centres_and_enlarges_the_cover() {
-        let t = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A"},
+        let t = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A","artUrl":"file:///tmp/cover.jpg"},
             "server":{"base":"http://h:9000"},
             "req":{"screen":{"shape":"rect","width":432,"height":514}}}"#);
         let cover = t["root"]["children"].as_array().unwrap().iter()
@@ -340,7 +354,7 @@ mod tests {
         assert!((cx - 240.0).abs() < 1.0, "cover not horizontally centred: {cx}");
 
         // 圆屏保持流式（无绝对定位、尺寸较小）
-        let c = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A"},
+        let c = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A","artUrl":"file:///tmp/cover.jpg"},
             "server":{"base":"http://h:9000"},
             "req":{"screen":{"shape":"circle","width":466,"height":466}}}"#);
         let cc = c["root"]["children"].as_array().unwrap().iter()
@@ -351,7 +365,7 @@ mod tests {
 
     #[test]
     fn cover_is_centred_by_the_root_column() {
-        let t = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A"},
+        let t = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A","artUrl":"file:///tmp/cover.jpg"},
             "server":{"base":"http://h:9000"},"req":{"screen":{"width":432,"height":514}}}"#);
         assert_eq!(t["root"]["style"]["alignItems"], "center",
             "column children (cover) must be centred");
@@ -364,7 +378,7 @@ mod tests {
     #[test]
     fn no_progress_or_box_nodes() {
         // 进度条功能已移除：树里不允许再出现 box / progress 节点
-        let t = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A"},
+        let t = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A","artUrl":"file:///tmp/cover.jpg"},
             "system":{"cpu":50,"memPercent":50},"req":{"screen":{"width":466,"height":466}}}"#);
         let dump = t.to_string();
         assert!(!dump.contains("\"box\""), "no box nodes expected: {dump}");
@@ -389,9 +403,9 @@ mod tests {
     #[test]
     fn art_urls_change_with_the_track() {
         // 回归：切歌必须换 URL，否则封面/背景会被 WebView 缓存住不刷新
-        let a = view(r#"{"music":{"hasMedia":true,"title":"A","artist":"X"},
+        let a = view(r#"{"music":{"hasMedia":true,"title":"A","artist":"X","artUrl":"file:///tmp/cover.jpg"},
             "server":{"base":"http://h:9000"},"req":{"screen":{"width":466,"height":466}}}"#);
-        let b = view(r#"{"music":{"hasMedia":true,"title":"B","artist":"X"},
+        let b = view(r#"{"music":{"hasMedia":true,"title":"B","artist":"X","artUrl":"file:///tmp/cover.jpg"},
             "server":{"base":"http://h:9000"},"req":{"screen":{"width":466,"height":466}}}"#);
         let bg_a = a["root"]["style"]["backgroundImage"].as_str().unwrap_or("");
         let bg_b = b["root"]["style"]["backgroundImage"].as_str().unwrap_or("");
@@ -406,10 +420,24 @@ mod tests {
     }
 
     #[test]
+    fn media_without_cover_emits_no_art_nodes() {
+        // macOS 的 Apple Music / Windows 上无缩略图的曲目：hasMedia=true 但没有
+        // artUrl。此时若仍请求 /api/music/art，服务端返回 400，手表上背景变黑、
+        // 封面空白 —— 所以必须完全不产出 art 节点。
+        let v = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A"},
+            "server":{"base":"http://host:9000"},"req":{"screen":{"width":466,"height":466}}}"#);
+        let dump = v.to_string();
+        assert!(!dump.contains("/api/music/art"), "无封面时不应请求封面接口: {dump}");
+        assert!(v["root"]["style"]["backgroundImage"].is_null(), "无封面时不应设置背景图");
+        assert!(!dump.contains("无正在播放的媒体"), "有音乐时不应显示空状态文案: {dump}");
+        assert!(dump.contains("\u{266a}") || dump.contains("♪"), "应显示中性占位: {dump}");
+    }
+
+    #[test]
     fn depth_never_exceeds_three_levels() {
         // 容器页只展开 3 层：根(0) → L1 → L2 → L3 叶子。深层容器会被渲染成垃圾文本，
         // 这里锁死结构（叶子层不允许再出现容器）。
-        let t = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A"},
+        let t = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A","artUrl":"file:///tmp/cover.jpg"},
             "req":{"screen":{"width":466,"height":466}},"time":{"hour":1,"minute":2}}"#);
         fn leafish(n: &Value) -> bool {
             matches!(n["type"].as_str().unwrap_or(""), "text" | "image" | "icon" | "box"
@@ -432,8 +460,8 @@ mod tests {
 
     #[test]
     fn font_scale_setting_scales_all_text() {
-        let base = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A"},"time":{"hour":1,"minute":2}}"#);
-        let big = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A"},"time":{"hour":1,"minute":2},
+        let base = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A","artUrl":"file:///tmp/cover.jpg"},"time":{"hour":1,"minute":2}}"#);
+        let big = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A","artUrl":"file:///tmp/cover.jpg"},"time":{"hour":1,"minute":2},
             "storage":{"fontScale":1.5}}"#);
         let size_of = |t: &Value, txt: &str| -> f64 {
             find_text(t, txt)["style"]["fontSize"].as_f64().unwrap()
@@ -455,7 +483,7 @@ mod tests {
         assert_eq!(e[1]["op"], "storage");
         assert_eq!(e[1]["key"], "lastToggleAt");
         // unrelated events emit nothing
-        let idle = view(r#"{"music":{"hasMedia":true,"title":"x"},"req":{"event":{"handler":"other"}}}"#);
+        let idle = view(r#"{"music":{"hasMedia":true,"title":"x","artUrl":"file:///tmp/cover.jpg"},"req":{"event":{"handler":"other"}}}"#);
         assert_eq!(idle["effects"].as_array().unwrap().len(), 0);
     }
 }
