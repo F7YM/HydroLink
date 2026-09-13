@@ -72,7 +72,16 @@ GRADLE_USER_HOME=/home/float/.gradle \
    `AndroidKitCapabilities.notify` 先查 `areNotificationsEnabled()` 再发，
    未授权直接返回 false（插件拿到 `{"status":"error"}`）；`MainActivity`
    首次进入主动申请一次，状态页新增「通知权限」卡片可跳系统设置。
-6. **互联通道没有自定义请求头**：手表经 XMS Wearable 转发过来的请求是 UDP 报文，
+6. **隐藏 WebView 的"两个必须"**：
+   · `WebViewClient.onRenderProcessGone` **必须返回 true**——渲染进程被系统杀掉
+     （内存压力很常见）时返回 false 会把整个 App 进程一起带走；返回 true 后
+     销毁死掉的 WebView、断开 worker、3 秒后重建。
+   · 宿主页里的胶水拿的是**绝对地址**，宿主必须在服务端口变化时重建，否则会一直
+     打没人听的端口（表现为"列表显示在线但界面不刷新"）；`PluginHostManager.ensure`
+     比较 `baseUrl` 决定是否重建。
+   · `hosts` 用 `ConcurrentHashMap`：`ensure` 可能来自 HTTP 工作线程（离线唤醒），
+     `destroy` 来自主线程。
+7. **互联通道没有自定义请求头**：手表经 XMS Wearable 转发过来的请求是 UDP 报文，
    只有 method / path / body，`X-Hydro-Store` 传不进来。所以 `HttpServer.
    handleInternalRequest` 也要把 `/api/hydro` 插件路由交给 `HydroKit.handle()`
    （否则互联通道下插件页面直接 404），存储快照则按「请求头 → `store` 查询参数
