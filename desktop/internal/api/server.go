@@ -25,9 +25,12 @@ import (
 const (
 	// APILevel mirrors the Android server's API_LEVEL.
 	APILevel = 6
-	// Version mirrors the Android server's VERSION.
-	Version = "1.0.0"
 )
+
+// Version 是产品版本号。默认值与 desktop/VERSION 保持一致，打包/发布脚本用
+// `-ldflags "-X hydrolink-desktop/internal/api.Version=<版本>"` 注入，保证
+// 二进制里报告的版本与包版本永远一致。
+var Version = "1.0.0"
 
 // LogEntry mirrors Android's LogEntry.
 type LogEntry struct {

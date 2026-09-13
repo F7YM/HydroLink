@@ -68,8 +68,14 @@ func assetAPIProxy(srv *api.Server) http.Handler {
 
 func main() {
 	noGUI := flag.Bool("no-gui", false, "run headless (HTTP server only)")
+	showVersion := flag.Bool("version", false, "print version and exit")
 	port := flag.Int("port", 0, "listen port override")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("HydroLink %s (api_level %d)\n", api.Version, api.APILevel)
+		return
+	}
 
 	// Window / taskbar icon (GTK on Linux; Windows uses the embedded .syso) —
 	// the same PNG feeds the system tray pixmap.

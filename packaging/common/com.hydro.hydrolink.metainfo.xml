@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.hydro.hydrolink</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Apache-2.0</project_license>
+  <name>HydroLink</name>
+  <summary>Watch companion server and plugin platform</summary>
+  <summary xml:lang="zh_CN">手表互联服务端与插件平台</summary>
+  <description>
+    <p>
+      HydroLink is the desktop side of a watch + desktop setup: it serves the HTTP API the
+      watch app talks to (pairing, device status, music, commands, plugins) and hosts the
+      HydroKit plugin platform, so installed plugins can render their own interfaces on the
+      watch and expose a settings UI on the desktop.
+    </p>
+    <p xml:lang="zh_CN">
+      HydroLink 是「手表 + 桌面」方案中的桌面端：为手表 App 提供 HTTP 接口（配对、设备状态、
+      音乐、命令、插件），并承载 HydroKit 插件平台 —— 插件可在手表上渲染自己的界面，
+      同时在桌面端提供设置界面。
+    </p>
+  </description>
+  <launchable type="desktop-id">hydrolink.desktop</launchable>
+  <developer id="com.hydro">
+    <name>HydroLink</name>
+  </developer>
+  <provides>
+    <binary>hydrolink</binary>
+  </provides>
+  <requires>
+    <display_length compare="ge">560</display_length>
+  </requires>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="1.0.0" date="2026-09-13"/>
+  </releases>
+</component>

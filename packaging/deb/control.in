@@ -1,0 +1,16 @@
+Package: @PKG@
+Version: @VERSION@
+Section: net
+Priority: optional
+Architecture: @ARCH@
+Depends: @DEPENDS@
+Installed-Size: @SIZE@
+Maintainer: @MAINTAINER@
+Description: Watch companion server and HydroKit plugin platform
+ HydroLink is the desktop side of a watch + desktop setup. It serves the HTTP API
+ the watch app talks to (pairing, device status, music, commands, plugins) and
+ hosts the HydroKit plugin platform, so installed plugins can render their own
+ interfaces on the watch and expose a settings UI on the desktop.
+ .
+ 手表互联服务端：为手表 App 提供配对/状态/音乐/命令/插件接口，并承载 HydroKit
+ 插件平台（插件可在手表上渲染界面、在桌面端提供设置界面）。

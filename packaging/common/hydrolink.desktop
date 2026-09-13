@@ -1,0 +1,17 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=HydroLink
+Name[zh_CN]=HydroLink
+GenericName=Watch companion server
+GenericName[zh_CN]=手表互联服务端
+Comment=Desktop server linking the HydroLink watch app and the HydroKit plugin platform
+Comment[zh_CN]=连接手表端与 HydroKit 插件平台的桌面服务端
+Exec=hydrolink
+Icon=hydrolink
+Terminal=false
+Categories=Utility;
+Keywords=watch;companion;server;plugin;
+Keywords[zh_CN]=手表;互联;服务端;插件;
+StartupNotify=true
+StartupWMClass=HydroLink
