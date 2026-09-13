@@ -64,19 +64,19 @@ func step(name string) {
 	switch name {
 	case "music":
 		start := time.Now()
-		info, errText := system.MusicSelfTest()
+		info, err := system.MusicSelfTest()
 		b, _ := json.Marshal(info)
-		if errText != "" {
-			fmt.Printf("[music] 失败(%s): %s\n", time.Since(start).Round(time.Millisecond), errText)
+		if err != nil {
+			fmt.Printf("[music] 失败(%s): %v\n", time.Since(start).Round(time.Millisecond), err)
 			return
 		}
 		fmt.Printf("[music] ok(%s): %s\n", time.Since(start).Round(time.Millisecond), b)
 
 	case "cover":
 		start := time.Now()
-		url, errText := system.CoverArtSelfTest()
-		if errText != "" {
-			fmt.Printf("[cover] 失败(%s): %s\n", time.Since(start).Round(time.Millisecond), errText)
+		url, err := system.CoverArtSelfTest()
+		if err != nil {
+			fmt.Printf("[cover] 失败(%s): %v\n", time.Since(start).Round(time.Millisecond), err)
 			return
 		}
 		fmt.Printf("[cover] ok(%s): %s\n", time.Since(start).Round(time.Millisecond), url)
@@ -110,16 +110,16 @@ func step(name string) {
 		for i := 1; i <= times; i++ {
 			fmt.Printf("[loop] 第 %d/%d 次: music…\n", i, times)
 			log.Printf("selftest: [loop] 第 %d/%d 次 music", i, times)
-			if info, errText := system.MusicSelfTest(); errText != "" {
-				fmt.Printf("[loop] 第 %d 次 music 失败: %s\n", i, errText)
+			if info, err := system.MusicSelfTest(); err != nil {
+				fmt.Printf("[loop] 第 %d 次 music 失败: %v\n", i, err)
 			} else {
 				b, _ := json.Marshal(info)
 				fmt.Printf("[loop] 第 %d 次 music ok: %s\n", i, b)
 			}
 			fmt.Printf("[loop] 第 %d/%d 次: cover…\n", i, times)
 			log.Printf("selftest: [loop] 第 %d/%d 次 cover", i, times)
-			if url, errText := system.CoverArtSelfTest(); errText != "" {
-				fmt.Printf("[loop] 第 %d 次 cover 失败: %s\n", i, errText)
+			if url, err := system.CoverArtSelfTest(); err != nil {
+				fmt.Printf("[loop] 第 %d 次 cover 失败: %v\n", i, err)
 			} else {
 				fmt.Printf("[loop] 第 %d 次 cover ok: %s\n", i, url)
 			}

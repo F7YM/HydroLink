@@ -26,3 +26,14 @@ func TestMenuEntries(t *testing.T) {
 		t.Error("默认标题/提示不应为空")
 	}
 }
+
+// 托盘回调 panic 不能连累进程（回调里跑的是 Wails 窗口操作）。
+func TestSafeCallRecovers(t *testing.T) {
+	done := make(chan struct{})
+	safeCall("panic-test", func() {
+		defer close(done)
+		panic("boom")
+	})
+	<-done // 进程还活着就说明 recover 生效
+	safeCall("nil-test", nil)
+}

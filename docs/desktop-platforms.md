@@ -83,6 +83,20 @@ HydroLink-amd64.exe -no-notify         rem 不发系统通知（beeep→go-toast
 HydroLink-amd64.exe -no-cover -no-notify
 ```
 
+真机已知问题与对应修法（Windows，2026-09-13 实测）：
+
+- **通知完全发不出去**：`beeep` → `go-toast` 的 `pushCOM` 调 `ole.RoInitialize(MTA)`
+  时线程已被设成 STA → `RPC_E_CHANGED_MODE`；它的失败回退还会起**带控制台窗口**的
+  PowerShell（闪黑窗来源之一）。修法：Windows 改用 PowerShell 的 WinRT 投影弹 toast
+  （不碰进程内 COM、子进程窗口隐藏），Linux/macOS 继续用 beeep。
+- **取封面超时**：在 STA 线程上发起 WinRT 异步操作时，完成回调要投递到该 STA 的
+  消息队列，而 Go 不泵消息 → `IAsyncInfo::GetStatus` 永远不是 Completed。
+  修法：所有 WinRT 调用固定在一个**常驻专属 MTA 线程**上串行执行
+  （`internal/system/winrt_thread_windows.go`）。
+- **回调 panic 会杀进程**：非 HTTP handler 的 goroutine 里 panic 不受 net/http
+  保护，而 GUI 子系统没有控制台，堆栈写进没人看的 stderr → "窗口和托盘一起消失"。
+  修法：托盘回调（`safeCall`）与 Wails 事件回调（`App.safeGo`）加 recover + 记堆栈。
+
 日志里已有的面包屑（崩溃时最后一条就是崩溃点）：
 
 - `music: 当前曲目 "X" — "Y"（播放中=…，封面读取=…）`（切歌时一条）

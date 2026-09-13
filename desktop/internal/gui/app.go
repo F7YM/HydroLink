@@ -198,7 +198,9 @@ func (a *App) Startup(ctx context.Context) {
 	if b := a.srv.WorkerBridge(); b != nil {
 		b.SetOnNeedWake(func(pkg string) {
 			a.srv.AddLog("hydrokit: 唤醒插件 worker: "+pkg, "info")
-			runtime.EventsEmit(ctx, "plugins:wake", pkg)
+			// EventsEmit 是 Wails 内部调用：非 handler goroutine 里 panic 会
+			// 直接杀掉进程，所以包一层（见 safeGo）。
+			a.safeGo("plugins:wake", func() { runtime.EventsEmit(ctx, "plugins:wake", pkg) })
 		})
 	}
 	// System tray (settings toggle; failure is non-fatal and reported in 设置).
@@ -220,9 +222,11 @@ func (a *App) onPairRequest(deviceID, deviceName string) {
 	}
 	// Push to the frontend so it can raise a modal immediately.
 	if a.ctx != nil {
-		runtime.EventsEmit(a.ctx, "pair:request", map[string]string{
-			"deviceId":   deviceID,
-			"deviceName": deviceName,
+		a.safeGo("pair:request", func() {
+			runtime.EventsEmit(a.ctx, "pair:request", map[string]string{
+				"deviceId":   deviceID,
+				"deviceName": deviceName,
+			})
 		})
 	}
 }

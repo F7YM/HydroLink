@@ -58,6 +58,11 @@ func MusicDiagnostics() string {
 type smtcBackend struct{}
 
 func (s *smtcBackend) read() (MusicInfo, error) {
+	// 整体排到专属 MTA 线程（见 winrt_thread_windows.go）。
+	return runWinRT(func() (MusicInfo, error) { return s.readOnWinRTThread() })
+}
+
+func (s *smtcBackend) readOnWinRTThread() (MusicInfo, error) {
 	sess, err := currentSession()
 	if err != nil {
 		logf("music: 获取 SMTC 会话失败: %v", err)
@@ -100,39 +105,43 @@ func (s *smtcBackend) read() (MusicInfo, error) {
 	return info, nil
 }
 
-// MusicSelfTest 直接查一次（不走缓存）并返回结果与错误文本，供 -selftest 使用。
-func MusicSelfTest() (MusicInfo, string) {
-	info, err := (&smtcBackend{}).read()
-	if err != nil {
-		return MusicInfo{}, err.Error()
-	}
-	return info, ""
+// MusicSelfTest 直接查一次（不走缓存），供 -selftest 使用。
+func MusicSelfTest() (MusicInfo, error) {
+	return (&smtcBackend{}).read()
 }
 
 // CoverArtSelfTest 只走封面读取链路，供 -selftest 使用。
-func CoverArtSelfTest() (string, string) {
+func CoverArtSelfTest() (string, error) {
+	return runWinRT(coverArtSelfTestOnWinRTThread)
+}
+
+func coverArtSelfTestOnWinRTThread() (string, error) {
 	sess, err := currentSession()
 	if err != nil {
-		return "", "获取会话失败: " + err.Error()
+		return "", fmt.Errorf("获取会话失败: %w", err)
 	}
 	if sess == nil {
-		return "", "当前没有媒体会话（先随便放首歌再试）"
+		return "", fmt.Errorf("当前没有媒体会话（先放首歌再试）")
 	}
 	props, err := mediaProperties(sess)
 	if err != nil {
-		return "", "读取媒体属性失败: " + err.Error()
+		return "", fmt.Errorf("读取媒体属性失败: %w", err)
 	}
 	url, err := coverArtURL(props)
 	if err != nil {
-		return "", err.Error()
+		return "", err
 	}
-	return url, ""
+	return url, nil
 }
 
 // lastTrackKey 用于把面包屑限制在"切歌"频率，避免每 2 秒刷一行。
 var lastTrackKey string
 
 func (s *smtcBackend) control(action string) (bool, error) {
+	return runWinRT(func() (bool, error) { return s.controlOnWinRTThread(action) })
+}
+
+func (s *smtcBackend) controlOnWinRTThread(action string) (bool, error) {
 	sess, err := currentSession()
 	if err != nil {
 		return false, err
@@ -168,16 +177,14 @@ func (s *smtcBackend) control(action string) (bool, error) {
 
 // roInitialize 做每线程的 MTA 初始化。Go 的 goroutine 会在线程间迁移，
 // 所以每次进入 WinRT 前都调用（已初始化时返回 S_FALSE，开销极小）。
+// roInitialize 只作为兜底：正常路径上专属线程已经初始化过（再调会返回 S_FALSE）。
 func roInitialize() error {
 	err := ole.RoInitialize(roInitMultithreaded)
 	if err == nil {
 		return nil
 	}
-	if oleErr, ok := err.(*ole.OleError); ok {
-		switch uint32(oleErr.Code()) {
-		case hrSFalse, hrRPCChangedMode:
-			return nil
-		}
+	if oleErr, ok := err.(*ole.OleError); ok && uint32(oleErr.Code()) == hrSFalse {
+		return nil // 已经初始化（S_FALSE）
 	}
 	return fmt.Errorf("RoInitialize 失败: %v", err)
 }

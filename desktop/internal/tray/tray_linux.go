@@ -383,11 +383,11 @@ func (m *dbusMenu) Event(id int32, eventID string, data dbus.Variant, timestamp 
 	switch id {
 	case MenuIDShow:
 		if m.t.opts.OnActivate != nil {
-			go m.t.opts.OnActivate()
+			go safeCall("OnActivate", m.t.opts.OnActivate)
 		}
 	case MenuIDQuit:
 		if m.t.opts.OnQuit != nil {
-			go m.t.opts.OnQuit()
+			go safeCall("OnQuit", m.t.opts.OnQuit)
 		}
 	}
 	return nil

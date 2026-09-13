@@ -392,7 +392,7 @@ func (t *Tray) handleMessage(hwnd, msg, wparam, lparam uintptr) (bool, uintptr) 
 		case wmLButtonUp:
 			t.logf("tray: 左键点击")
 			if t.opts.OnActivate != nil {
-				go t.opts.OnActivate()
+				go safeCall("OnActivate", t.opts.OnActivate)
 			}
 		case wmRButtonUp, wmContextMenu:
 			t.showMenu()
@@ -469,12 +469,12 @@ func (t *Tray) showMenu() {
 	case MenuIDShow:
 		t.logf("tray: 菜单 显示主窗口")
 		if t.opts.OnActivate != nil {
-			go t.opts.OnActivate()
+			go safeCall("OnActivate", t.opts.OnActivate)
 		}
 	case MenuIDQuit:
 		t.logf("tray: 菜单 退出")
 		if t.opts.OnQuit != nil {
-			go t.opts.OnQuit()
+			go safeCall("OnQuit", t.opts.OnQuit)
 		}
 	}
 }

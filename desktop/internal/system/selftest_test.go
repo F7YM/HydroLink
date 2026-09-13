@@ -32,11 +32,10 @@ func TestCoverArtAndNotifySwitches(t *testing.T) {
 
 // 自检入口在非 Windows 上也要能用（Linux 上验证过）。
 func TestMusicSelfTestIsSafe(t *testing.T) {
-	info, errText := MusicSelfTest()
+	info, err := MusicSelfTest()
 	_ = info
-	_ = errText // 没有媒体/没有 playerctl 时返回错误文本，但不能 panic
-	if _, errs := CoverArtSelfTest(); errs == "" && info.ArtURL == "" {
-		// 两者一致：要么都有，要么都没有
+	_ = err // 没有媒体/没有 playerctl 时会返回错误，但不能 panic
+	if _, cerr := CoverArtSelfTest(); cerr == nil && info.ArtURL == "" {
 		t.Log("no cover available (expected on a silent machine)")
 	}
 }
