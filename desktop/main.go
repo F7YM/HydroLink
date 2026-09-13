@@ -79,6 +79,9 @@ func main() {
 	if *noGUI {
 		addr := fmt.Sprintf("0.0.0.0:%d", listenPort)
 		if err := srv.Start(addr); err != nil {
+			if api.AnotherInstanceRunning(listenPort) {
+				log.Fatalf("已有 HydroLink 实例在运行（端口 %d），本次启动退出", listenPort)
+			}
 			log.Fatalf("%v", api.BindError(listenPort, err))
 		}
 		log.Printf("listening on %s", addr)

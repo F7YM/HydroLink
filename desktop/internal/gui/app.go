@@ -5,6 +5,7 @@ package gui
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/gen2brain/beeep"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -156,14 +157,25 @@ func (a *App) Startup(ctx context.Context) {
 	// by a foreign program). Retry once and surface a real dialog if it fails.
 	if !a.srv.Started() {
 		if err := a.StartServer(); err != nil {
-			a.srv.AddLog("启动失败: "+err.Error(), "warning")
-			_, _ = runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
-				Type:    runtime.ErrorDialog,
-				Title:   "HydroLink 无法启动",
-				Message: err.Error(),
-			})
-			runtime.Quit(ctx)
-			return
+			// 端口被占先分清"自己人"还是"别人"：
+			if api.AnotherInstanceRunning(a.port) {
+				// 第二次启动（通常双击了两次）。单实例锁会把请求转给在跑的
+				// 实例，这里安静退出即可。注意 runtime.Quit 在 GTK 主循环起来
+				// 之前是空操作（只会打 gtk_main_quit 断言），所以直接退出进程。
+				a.srv.AddLog("已有实例在运行，本次启动退出", "info")
+				os.Exit(0)
+			}
+			// 被别的程序占用：不要退出，也不要让窗口显示成一个"看似正常但
+			// 服务没起来"的状态——记日志 + 尽力弹窗，窗口留着，用户可以在
+			// 设置里改端口（SaveSettings 会重新绑定）。
+			a.srv.AddLog("启动失败: "+err.Error()+"（可在设置里更换端口）", "warning")
+			go func() {
+				_, _ = runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
+					Type:    runtime.ErrorDialog,
+					Title:   "HydroLink 服务未能启动",
+					Message: err.Error() + "\n\n可在「设置」里换一个端口后保存。",
+				})
+			}()
 		}
 	}
 	a.srv.AddLog("桌面端已启动", "success")

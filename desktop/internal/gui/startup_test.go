@@ -95,3 +95,48 @@ func TestCloseDecision(t *testing.T) {
 		}
 	}
 }
+
+// 端口被别的程序占用时，不应退出：窗口留着，用户改端口即可恢复。
+func TestSaveSettingsRecoversFromPortConflict(t *testing.T) {
+	srv, st, err := app.NewServer()
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	defer srv.Stop()
+
+	ln, err := net.Listen("tcp", "0.0.0.0:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	occupied := ln.Addr().(*net.TCPAddr).Port
+	defer ln.Close()
+
+	a := NewApp(srv, st, occupied, nil)
+	if err := a.StartServer(); err == nil {
+		t.Fatal("占用的端口不应绑定成功")
+	}
+	if srv.Started() {
+		t.Fatal("失败后服务不应处于运行状态")
+	}
+
+	free := freeTCPPort(t)
+	if err := a.SaveSettings(free, false, false); err != nil {
+		t.Fatalf("换成空闲端口后应当保存成功: %v", err)
+	}
+	if !srv.Started() {
+		t.Fatal("SaveSettings 之后服务应当已在新端口上运行")
+	}
+	if a.port != free {
+		t.Fatalf("端口未更新: %d != %d", a.port, free)
+	}
+}
+
+func freeTCPPort(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "0.0.0.0:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+	return ln.Addr().(*net.TCPAddr).Port
+}
