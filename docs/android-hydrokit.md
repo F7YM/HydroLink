@@ -27,7 +27,7 @@
 | M3 | HTTP 路由 | `HydroKitRoutes.kt`：`/api/hydro/list`、`/api/hydro/{pkg}/{surface}/{item}/{view,refresh,event}`（含存储快照、`?shape&width&height&dpr&dt`、204/400/404/405 语义）、`/api/hydro/webui/...` 静态资源；已接进 NanoHTTPD 的 `serve()` **与互联通道 `handleInternalRequest()`** | ✅ 完成 |
 | M4 | Worker 通道 | `WorkerBridge.kt`（长轮询/respond/超时/worker 离线快速失败+唤醒）+ `WorkerPlugin`（Runtime.Plugin ↔ worker）+ `WorkerRoutes`；kit 能力端点（store/context/system/notify/music/lock/commands/asset）留到 M6 | ✅ 完成 |
 | M5 | JS/WASM 宿主 | `assets/hydrokit/{worker.html,worker.js}`（移植桌面胶水，JS + WASM ABI v1）+ `PluginHostManager`（每插件一个隐藏 WebView）+ 同源宿主页路由 `HostPageRoutes` | ✅ 完成 |
-| M6 | 权限门控 + kit 能力 | `KitRoutes`（store/context/system/notify/music/lock/commands/asset，全部按 manifest 权限门控）+ `AndroidKitCapabilities`（接到通知/音乐/锁屏/命令/系统信息） | ✅ 完成 |
+| M6 | 权限门控 + kit 能力 | `KitRoutes`（store/context/system/notify/music/lock/commands/asset，全部按 manifest 权限门控）+ `AndroidKitCapabilities`（接到通知/音乐/锁屏/命令/系统信息）+ 封面 `GET /api/music/art` 与 ABI 上下文的 `artUrl`/`artBlur`（`MusicArt.kt`：纯像素处理 + 路由，均有单测） | ✅ 完成 |
 | M7 | 插件 WebUI | `PluginWebUiActivity`：WebView 打开 `http://127.0.0.1:<port>/api/hydro/webui/<pkg>/index.html`（**同源**，页面直接调 kit），插件作者无需为安卓写第二套页面 | ✅ 完成 |
 | M8 | 安卓 UI 接入 | `PluginsActivity`（列表 + 从 SAF 选 `.hpk` 安装 + 卸载二次确认 + 打开界面 + worker 在线状态）、设置页入口、服务启动即 `startHosts()`、worker console 并入应用日志 | ✅ 完成 |
 | M9 | 文档与回归 | 更新 hydroplugin.md 的平台差异说明（已写：§9.1 差异表 + 三条存储快照通道）；跨端同一 `.hpk` 的安装/调用回归（已写：真产物 e2e + 真包解析）；剩余：**真机验证清单** | 🔶 部分完成 |
@@ -81,7 +81,14 @@ GRADLE_USER_HOME=/home/float/.gradle \
      比较 `baseUrl` 决定是否重建。
    · `hosts` 用 `ConcurrentHashMap`：`ensure` 可能来自 HTTP 工作线程（离线唤醒），
      `destroy` 来自主线程。
-7. **互联通道没有自定义请求头**：手表经 XMS Wearable 转发过来的请求是 UDP 报文，
+7. **封面几何必须和桌面逐像素对齐**：桌面用 `imaging.Fit`（**截断**取整），
+   安卓一开始用四舍五入，同一个 1200×900 封面在两端出来是 466×350 / 466×349。
+   两端现在各有一条测试钉住 `466x349`（`MusicArtProcessorTest.watchBackgroundRecipeMatchesDesktopQuery`
+   与 `TestProcessArtFitGeometry`），改一边不改另一边就会红。
+   `dim` 同样对齐桌面的截断语义（Go 的 `uint8(float64(v)*dim)`）。
+8. **`/api/music/art` 故意不做设备信任校验**：手表渲染背景图是渲染器直接取 URL，
+   带不了 `X-Device-Id`；桌面端一直如此。安卓端保持一致的公开行为。
+9. **互联通道没有自定义请求头**：手表经 XMS Wearable 转发过来的请求是 UDP 报文，
    只有 method / path / body，`X-Hydro-Store` 传不进来。所以 `HttpServer.
    handleInternalRequest` 也要把 `/api/hydro` 插件路由交给 `HydroKit.handle()`
    （否则互联通道下插件页面直接 404），存储快照则按「请求头 → `store` 查询参数
@@ -100,6 +107,7 @@ hydrokit/
 ├── KitRoutes.kt                   kit 能力端点 + 权限门控（无 Android 依赖）
 ├── HostPageRoutes.kt              宿主页同源提供（无 Android 依赖）
 ├── HydroInterconnect.kt           互联通道报文的路径/query 解析（无 Android 依赖）
+├── …                              （MusicArt.kt 在 server/ 下：封面像素处理 + /api/music/art 路由）
 ├── HydroKit.kt                    门面（Android Context：filesDir）
 ├── AndroidKitCapabilities.kt      能力落到通知/音乐/锁屏/命令/系统信息
 └── PluginHostManager.kt           每插件一个隐藏 WebView 宿主
@@ -136,6 +144,8 @@ assets/hydrokit/{worker.html,worker.js}   与桌面同协议的宿主胶水
     设置改动仍在（v0.4.1 修的就是这条：互联通道此前 `/api/hydro` 直接 404、
     存储快照也传不进来）
   · 状态页「通知权限」卡片显示已授权（否则插件 `notify` 返回 error，通知看不到）
+  · 手机放歌 → 手表桌搭出**封面背景**（deskbuddy 用 `music.artBlur`；需要通知使用权，
+    否则 `hasAlbumArt()` 为假，上下文里 `artUrl`/`artBlur` 是空串、插件自己退回纯色背景）
   · 卸载 → 手表启动器里对应条目消失、插件存储仍在（重装后设置还在）
 - 每完成一个里程碑：跑 `:app:testDebugUnitTest` + `:app:assembleDebug`，
   提交一次，并更新本文件的里程碑状态。

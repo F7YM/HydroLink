@@ -65,6 +65,62 @@ class MusicController(private val context: Context) {
     }
 
     /**
+     * 当前封面的位图（没有则 null）。
+     *
+     * 来源与桌面不同但语义相同：安卓的封面在 MediaSession 的 metadata 里
+     * （METADATA_KEY_ALBUM_ART / ART），通知使用权给了我们读取它的权限；
+     * 少数播放器只给 URI（ALBUM_ART_URI / ART_URI），那就解一次。
+     *
+     * 结果按「歌曲 + 歌手」缓存：`/api/music/art` 会被手表反复请求（背景图），
+     * 每次都去解 URI 是浪费。
+     */
+    fun albumArt(): AlbumArt? {
+        val info = getActiveMediaInfo() ?: run {
+            artCache = null
+            return null
+        }
+        val key = "${info.title}|${info.artist}"
+        artCache?.let { if (it.first == key) return it.second }
+
+        val art = loadAlbumArt()
+        artCache = key to art
+        return art
+    }
+
+    /** 有没有可用封面——ABI 上下文据此决定要不要给插件 artUrl/artBlur。 */
+    fun hasAlbumArt(): Boolean = albumArt() != null
+
+    private fun loadAlbumArt(): AlbumArt? {
+        val controller = findBestController(getActiveControllers() ?: return null) ?: return null
+        val metadata = controller.metadata ?: return null
+        for (k in ART_KEYS) {
+            val bmp = metadata.getBitmap(k)
+            if (bmp != null && bmp.width > 0 && bmp.height > 0) return AlbumArt(bmp, "$k")
+        }
+        for (k in ART_URI_KEYS) {
+            val uriStr = metadata.getString(k) ?: continue
+            val bmp = decodeUri(uriStr) ?: continue
+            return AlbumArt(bmp, uriStr)
+        }
+        return null
+    }
+
+    private fun decodeUri(uriStr: String): android.graphics.Bitmap? = try {
+        val uri = android.net.Uri.parse(uriStr)
+        when (uri.scheme?.lowercase()) {
+            "content", "android.resource" ->
+                android.provider.MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+            "file" -> android.graphics.BitmapFactory.decodeFile(uri.path)
+            else -> null
+        }
+    } catch (e: Exception) {
+        null
+    }
+
+    /** 一张封面：位图 + 来源描述（用于缓存/日志）。 */
+    data class AlbumArt(val bitmap: android.graphics.Bitmap, val source: String)
+
+    /**
      * Send a media control action.
      * Tries transport controls (from cached controller or getActiveSessions),
      * falls back to AudioManager key events.
@@ -153,4 +209,25 @@ class MusicController(private val context: Context) {
         val playing: Boolean,
         val hasMedia: Boolean
     )
+
+    companion object {
+        private const val TAG = "MusicController"
+
+        /** metadata 里直接给位图的键（优先）。 */
+        private val ART_KEYS = listOf(
+            MediaMetadata.METADATA_KEY_ALBUM_ART,
+            MediaMetadata.METADATA_KEY_ART,
+            MediaMetadata.METADATA_KEY_DISPLAY_ICON,
+        )
+
+        /** 只给 URI 的键（少数播放器）。 */
+        private val ART_URI_KEYS = listOf(
+            MediaMetadata.METADATA_KEY_ALBUM_ART_URI,
+            MediaMetadata.METADATA_KEY_ART_URI,
+        )
+    }
+
+    /** 封面缓存：歌曲变化才重新取（`null` 表示这首没有封面）。 */
+    @Volatile
+    private var artCache: Pair<String, AlbumArt?>? = null
 }

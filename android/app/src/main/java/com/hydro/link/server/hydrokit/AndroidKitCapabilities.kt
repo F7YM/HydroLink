@@ -62,18 +62,25 @@ class AndroidKitCapabilities(
         return try {
             val info = music.getActiveMediaInfo()
             if (info == null) {
-                mapOf<String, Any?>("hasMedia" to false, "title" to "", "artist" to "", "playing" to false, "artUrl" to "")
+                mapOf<String, Any?>("hasMedia" to false, "title" to "", "artist" to "", "playing" to false, "artUrl" to "", "artBlur" to "")
             } else {
+                // 与桌面 ABI 上下文同构：artUrl = 原图、artBlur = 手表桌搭背景用的
+                // 模糊+压暗版本（示例插件 deskbuddy 拿它当手表背景）。
+                // 桌面无论有没有封面都给地址；安卓这边能便宜地判断有没有封面，
+                // 没有就给空串，插件就不会去请求一个必然 404 的地址。
+                val base = serverBase()
+                val hasArt = music.hasAlbumArt()
                 mapOf<String, Any?>(
                     "hasMedia" to true,
                     "title" to info.title,
                     "artist" to info.artist,
                     "playing" to info.playing,
-                    "artUrl" to "",
+                    "artUrl" to if (hasArt) "$base/api/music/art" else "",
+                    "artBlur" to if (hasArt) "$base/api/music/art?size=466&blur=26&dim=0.3" else "",
                 )
             }
         } catch (e: Exception) {
-            mapOf<String, Any?>("hasMedia" to false, "title" to "", "artist" to "", "playing" to false, "artUrl" to "")
+            mapOf<String, Any?>("hasMedia" to false, "title" to "", "artist" to "", "playing" to false, "artUrl" to "", "artBlur" to "")
         }
     }
 

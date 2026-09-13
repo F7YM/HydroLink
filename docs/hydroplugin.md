@@ -234,7 +234,7 @@ await kit.storage.clear({ scope: 'server' })
 | 权限 | kit API | 桌面端行为 | 安卓端行为（后续） |
 |---|---|---|---|
 | `notify` | `kit.notify({title, text})` | 系统通知（beeep） | 系统通知 |
-| `music` | `kit.music.action('next'\|'prev'\|'play-pause'...)` | 控制本机媒体 | 控制手机媒体 |
+| `music` | `kit.music.action('next'\|'prev'\|'play-pause'...)` + 封面 `artUrl`/`artBlur` | 控制本机媒体；封面走 `GET /api/music/art` | 控制手机媒体；封面同样走 `/api/music/art`（来源是 MediaSession 的 metadata，需通知使用权） |
 | `lock` | `kit.lock()` | 锁屏 | 锁屏 |
 | `commands` | `kit.commands.list()` / `kit.commands.run(id)` | 本机自定义命令 | 后续 |
 | `fetch` | 直接使用标准 `fetch()` | 允许网络请求（外网与本机，受 CORS 常规约束） | 同 |
@@ -352,6 +352,18 @@ env.hydro_log(ptr, len)               # 可选，调试输出（进桌面端日�
 worker poll/respond 报文、`View`/`Node` 字段、权限名）。跨端契约由测试钉住：
 `android/app/src/test/java/.../ProtocolContractTest.kt` 逐条断言手表容器真正读取的字段。
 
+封面（`music.artUrl` / `music.artBlur`）两端同一契约：
+
+| 请求 | 语义 |
+|---|---|
+| `GET /api/music/art` | 原图（桌面回源文件字节；安卓回通知里那张位图，无损 PNG） |
+| `?size=466&blur=26&dim=0.3` | 等比缩进 466（只缩不放，取整方式两端一致）、模糊、压暗到 30% —— 示例插件 deskbuddy 拿它当手表背景 |
+| `?w=466&h=466` | cover 裁剪到指定尺寸（避免客户端出现黑边） |
+
+没有封面时返回 404 JSON，**该端点不做设备信任校验**：手表渲染背景图时会直接取
+URL，带不了 `X-Device-Id` 头（桌面端一直如此，安卓端保持一致）。几何取整两端钉在
+同一组数字上（`466x349`），任一端改了另一边没跟就会各挂一条测试。
+
 存储快照（§6 请求上下文语义）的传输有**三条通道**，两端服务端都按同一优先级读取，
 因为手表并不总能带自定义请求头：
 
@@ -397,6 +409,10 @@ curl -X POST 'http://127.0.0.1:9000/api/hydro/com.demo.weather/app/main/view?sha
 
 ## 版本记录
 
+- v0.4.2（2026-09-13）：**封面能力补齐到安卓端**（§7/§9.1）——`GET /api/music/art`
+  与 ABI 上下文里的 `music.artUrl` / `music.artBlur` 在安卓端落地（此前 `artUrl`
+  恒为空串、也没有封面端点，示例插件 deskbuddy 在手表上的背景图因此出不来）；
+  几何取整与桌面 `imaging.Fit` 对齐（`466x349`，两端各有测试钉住）。
 - v0.4.1（2026-09-13）：**存储快照三条传输通道**（§9.1）——手表经互联通道（XMS Wearable）
   发来的 hydro 请求带不了自定义请求头，两端服务端改为按 `X-Hydro-Store` 头 → `store`
   查询参数 → 请求体 `store` 字段的顺序读取；安卓端 `HttpServer.handleInternalRequest`

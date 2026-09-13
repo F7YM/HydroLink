@@ -97,6 +97,24 @@ func TestProcessArtCropsToScreenSize(t *testing.T) {
 	}
 }
 
+// TestProcessArtFitGeometry pins the exact output geometry of the
+// size=...&blur=...&dim=... recipe that plugins get as `music.artBlur`
+// (466x466 watch background). The Android port
+// (MusicArtProcessorTest.watchBackgroundRecipeMatchesDesktopQuery) asserts the
+// same numbers, so a change on one side that the other does not follow fails
+// here first: imaging.Fit truncates (349.5 -> 349), it does not round.
+func TestProcessArtFitGeometry(t *testing.T) {
+	out := processArt(synthImage(1200, 900), 26, 0.3, 466, 0, 0)
+	if out.Bounds().Dx() != 466 || out.Bounds().Dy() != 349 {
+		t.Fatalf("fit size = %v, want 466x349", out.Bounds())
+	}
+	// 只缩不放：比 size 小的图保持原样
+	small := processArt(synthImage(100, 80), 0, 0, 466, 0, 0)
+	if small.Bounds().Dx() != 100 || small.Bounds().Dy() != 80 {
+		t.Fatalf("small image upscaled: %v", small.Bounds())
+	}
+}
+
 func TestMusicArtEndpointWithoutMedia(t *testing.T) {
 	st := store.NewIn(t.TempDir())
 	srv := New(st)

@@ -1,10 +1,10 @@
 # HydroLink
 
-手表（Vela）+ 桌面（Linux/Windows/macOS）互联系统：桌面端提供 HTTP 服务端，
-手表 App 通过它与桌面通讯；同时承载 **HydroKit** 插件平台。
+手表（Vela）+ 手机（安卓）+ 桌面（Linux/Windows/macOS）互联系统：各端提供 HTTP
+服务端，手表 App 通过它与手机/桌面通讯；同时承载 **HydroKit** 插件平台。
 
-- **HydroLink** = 产品（手表 + 桌面互联）
-- **HydroKit** = 插件平台（运行时 + SDK + HTTP 路由）
+- **HydroLink** = 产品（手表 + 手机 + 桌面互联 + 插件平台）
+- **HydroKit** = 插件平台（运行时 + SDK + HTTP 路由；桌面与安卓各有一份同协议实现）
 - **HydroPlugin** = 可分发的插件包（`.hpk`，本质是 zip）
 
 ## 目录
@@ -12,9 +12,9 @@
 | 路径 | 内容 |
 |---|---|
 | `desktop/` | 桌面端（Go + Wails v2）：HTTP 服务端 + 图形界面 + 插件运行时 |
-| `vela/` | 手表端（Vela 快应用） |
-| `android/` | 安卓端（后续里程碑） |
-| `docs/` | 文档：插件规范 `hydroplugin.md`、平台支持 `desktop-platforms.md` |
+| `vela/` | 手表端（Vela 快应用）：HydroApps 启动器 + 插件容器 + 桌搭组件 |
+| `android/` | 安卓端（Kotlin）：HTTP 服务端 + 互联通道（XMS Wearable）+ 完整 HydroKit |
+| `docs/` | 文档：插件规范 `hydroplugin.md`、平台支持 `desktop-platforms.md`、安卓移植 `android-hydrokit.md` |
 | `packaging/` | 打包：Linux 的 deb/rpm、Windows 的安装程序（Inno Setup） |
 
 ## 构建
@@ -43,3 +43,16 @@ Windows 安装程序（Inno Setup）见 `packaging/windows/README.md`。
 ## 许可证
 
 Apache-2.0，见 [LICENSE](LICENSE)。
+
+## 安卓端
+
+安卓端是手机侧的 HydroLink：HTTP 服务端（默认 9000）+ 互联通道（XMS Wearable，
+手表不方便走 WiFi 时用）+ **完整 HydroKit**（与桌面同一套 `.hpk` 与协议）。
+
+```bash
+cd android
+./gradlew :app:assembleDebug        # 产物 app/build/outputs/apk/debug/app-debug.apk
+./gradlew :app:testDebugUnitTest    # 116 个 JVM 单测（含真产物 e2e）
+```
+
+架构、里程碑与真机验证清单见 `docs/android-hydrokit.md`。

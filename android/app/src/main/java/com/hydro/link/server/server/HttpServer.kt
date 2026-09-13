@@ -57,6 +57,45 @@ class HydroHttpServer(
         )
     }
 
+    /**
+     * 封面图路由（`/api/music/art`）：像素处理在 [MusicArtProcessor]（纯函数、有单测），
+     * 这里只负责 Bitmap ↔ ARGB 缓冲的转换与编解码。
+     */
+    private val musicArtRoute: MusicArtRoute by lazy {
+        MusicArtRoute(
+            provider = {
+                val art = musicController.albumArt() ?: return@MusicArtRoute null
+                MusicArtSource(art.source, art.bitmap.toPixels())
+            },
+            encodePng = { it.toBitmap().compressToBytes(android.graphics.Bitmap.CompressFormat.PNG, 100) },
+            encodeJpeg = { it.toBitmap().compressToBytes(android.graphics.Bitmap.CompressFormat.JPEG, 86) },
+            log = { msg -> addLog(msg, "warning") },
+        )
+    }
+
+    private fun android.graphics.Bitmap.toPixels(): MusicArtProcessor.Pixels {
+        val bmp = if (config == android.graphics.Bitmap.Config.ARGB_8888) {
+            this
+        } else {
+            copy(android.graphics.Bitmap.Config.ARGB_8888, false) ?: this
+        }
+        val buf = IntArray(bmp.width * bmp.height)
+        bmp.getPixels(buf, 0, bmp.width, 0, 0, bmp.width, bmp.height)
+        return MusicArtProcessor.Pixels(buf, bmp.width, bmp.height)
+    }
+
+    private fun MusicArtProcessor.Pixels.toBitmap(): android.graphics.Bitmap =
+        android.graphics.Bitmap.createBitmap(argb, width, height, android.graphics.Bitmap.Config.ARGB_8888)
+
+    private fun android.graphics.Bitmap.compressToBytes(
+        format: android.graphics.Bitmap.CompressFormat,
+        quality: Int,
+    ): ByteArray {
+        val out = java.io.ByteArrayOutputStream()
+        if (!compress(format, quality, out)) throw IllegalStateException("封面编码失败（$format）")
+        return out.toByteArray()
+    }
+
     /** 实际监听端口（start 之后确定）；插件宿主、ABI 上下文与插件 WebUI 用它拼 URL。 */
     @Volatile
     private var activePort: Int = port
@@ -197,6 +236,21 @@ class HydroHttpServer(
 
                 (cleanUri == "/api/music/control" || cleanUri == "/music/control") && method == Method.POST ->
                     withTrusted(headers) { handleMusicControl(bodyJson) }
+
+                // 封面图：与桌面 desktop/internal/api/media.go 同一契约。
+                // 不带信任校验——手表渲染背景图时是渲染器直接取 URL，带不了
+                // X-Device-Id 头（桌面端同样是公开的）。
+                (cleanUri == "/api/music/art" || cleanUri == "/music/art") && method == Method.GET -> {
+                    val result = musicArtRoute.handle(
+                        session.parameters.entries.associate { (k, v) -> k to (v.firstOrNull() ?: "") }
+                    )
+                    val status = Response.Status.values().firstOrNull { it.requestStatus == result.status }
+                        ?: Response.Status.OK
+                    newFixedLengthResponse(
+                        status, result.mime,
+                        ByteArrayInputStream(result.bytes), result.bytes.size.toLong(),
+                    ).apply { addHeader("Cache-Control", "no-store") }
+                }
 
                 (cleanUri == "/api/commands" || cleanUri == "/commands") && method == Method.GET ->
                     withTrusted(headers) { handleGetCommands() }
