@@ -105,6 +105,24 @@ bash android/scripts/device-check-selftest.sh   # 正常→全绿；坏服务端
 **还没在设备上验证**：手表侧渲染（需要手表）、手表只走互联通道的路径、
 6 分钟级后台静置（测到一半设备 USB 掉了，需重测）。
 
+## 排查速查（症状 → 先看哪里）
+
+真机上出问题时的第一入口永远是 `adb logcat -s HydroLink`（插件加载、宿主加载、
+worker 连上、每条 `/api/hydro` 请求的路由结果都在里面），再跑一次
+`bash android/scripts/device-check.sh` 看是哪一项挂了。
+
+| 症状 | 先看什么 | 常见原因 |
+|---|---|---|
+| 手表显示「加载失败，请检查服务端」 | device-check 的「出树」项；logcat 里有没有 `worker connected` | `worker is offline`（宿主没起来/胶水没执行）；或手表与手机不在同一网络 |
+| 同上，但 logcat 有 `worker connected` | 那条请求的 `-> 200/404` 日志与实际 HTTP 状态 | 手表侧网络/互联通道问题，不是服务端的锅 |
+| 插件界面里中文/歌名是方块 | device-check 的「无乱码」项 | 请求体字符集（NanoHTTPD 按 US-ASCII 解码，见坑 9） |
+| worker 一直离线 | logcat 里 `系统 WebView …` 那行 | WebView 被裁剪/禁用（会记一条 error）；或宿主页 script src 又写成相对路径（坑 8） |
+| 列表里「在线」但界面不刷新 | logcat 里宿主加载时的端口 | 服务换过端口而宿主没重建（`ensure` 比较 baseUrl，见坑 6） |
+| 插件发通知没反应 | App 状态页「通知权限」卡片 | Android 13+ 未授权 POST_NOTIFICATIONS（坑 5） |
+| App 整体崩溃退出 | logcat 里 `FATAL` / 渲染进程 | 渲染进程被杀（`onRenderProcessGone` 必须返回 true，坑 6） |
+| 手表只走互联时插件页面 404 | logcat 里该请求有没有进来 | 互联通道路由（坑 12）或 `store` 快照的三条通道 |
+| 手机重启后手表连不上 | — | 目前**不自动启动**（manifest 有 BOOT_COMPLETED 权限但没 receiver） |
+
 ## 容易踩的坑（已在代码/测试里写明）
 
 1. **两种 manifest 形状**：包内 `manifest.json` 是扁平的（`{"id":…}`，对应桌面
