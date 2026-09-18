@@ -4,12 +4,16 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.hydro.link.server.R
+import com.hydro.link.server.hydrokit.Manifest
 import com.hydro.link.server.server.HydroHttpServer
 import com.hydro.link.server.service.ServerService
 import java.io.File
 
 /**
- * 插件管理页的一行数据（主界面的「插件」Tab 与 [PluginsActivity] 共用）。
+ * 插件管理页的一行数据（主界面「插件」Tab 与 [PluginsActivity] 共用）。
+ * 列表里只显示 [name] + [pkgLine]，其余信息点卡片弹窗看。
  */
 data class PluginRow(
     val id: String,
@@ -21,20 +25,24 @@ data class PluginRow(
     val hasWeb: Boolean,
     val workerOnline: Boolean,
     val error: String?,
-)
+) {
+    /** 副标题：只显示包名和版本。 */
+    val pkgLine: String get() = if (version.isBlank()) id else "$id · v$version"
+}
 
 /**
- * 插件管理里与界面无关的那部分：取列表、安装、卸载、打开 WebUI。
+ * 插件管理里与界面无关的那部分：取列表、安装（带确认弹窗）、卸载、打开 WebUI、详情弹窗。
  *
- * 主界面「插件」Tab 和设置里的 [PluginsActivity] 用同一份实现——两个入口
- * 各写一遍是最容易长歪的地方（改了一边忘了另一边，用户看到的行为就不一致）。
+ * 主界面「插件」Tab 与设置里的 [PluginsActivity] 共用同一份实现——两个入口各写一遍最
+ * 容易长歪。安装/卸载弹窗对齐桌面端：安装前把包名/版本/运行时/应用组件/权限列清楚并给出
+ * 安全提醒，卸载二次确认。
  */
 object PluginUi {
 
     /** 当前服务实例（服务没跑时为 null，插件页据此显示提示）。 */
     fun server(): HydroHttpServer? = ServerService.instance?.server()
 
-    /** 读取已安装插件列表（含 worker 在线状态）。 */
+    /** 读取已安装插件列表（worker 在线状态只在详情弹窗里显示）。 */
     fun rows(srv: HydroHttpServer): List<PluginRow> {
         val kit = srv.hydroKit
         return kit.store.list().map { info ->
@@ -68,30 +76,69 @@ object PluginUi {
     }
 
     /**
-     * 安装一个 .hpk：先复制到缓存目录（SAF 的 uri 不能当文件用），再在后台线程解压
-     * 安装。回调在主线程，参数是给用户看的一句话。
+     * 安装流程：选中文件 → 读清单（不落盘）→ **确认弹窗**（形态同桌面端）→ 安装。
+     * 回调在主线程，参数是给用户看的一句话。
      */
-    fun install(activity: Activity, uri: Uri, onResult: (String) -> Unit) {
+    fun pickAndInstall(activity: Activity, uri: Uri, onResult: (String) -> Unit) {
         val srv = server()
         if (srv == null) {
             onResult("服务未运行，无法安装")
             return
         }
         Thread {
-            val tmp = File(activity.cacheDir, "install-${System.currentTimeMillis()}.hpk")
-            val message = try {
+            val staged = File(activity.cacheDir, "install-${System.currentTimeMillis()}.hpk")
+            val manifest: Manifest
+            try {
                 activity.contentResolver.openInputStream(uri)?.use { input ->
-                    tmp.outputStream().use { out -> input.copyTo(out) }
+                    staged.outputStream().use { out -> input.copyTo(out) }
                 } ?: throw IllegalStateException("无法读取所选文件")
-                val info = srv.hydroKit.install(tmp)
-                "已安装 ${info.name} v${info.version}"
+                manifest = srv.hydroKit.store.inspect(staged)
             } catch (e: Exception) {
-                "安装失败: ${e.message}"
-            } finally {
-                tmp.delete()
+                staged.delete()
+                activity.runOnUiThread { onResult("读取安装包失败: ${e.message}") }
+                return@Thread
             }
-            activity.runOnUiThread { onResult(message) }
+            activity.runOnUiThread {
+                showInstallConfirm(activity, manifest) {
+                    Thread {
+                        val message = try {
+                            val info = srv.hydroKit.install(staged)
+                            "已安装 ${info.name} v${info.version}"
+                        } catch (e: Exception) {
+                            "安装失败: ${e.message}"
+                        } finally {
+                            staged.delete()
+                        }
+                        activity.runOnUiThread { onResult(message) }
+                    }.start()
+                }
+            }
         }.start()
+    }
+
+    /** 安装确认弹窗：清单摘要 + 权限 + 安全提醒。 */
+    private fun showInstallConfirm(activity: Activity, m: Manifest, onConfirm: () -> Unit) {
+        val perms = if (m.permissions.isEmpty()) "未申请任何权限" else m.permissions.joinToString(", ")
+        val items = buildString {
+            m.apps.forEach { append("应用 ").append(it.name.ifBlank { it.id }).append("  ") }
+            m.widgets.forEach { append("组件 ").append(it.name.ifBlank { it.id }).append("  ") }
+        }.trim()
+        val msg = buildString {
+            append("包名：").append(m.pkg.id).append('\n')
+            append("版本：v").append(m.pkg.version).append('\n')
+            append("运行时：").append(m.runtime ?: "js")
+            append("（").append(m.entry ?: "server.js").append("）").append('\n')
+            if (items.isNotEmpty()) append("包含：").append(items).append('\n')
+            append("权限：").append(perms).append('\n')
+            append('\n')
+            append("插件代码以本应用同等权限运行，可访问本机服务与数据目录，请只安装可信来源的插件。")
+        }
+        MaterialAlertDialogBuilder(activity)
+            .setTitle("安装 ${m.pkg.name.ifBlank { m.pkg.id }}")
+            .setMessage(msg)
+            .setNegativeButton("取消", null)
+            .setPositiveButton("安装") { _, _ -> onConfirm() }
+            .show()
     }
 
     /** 卸载插件（服务端存储保留，与桌面一致）。回调在主线程，参数是提示语。 */
@@ -110,6 +157,35 @@ object PluginUi {
             }
             activity.runOnUiThread { onResult(message) }
         }.start()
+    }
+
+    /** 卸载二次确认。 */
+    fun confirmUninstall(activity: Activity, id: String, name: String, onResult: (String) -> Unit) {
+        MaterialAlertDialogBuilder(activity)
+            .setTitle("卸载 $name")
+            .setMessage("确定卸载「$name」吗？\n插件的服务端存储会保留，重装后设置还在。")
+            .setNegativeButton("取消", null)
+            .setPositiveButton("卸载") { _, _ -> uninstall(activity, id, name, onResult) }
+            .show()
+    }
+
+    /** 点插件卡片时的详情弹窗：列表里放不下的信息都在这。 */
+    fun showDetails(activity: Activity, row: PluginRow) {
+        val msg = buildString {
+            append("包名：").append(row.id).append('\n')
+            append("版本：").append(if (row.version.isBlank()) "—" else "v${row.version}").append('\n')
+            append("运行时：").append(row.runtime).append('\n')
+            if (row.items.isNotBlank()) append("包含：").append(row.items).append('\n')
+            append("权限：").append(if (row.permissions.isBlank()) "未申请权限" else row.permissions).append('\n')
+            append("worker：").append(if (row.workerOnline) "在线" else "离线（首次请求时自动拉起）")
+            if (row.error != null) append('\n').append("清单异常：").append(row.error)
+            if (row.hasWeb) append("\n\n这个插件带设置页面，可点右侧的「界面」打开。")
+        }
+        MaterialAlertDialogBuilder(activity)
+            .setTitle(row.name)
+            .setMessage(msg)
+            .setPositiveButton("知道了", null)
+            .show()
     }
 
     /** 打开插件 WebUI（同源 WebView，插件无需为安卓写第二套页面）。 */

@@ -92,16 +92,16 @@ class PluginWebUiActivity : AppCompatActivity() {
 class PluginAdapter(
     private val onOpenWebUi: (PluginRow) -> Unit,
     private val onUninstall: (PluginRow) -> Unit,
+    private val onShowDetails: (PluginRow) -> Unit,
 ) : RecyclerView.Adapter<PluginAdapter.VH>() {
 
     private var rows: List<PluginRow> = emptyList()
     private var emptyText: String? = null
 
     class VH(v: View) : RecyclerView.ViewHolder(v) {
+        val row: View = v.findViewById(R.id.pluginRow)
         val name: TextView = v.findViewById(R.id.pluginName)
         val meta: TextView = v.findViewById(R.id.pluginMeta)
-        val status: TextView = v.findViewById(R.id.pluginStatus)
-        val perms: TextView = v.findViewById(R.id.pluginPerms)
         val open: View = v.findViewById(R.id.pluginOpen)
         val uninstall: View = v.findViewById(R.id.pluginUninstall)
     }
@@ -121,29 +121,20 @@ class PluginAdapter(
         if (rows.isEmpty()) {
             holder.name.text = emptyText
             holder.meta.visibility = View.GONE
-            holder.status.visibility = View.GONE
-            holder.perms.visibility = View.GONE
             holder.open.visibility = View.GONE
             holder.uninstall.visibility = View.GONE
+            holder.row.isClickable = false
             return
         }
         val r = rows[position]
         holder.name.text = r.name
-        holder.meta.text = buildString {
-            append(r.id)
-            if (r.version.isNotBlank()) append(" · v").append(r.version)
-            append(" · ").append(r.runtime)
-            if (r.items.isNotBlank()) append(" · ").append(r.items)
-        }
-        holder.status.text = when {
-            r.error != null -> "清单异常: ${r.error}"
-            r.workerOnline -> "worker 在线"
-            else -> "worker 离线（首次请求时自动拉起）"
-        }
-        holder.status.setTextColor(if (r.error != null) 0xFFF2B8B5.toInt() else 0xFFA6C8FF.toInt())
-        holder.perms.text = if (r.permissions.isBlank()) "未申请权限" else "权限: ${r.permissions}"
+        // 副标题只显示包名和版本；其余信息点卡片看弹窗
+        holder.meta.text = r.pkgLine
+        holder.meta.visibility = View.VISIBLE
         holder.open.visibility = if (r.hasWeb) View.VISIBLE else View.GONE
+        holder.uninstall.visibility = View.VISIBLE
         holder.open.setOnClickListener { onOpenWebUi(r) }
         holder.uninstall.setOnClickListener { onUninstall(r) }
+        holder.row.setOnClickListener { onShowDetails(r) }
     }
 }

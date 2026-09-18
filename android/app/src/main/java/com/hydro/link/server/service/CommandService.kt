@@ -6,7 +6,7 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 
 /**
- * UserService that runs in Shizuku's process (root/shell uid).
+ * 辅助服务（历史遗留：原先用于 Shizuku 的 UserService）。
  * Executes shell commands via Runtime.exec().
  */
 class CommandService : ICommandService.Stub() {

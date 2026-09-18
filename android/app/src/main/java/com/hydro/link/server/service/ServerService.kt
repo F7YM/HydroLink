@@ -25,7 +25,7 @@ class ServerService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val port = intent?.getIntExtra(EXTRA_PORT, 9000) ?: 9000
-        startForeground(NOTIFICATION_ID, createNotification(port))
+        startForeground(NOTIFICATION_ID, createNotification())
         startServer(port)
         return START_STICKY
     }
@@ -79,7 +79,7 @@ class ServerService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private fun createNotification(port: Int): Notification {
+    private fun createNotification(): Notification {
         val intent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
             this, 0, intent,
@@ -88,7 +88,7 @@ class ServerService : Service() {
 
         return NotificationCompat.Builder(this, HydroLinkApp.CHANNEL_ID)
             .setContentTitle(getString(R.string.notification_title))
-            .setContentText(getString(R.string.notification_text, port))
+            .setContentText(getString(R.string.notification_text))
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(pendingIntent)
             .setOngoing(true)

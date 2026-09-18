@@ -1,11 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 插件列表行：只显示名称 + 包名/版本，其余信息点卡片看详情弹窗。
+     右侧「界面 / 卸载」是图标按钮。 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/pluginRow"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="?attr/selectableItemBackground"
+    android:clickable="true"
+    android:focusable="true"
     android:paddingHorizontal="16dp"
-    android:paddingVertical="10dp"
-    android:gravity="center_vertical">
+    android:paddingVertical="12dp">
 
     <LinearLayout
         android:layout_width="0dp"
@@ -25,47 +32,28 @@
             android:id="@+id/pluginMeta"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
             android:textSize="12sp"
-            android:textColor="#9AA2B1"
-            android:layout_marginTop="2dp" />
-
-        <TextView
-            android:id="@+id/pluginStatus"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textSize="12sp"
-            android:layout_marginTop="2dp" />
-
-        <TextView
-            android:id="@+id/pluginPerms"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textSize="12sp"
-            android:textColor="#9AA2B1"
-            android:layout_marginTop="2dp" />
+            android:textColor="#9AA2B1" />
     </LinearLayout>
 
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:gravity="end">
+    <ImageButton
+        android:id="@+id/pluginOpen"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="打开插件界面"
+        android:padding="10dp"
+        android:src="@drawable/ic_plugin_ui"
+        app:tint="?attr/colorOnSurfaceVariant" />
 
-        <Button
-            android:id="@+id/pluginOpen"
-            style="?attr/materialButtonOutlinedStyle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:minWidth="0dp"
-            android:text="界面" />
-
-        <Button
-            android:id="@+id/pluginUninstall"
-            style="?attr/materialButtonOutlinedStyle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:minWidth="0dp"
-            android:text="卸载" />
-    </LinearLayout>
+    <ImageButton
+        android:id="@+id/pluginUninstall"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="卸载插件"
+        android:padding="10dp"
+        android:src="@drawable/ic_plugin_delete"
+        app:tint="?attr/colorOnSurfaceVariant" />
 </LinearLayout>

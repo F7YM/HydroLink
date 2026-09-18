@@ -16,7 +16,7 @@ import com.hydro.link.server.util.NetworkUtil
  *   music    → MusicController（MediaSession 控制 / 通知监听）
  *   notify   → NotificationManager（Android 8+ 走通知渠道）
  *   lock     → LockAccessibilityService（无障碍锁屏）
- *   commands → DataManager 里配置的命令 + Shizuku/Shell 执行
+ *   commands → DataManager 里配置的命令 + root/Shell 执行
  *
  * 任何一项能力不可用都只返回失败，不抛异常（插件侧会拿到 error 字段）。
  */

@@ -60,6 +60,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnEnableNotification: MaterialButton
     private lateinit var tvPostNotifStatus: TextView
     private lateinit var btnPostNotif: MaterialButton
+    private lateinit var cardAccessibility: View
+    private lateinit var cardNotifListener: View
+    private lateinit var cardNotifPermission: View
     private lateinit var tvNoRequests: TextView
     private lateinit var rvPairRequests: RecyclerView
 
@@ -92,6 +95,7 @@ class MainActivity : AppCompatActivity() {
     private val pluginAdapter = PluginAdapter(
         onOpenWebUi = { row -> PluginUi.openWebUi(this, row.id, row.name) },
         onUninstall = { row -> confirmUninstallPlugin(row.id, row.name) },
+        onShowDetails = { row -> PluginUi.showDetails(this, row) },
     )
 
     /** 插件 Tab 的「安装 .hpk」（SAF 选择器）。 */
@@ -99,7 +103,8 @@ class MainActivity : AppCompatActivity() {
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
     ) { result ->
         val uri = result.data?.data ?: return@registerForActivityResult
-        PluginUi.install(this, uri) { message ->
+        // 安装前会先弹确认框（清单摘要 + 权限 + 安全提醒），确认后才真正安装
+        PluginUi.pickAndInstall(this, uri) { message ->
             Snackbar.make(tabPlugins, message, Snackbar.LENGTH_SHORT).show()
             refreshPlugins()
         }
@@ -171,6 +176,9 @@ class MainActivity : AppCompatActivity() {
         btnEnableNotification = findViewById(R.id.btnEnableNotification)
         tvPostNotifStatus = findViewById(R.id.tvPostNotifStatus)
         btnPostNotif = findViewById(R.id.btnPostNotif)
+        cardAccessibility = findViewById(R.id.cardAccessibility)
+        cardNotifListener = findViewById(R.id.cardNotifListener)
+        cardNotifPermission = findViewById(R.id.cardNotifPermission)
         tvNoRequests = findViewById(R.id.tvNoRequests)
         rvPairRequests = findViewById(R.id.rvPairRequests)
 
@@ -309,6 +317,8 @@ class MainActivity : AppCompatActivity() {
 
         // Accessibility status
         val accEnabled = LockAccessibilityService.isRunning()
+        // 已授权的权限卡片直接隐藏（用户要求：状态页只留"还需要处理的事"）
+        cardAccessibility.visibility = if (accEnabled) View.GONE else View.VISIBLE
         if (accEnabled) {
             tvAccessibilityStatus.text = getString(R.string.accessibility_enabled)
             tvAccessibilityStatus.setTextColor(getColor(R.color.md_theme_success))
@@ -321,6 +331,7 @@ class MainActivity : AppCompatActivity() {
 
         // Notification listener status
         val notifEnabled = isNotificationServiceEnabled()
+        cardNotifListener.visibility = if (notifEnabled) View.GONE else View.VISIBLE
         if (notifEnabled) {
             tvNotificationStatus.text = getString(R.string.notification_enabled)
             tvNotificationStatus.setTextColor(getColor(R.color.md_theme_success))
@@ -333,7 +344,9 @@ class MainActivity : AppCompatActivity() {
 
         // 通知权限（POST_NOTIFICATIONS）：插件 notify 能力的前置条件
         val nm = getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
-        if (nm.areNotificationsEnabled()) {
+        val postNotifOk = nm.areNotificationsEnabled()
+        cardNotifPermission.visibility = if (postNotifOk) View.GONE else View.VISIBLE
+        if (postNotifOk) {
             tvPostNotifStatus.text = "已授权，插件可以发通知"
             tvPostNotifStatus.setTextColor(getColor(R.color.md_theme_success))
             btnPostNotif.visibility = View.GONE
@@ -416,17 +429,11 @@ class MainActivity : AppCompatActivity() {
         tvInterconnectStatus.text = getString(R.string.interconnect_connected)
         tvInterconnectStatus.setTextColor(getColor(R.color.md_theme_success))
 
-        val detailParts = mutableListOf<String>()
-        detailParts.add(node.displayName)
-        if (node.permissionGranted) {
-            detailParts.add("已授权")
-        } else {
-            detailParts.add("等待授权...")
+        // 已连接就只显示设备名（不再堆"已授权/监听中"这类实现细节）
+        tvInterconnectDetail.text = node.displayName
+        if (!node.permissionGranted) {
+            tvInterconnectDetail.text = "${node.displayName} · 等待授权..."
         }
-        if (node.listenerRegistered) {
-            detailParts.add("监听中")
-        }
-        tvInterconnectDetail.text = detailParts.joinToString(" · ")
     }
 
     /** 刷新插件列表与摘要（worker 在线状态来自 bridge，能直接看出插件跑没跑起来）。 */
@@ -439,26 +446,14 @@ class MainActivity : AppCompatActivity() {
         }
         val rows = PluginUi.rows(srv)
         pluginAdapter.submit(rows, if (rows.isEmpty()) "还没有插件——点「安装 .hpk」添加" else null)
-        val online = rows.count { it.workerOnline }
-        tvPluginSummary.text = if (rows.isEmpty()) {
-            "已安装 0 个插件"
-        } else {
-            "已安装 ${rows.size} 个插件 · worker 在线 $online/${rows.size}"
-        }
+        tvPluginSummary.text = if (rows.isEmpty()) "已安装 0 个插件" else "已安装 ${rows.size} 个插件"
     }
 
     private fun confirmUninstallPlugin(id: String, name: String) {
-        MaterialAlertDialogBuilder(this)
-            .setTitle("卸载插件")
-            .setMessage("确定卸载「$name」吗？\n插件的服务端存储会保留。")
-            .setNegativeButton("取消", null)
-            .setPositiveButton("卸载") { _, _ ->
-                PluginUi.uninstall(this, id, name) { message ->
-                    Snackbar.make(tabPlugins, message, Snackbar.LENGTH_SHORT).show()
-                    refreshPlugins()
-                }
-            }
-            .show()
+        PluginUi.confirmUninstall(this, id, name) { message ->
+            Snackbar.make(tabPlugins, message, Snackbar.LENGTH_SHORT).show()
+            refreshPlugins()
+        }
     }
 
     private fun deleteDevice(device: TrustedDevice) {

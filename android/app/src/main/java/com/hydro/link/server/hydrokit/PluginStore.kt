@@ -206,6 +206,25 @@ class PluginStore(private val root: File) {
     // ---- 安装 / 卸载 ----
 
     /**
+     * 只读安装包清单（安装确认弹窗用）：不落盘、不检查版本。
+     * 与 [install] 用同一套"顶层目录前缀 + manifest.json"规则，避免两边判断不一致。
+     */
+    @Throws(HydroException::class)
+    fun inspect(hpk: File): Manifest {
+        val ext = hpk.extension.lowercase()
+        if (ext != "hpk" && ext != "zip") throw HydroException("只支持 .hpk / .zip 安装包")
+        if (!hpk.isFile) throw HydroException("安装包不存在: ${hpk.path}")
+        ZipFile(hpk).use { zip ->
+            val entries = zip.entries().toList()
+            val prefix = commonPrefix(entries)
+            val manifestEntry = findEntry(entries, prefix, "manifest.json")
+                ?: throw HydroException("安装包缺少 manifest.json")
+            val raw = zip.getInputStream(manifestEntry).use { it.readBytes().toString(Charsets.UTF_8) }
+            return parsePackageManifest(raw)
+        }
+    }
+
+    /**
      * 安装一个 .hpk / .zip 包。返回安装后的信息。
      * 与桌面端一致：同版本重装或升级允许，降级抛错；替换前先删旧目录。
      */

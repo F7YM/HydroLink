@@ -31,14 +31,14 @@
     <string name="no_logs">暂无日志</string>
     <string name="notification_channel">服务状态</string>
     <string name="notification_title">HydroLink Server</string>
-    <string name="notification_text">服务运行中 · 端口 %1$d</string>
+    <string name="notification_text">服务运行中</string>
     <string name="tab_status">状态</string>
     <string name="tab_devices">设备</string>
     <string name="tab_commands">命令</string>
     <string name="tab_plugins">插件</string>
     <string name="tab_logs">日志</string>
     <string name="settings">设置</string>
-    <string name="interconnect_status">手表 Interconnect</string>
+    <string name="interconnect_status">Interconnect 连接</string>
     <string name="interconnect_disconnected">未连接</string>
     <string name="interconnect_connecting">连接中...</string>
     <string name="interconnect_connected">已连接</string>

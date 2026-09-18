@@ -11,7 +11,7 @@ import com.hydro.link.server.service.LockAccessibilityService
 import com.hydro.link.server.service.MusicController
 import com.hydro.link.server.util.DataManager
 import com.hydro.link.server.util.NetworkUtil
-import com.hydro.link.server.util.ShizukuManager
+import com.hydro.link.server.util.RootShell
 import fi.iki.elonen.NanoHTTPD
 import java.io.BufferedReader
 import java.io.ByteArrayInputStream
@@ -103,13 +103,13 @@ class HydroHttpServer(
     /** 供 UI 读取真实监听端口（可能由系统随机分配）。 */
     val currentPort: Int get() = activePort
 
-    /** 供 kit 能力端点执行命令：与 /api/commands/{id}/run 同一套逻辑（Shizuku / Shell）。 */
+    /** 供 kit 能力端点执行命令：与 /api/commands/{id}/run 同一套逻辑（root / Shell）。 */
     private fun runCommandForPlugins(command: String): Triple<Boolean, String, Int> {
         val config = dataManager.loadConfig()
-        if (config.useShizuku) {
-            if (!ShizukuManager.isReady()) return Triple(false, "Shizuku 未就绪", -1)
-            val (ok, out, code) = ShizukuManager.executeCommandSync(command)
-            return Triple(ok, out, code)
+        if (config.useRoot) {
+            if (!RootShell.isAvailable()) return Triple(false, "root 不可用", -1)
+            val r = RootShell.exec(command)
+            return Triple(r.ok, r.output, r.code)
         }
         return try {
             val process = java.lang.ProcessBuilder("sh", "-c", command)
@@ -457,7 +457,16 @@ class HydroHttpServer(
                     val commands = dataManager.loadCommands()
                     if (cmdId >= 0 && cmdId < commands.size) {
                         val cmd = commands[cmdId]
-                        val (success, output, _) = ShizukuManager.executeCommandSync(cmd.command)
+                        val cfg = dataManager.loadConfig()
+                        val (success, output, _) = if (cfg.useRoot) {
+                            val r = RootShell.exec(cmd.command); Triple(r.ok, r.output, r.code)
+                        } else {
+                            val p = java.lang.ProcessBuilder("sh", "-c", cmd.command)
+                                .redirectErrorStream(true).start()
+                            val out = p.inputStream.bufferedReader().readText()
+                            val rc = p.waitFor()
+                            Triple(rc == 0, out, rc)
+                        }
                         gson.toJsonTree(mapOf("status" to if (success) "ok" else "error", "output" to output))
                     } else {
                         gson.toJsonTree(mapOf("status" to "error", "message" to "Invalid command ID"))
@@ -729,15 +738,16 @@ class HydroHttpServer(
 
         val config = dataManager.loadConfig()
 
-        // Use Shizuku if enabled and ready
-        if (config.useShizuku) {
-            if (!ShizukuManager.isReady()) {
-                addLog("Shizuku 未就绪，命令执行失败", "error")
-                return jsonResp(mapOf("status" to "error", "message" to "Shizuku not ready"), Response.Status.INTERNAL_ERROR)
+        // 设置里开了"使用 root 执行"就走 su -c
+        if (config.useRoot) {
+            if (!RootShell.isAvailable()) {
+                addLog("root 不可用，命令执行失败", "error")
+                return jsonResp(mapOf("status" to "error", "message" to "root 不可用"), Response.Status.INTERNAL_ERROR)
             }
 
-            addLog("执行命令(Shizuku): ${cmd.name}", "warning")
-            val (success, output, returnCode) = ShizukuManager.executeCommandSync(cmdStr)
+            addLog("执行命令(root): ${cmd.name}", "warning")
+            val r = RootShell.exec(cmdStr)
+            val success = r.ok; val output = r.output; val returnCode = r.code
             if (success) {
                 addLog("命令完成: 返回码 $returnCode", "success")
                 return jsonResp(mapOf(

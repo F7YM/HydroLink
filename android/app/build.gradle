@@ -73,9 +73,6 @@ dependencies {
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
     implementation 'com.google.code.gson:gson:2.10.1'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
-    // Shizuku API
-    implementation 'dev.rikka.shizuku:api:13.1.5'
-    implementation 'dev.rikka.shizuku:provider:13.1.5'
     // XMS Wearable SDK for interconnect (included as AAR in libs/)
 
     // HydroKit 的协议/运行时/存储等纯逻辑放在 JVM 单测里跑（不依赖 Android API）

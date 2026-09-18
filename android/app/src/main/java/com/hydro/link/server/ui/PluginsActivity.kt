@@ -5,7 +5,6 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -25,7 +24,7 @@ class PluginsActivity : AppCompatActivity() {
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
     ) { result ->
         val uri = result.data?.data ?: return@registerForActivityResult
-        PluginUi.install(this, uri) { message -> toast(message); refresh() }
+        PluginUi.pickAndInstall(this, uri) { message -> toast(message); refresh() }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,6 +38,7 @@ class PluginsActivity : AppCompatActivity() {
         adapter = PluginAdapter(
             onOpenWebUi = { info -> PluginUi.openWebUi(this, info.id, info.name) },
             onUninstall = { info -> confirmUninstall(info.id, info.name) },
+            onShowDetails = { info -> PluginUi.showDetails(this, info) },
         )
         findViewById<RecyclerView>(R.id.pluginList).apply {
             layoutManager = LinearLayoutManager(this@PluginsActivity)
@@ -66,14 +66,7 @@ class PluginsActivity : AppCompatActivity() {
     }
 
     private fun confirmUninstall(id: String, name: String) {
-        AlertDialog.Builder(this)
-            .setTitle("卸载插件")
-            .setMessage("确定卸载「$name」吗？\n插件的服务端存储会保留。")
-            .setNegativeButton("取消", null)
-            .setPositiveButton("卸载") { _, _ ->
-                PluginUi.uninstall(this, id, name) { message -> toast(message); refresh() }
-            }
-            .show()
+        PluginUi.confirmUninstall(this, id, name) { message -> toast(message); refresh() }
     }
 
     private fun toast(text: String) = Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
