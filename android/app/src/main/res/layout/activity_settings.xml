@@ -12,10 +12,11 @@
 
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
+            app:titleCentered="true"
+            app:titleTextAppearance="?attr/textAppearanceHeadlineSmall"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             app:title="@string/settings"
-            app:titleCentered="true"
             app:navigationIcon="@drawable/ic_arrow_back" />
     </com.google.android.material.appbar.AppBarLayout>
 
@@ -32,10 +33,9 @@
 
 <!-- 软件信息（置顶） -->
             <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Hydro.Card"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:cardCornerRadius="20dp"
-                app:cardElevation="2dp">
+                android:layout_height="wrap_content">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -77,17 +77,16 @@
 
 <!-- root 执行 -->
             <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Hydro.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                app:cardCornerRadius="20dp"
-                app:cardElevation="2dp">
+                android:layout_marginBottom="12dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="20dp">
+                    >
 
                     <TextView
                         android:layout_width="match_parent"
@@ -140,8 +139,7 @@
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            app:cardCornerRadius="16dp">
+            android:layout_marginTop="12dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -162,7 +160,8 @@
                     android:layout_marginTop="4dp"
                     android:text="安装 .hpk 插件包（与桌面端同一套），插件可在手表上渲染界面、在手机端提供设置页"
                     android:textSize="12sp"
-                    android:textColor="#9AA2B1" />
+                    android:textAppearance="?attr/textAppearanceBodySmall"
+                        android:textColor="?attr/colorOnSurfaceVariant" />
 
                 <Button
                     android:id="@+id/btnPlugins"

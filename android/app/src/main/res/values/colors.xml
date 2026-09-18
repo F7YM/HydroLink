@@ -29,4 +29,16 @@
     <color name="md_theme_scrim">#000000</color>
     <color name="md_theme_success">#2e7d32</color>
     <color name="md_theme_warning">#f57c00</color>
+
+    <!-- MD3 色调面阶梯（Expressive 风格靠它做层次，而不是阴影） -->
+    <color name="md_theme_surfaceDim">#dbd9e1</color>
+    <color name="md_theme_surfaceBright">#fbf8ff</color>
+    <color name="md_theme_surfaceContainerLowest">#ffffff</color>
+    <color name="md_theme_surfaceContainerLow">#f5f2fa</color>
+    <color name="md_theme_surfaceContainer">#efedf4</color>
+    <color name="md_theme_surfaceContainerHigh">#e9e7ef</color>
+    <color name="md_theme_surfaceContainerHighest">#e4e1e9</color>
+    <color name="md_theme_surfaceTint">#4f61ff</color>
+    <color name="md_theme_primaryFixed">#dee0ff</color>
+    <color name="md_theme_onPrimaryFixed">#000f5c</color>
 </resources>

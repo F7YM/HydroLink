@@ -1,0 +1,62 @@
+<resources>
+
+    <!-- ============ 形状（MD3E 用大圆角做层级，替代阴影） ============ -->
+    <style name="ShapeAppearance.Hydro.Small" parent="ShapeAppearance.Material3.Corner.Full" />
+    <style name="ShapeAppearance.Hydro.Medium" parent="ShapeAppearance.Material3.Corner.Large" />
+    <style name="ShapeAppearance.Hydro.Large" parent="ShapeAppearance.Material3.Corner.ExtraLarge" />
+
+    <!-- ============ 卡片：填充色调面 + 28dp 圆角，不用阴影 ============ -->
+    <style name="Widget.Hydro.Card" parent="Widget.Material3.CardView.Filled">
+        <item name="cardCornerRadius">28dp</item>
+        <item name="cardElevation">0dp</item>
+        <item name="cardBackgroundColor">?attr/colorSurfaceContainerHigh</item>
+        <item name="contentPadding">20dp</item>
+        <item name="android:layout_marginBottom">12dp</item>
+    </style>
+
+    <!-- 卡片内的一级标题 / 次级说明 / 大数字 -->
+    <style name="TextAppearance.Hydro.CardTitle" parent="TextAppearance.Material3.TitleMedium">
+        <item name="android:textColor">?attr/colorOnSurface</item>
+    </style>
+    <style name="TextAppearance.Hydro.Support" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:textColor">?attr/colorOnSurfaceVariant</item>
+    </style>
+    <style name="TextAppearance.Hydro.Stat" parent="TextAppearance.Material3.HeadlineMedium">
+        <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <!-- 分区小标题（设置页那种分组标题） -->
+    <style name="Widget.Hydro.SectionHeader" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:paddingStart">28dp</item>
+        <item name="android:paddingEnd">28dp</item>
+        <item name="android:paddingTop">20dp</item>
+        <item name="android:paddingBottom">8dp</item>
+        <item name="android:textAppearance">?attr/textAppearanceTitleSmall</item>
+        <item name="android:textColor">?attr/colorPrimary</item>
+    </style>
+
+    <!-- 列表行：图标 + 标题 + 说明 + 尾部控件 -->
+    <style name="Widget.Hydro.ListRow" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:paddingStart">20dp</item>
+        <item name="android:paddingEnd">20dp</item>
+        <item name="android:paddingTop">14dp</item>
+        <item name="android:paddingBottom">14dp</item>
+        <item name="android:background">?attr/selectableItemBackground</item>
+    </style>
+
+    <!-- 行里的图标容器（圆角方块 + 主色容器底） -->
+    <style name="Widget.Hydro.RowIcon" parent="">
+        <item name="android:layout_width">44dp</item>
+        <item name="android:layout_height">44dp</item>
+        <item name="android:padding">10dp</item>
+        <item name="android:background">@drawable/bg_row_icon</item>
+        <item name="android:tint">?attr/colorOnPrimaryContainer</item>
+    </style>
+</resources>

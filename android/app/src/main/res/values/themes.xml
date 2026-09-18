@@ -28,5 +28,18 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
         <item name="android:enforceNavigationBarContrast" tools:targetApi="q">false</item>
-    </style>
+            <!-- MD3 色调面（Expressive 层级靠它，而不是阴影） -->
+        <item name="colorSurfaceDim">@color/md_theme_surfaceDim</item>
+        <item name="colorSurfaceBright">@color/md_theme_surfaceBright</item>
+        <item name="colorSurfaceContainerLowest">@color/md_theme_surfaceContainerLowest</item>
+        <item name="colorSurfaceContainerLow">@color/md_theme_surfaceContainerLow</item>
+        <item name="colorSurfaceContainer">@color/md_theme_surfaceContainer</item>
+        <item name="colorSurfaceContainerHigh">@color/md_theme_surfaceContainerHigh</item>
+        <item name="colorSurfaceContainerHighest">@color/md_theme_surfaceContainerHighest</item>
+        <!-- 形状令牌：小 12 / 中 16 / 大 28（MD3E 偏大圆角） -->
+        <item name="shapeAppearanceSmallComponent">@style/ShapeAppearance.Hydro.Small</item>
+        <item name="shapeAppearanceMediumComponent">@style/ShapeAppearance.Hydro.Medium</item>
+        <item name="shapeAppearanceLargeComponent">@style/ShapeAppearance.Hydro.Large</item>
+        <item name="bottomSheetDialogTheme">@style/ThemeOverlay.Material3.BottomSheetDialog</item>
+</style>
 </resources>

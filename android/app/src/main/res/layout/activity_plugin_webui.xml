@@ -11,6 +11,8 @@
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
         android:title="插件界面"
+        app:titleCentered="true"
+        app:titleTextAppearance="?attr/textAppearanceHeadlineSmall"
         app:navigationIcon="@drawable/ic_arrow_back" />
 
     <TextView
@@ -20,7 +22,7 @@
         android:paddingHorizontal="16dp"
         android:paddingBottom="6dp"
         android:textSize="12sp"
-        android:textColor="#9AA2B1" />
+        android:textColor="?attr/colorOnSurfaceVariant" />
 
     <WebView
         android:id="@+id/webUiView"

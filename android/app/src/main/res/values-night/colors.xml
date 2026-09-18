@@ -29,4 +29,15 @@
     <color name="md_theme_scrim">#000000</color>
     <color name="md_theme_success">#81c784</color>
     <color name="md_theme_warning">#ffb74d</color>
+
+    <color name="md_theme_surfaceDim">#121318</color>
+    <color name="md_theme_surfaceBright">#38393f</color>
+    <color name="md_theme_surfaceContainerLowest">#0d0e13</color>
+    <color name="md_theme_surfaceContainerLow">#1a1b21</color>
+    <color name="md_theme_surfaceContainer">#1e1f25</color>
+    <color name="md_theme_surfaceContainerHigh">#292a30</color>
+    <color name="md_theme_surfaceContainerHighest">#34343a</color>
+    <color name="md_theme_surfaceTint">#bac3ff</color>
+    <color name="md_theme_primaryFixed">#dee0ff</color>
+    <color name="md_theme_onPrimaryFixed">#000f5c</color>
 </resources>

@@ -14,9 +14,15 @@
     android:paddingHorizontal="16dp"
     android:paddingVertical="12dp">
 
+    <ImageView
+        style="@style/Widget.Hydro.RowIcon"
+        android:contentDescription=""
+        android:src="@drawable/ic_nav_plugins" />
+
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_marginStart="14dp"
         android:layout_weight="1"
         android:orientation="vertical">
 
@@ -24,8 +30,7 @@
             android:id="@+id/pluginName"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textSize="16sp"
-            android:textStyle="bold"
+            android:textAppearance="?attr/textAppearanceTitleMedium"
             android:text="插件" />
 
         <TextView
@@ -33,8 +38,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
-            android:textSize="12sp"
-            android:textColor="#9AA2B1" />
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="?attr/colorOnSurfaceVariant" />
     </LinearLayout>
 
     <ImageButton
