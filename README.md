@@ -55,4 +55,10 @@ cd android
 ./gradlew :app:testDebugUnitTest    # 116 个 JVM 单测（含真产物 e2e）
 ```
 
+真机自检（手机插着 USB）：
+
+```bash
+bash android/scripts/device-check.sh
+```
+
 架构、里程碑与真机验证清单见 `docs/android-hydrokit.md`。

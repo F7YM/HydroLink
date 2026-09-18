@@ -64,6 +64,27 @@ GRADLE_USER_HOME=/home/float/.gradle \
   断言 id/name/version/runtime/entry/permissions/`web/index.html` 均正确解出 ——
   证明安卓端能装桌面端同一份 `.hpk`。
 
+## 真机自检脚本
+
+```bash
+# 手机插着 USB（会自动 adb forward 9000），或用 BASE_URL 打任意服务端
+bash android/scripts/device-check.sh
+```
+
+它把下面那份"真机验证清单"变成可执行的检查：服务在跑、插件已注册、**每个插件的
+app 项用 466×466 圈表参数出树**、正文无 U+FFFD（字符集回归）、插件存储往返、
+封面端点、**宿主页 script src 按浏览器规则解析后真的取得到胶水**、白名单/未知插件/
+能力端点门控该拒的拒。每行打印 PASS/FAIL，有 FAIL 时退出码非 0。
+
+脚本自己也有自检（起一个假服务端，fake 掉"胶水 404"和"正文乱码"两种情况）：
+
+```bash
+bash android/scripts/device-check-selftest.sh   # 正常→全绿；坏服务端→必须抓到
+```
+
+这么做的原因很实在：这份脚本是拿来做验收依据的，它自己要是有 bug 就会给出
+一份"全绿"的假报告——比没有检查更糟。
+
 ## 真机验证记录（Android 16 / OnePlus PLQ110）
 
 2026-09-18 用 `com.hydro.deskbuddy` v0.7.1（WASM）+ `adb forward` **在设备上实测**过：
@@ -185,7 +206,8 @@ assets/hydrokit/{worker.html,worker.js}   与桌面同协议的宿主胶水
   manifest 里**没有对应的 receiver**——手机重启后不打开 App，手表就连不上手机
   （需要用户手动开一次 App 把服务拉起来）。要"重启也能用"就得加一个开机广播
   receiver 起 `ServerService`（服务起来后 HydroKit 插件宿主会一起恢复）。
-- **真机验证清单**（需要你在手表/手机上过一遍）：
+- **真机验证清单**（需要你在手表/手机上过一遍）：先跑
+  `bash android/scripts/device-check.sh`（手机侧能自动查的它都查了），再补人工部分：
   · 设置 → 管理插件 → 安装 `com.demo.weather.hpk` → 列表出现且 worker 变在线
   · 手表进 Weather App（JS 插件）→ 应能出界面
   · 安装 `com.hydro.deskbuddy.hpk`（WASM）→ 手表桌搭出钟表/歌名
