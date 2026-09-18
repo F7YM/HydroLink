@@ -60,6 +60,8 @@ class HydroKitRoutes(
     private val log: (level: String, message: String) -> Unit = { _, _ -> },
     /** 宿主平台信息（插件按平台分支）：由门面注入，纯逻辑层不依赖 Android API。 */
     private val host: () -> MutableMap<String, String> = { mutableMapOf() },
+    /** 客户端可达的宿主地址（形如 http://192.168.1.5:9000），用于把包内图标路径解析成可取 URL。 */
+    private val baseUrl: () -> String = { "" },
 ) {
     private val gson = Gson()
 
@@ -81,7 +83,7 @@ class HydroKitRoutes(
 
         val rest = path.removePrefix(ROUTE_PREFIX).trim('/')
         if (rest == "list") {
-            return HydroHttpResponse.json(gson.toJson(mapOf("plugins" to runtime.list())))
+            return HydroHttpResponse.json(gson.toJson(mapOf("plugins" to listForClient())))
         }
         if (rest == "webui" || rest.startsWith("webui/")) {
             // 注意：rest 已经被 trim('/') 处理过，所以 ".../webui/{pkg}/" 到这里
@@ -116,6 +118,34 @@ class HydroKitRoutes(
 
         log("info", "hydrokit: ${req.method} $path -> 200")
         return HydroHttpResponse.json(gson.toJson(view))
+    }
+
+    /**
+     * /api/hydro/list 的产出：把条目的**包内相对图标路径**（manifest 里写 assets/icon.png）
+     * 解析成手表能直接取的绝对地址。手表启动器是渲染器直接取 URL，带不了认证头，
+     * 所以走免鉴权的 asset 路由；本来就是绝对 URL / data: 的原样返回。
+     */
+    private fun listForClient(): List<PluginSummary> {
+        val list = runtime.list()
+        val base = baseUrl()
+        if (base.isBlank()) return list
+        for (ps in list) {
+            fun resolve(items: List<Item>): List<Item> = items.map { it ->
+                val ic = it.icon?.trim().orEmpty()
+                if (ic.isEmpty() || ic.contains("://") || ic.startsWith("data:")) {
+                    it
+                } else {
+                    it.copy(
+                        icon = "$base/api/hydro/worker/asset?package=" +
+                            java.net.URLEncoder.encode(ps.pkg.id, "UTF-8") +
+                            "&path=" + java.net.URLEncoder.encode(ic, "UTF-8"),
+                    )
+                }
+            }
+            ps.apps = resolve(ps.apps)
+            ps.widgets = resolve(ps.widgets)
+        }
+        return list
     }
 
     /** 由 action 得到 trigger，并填充 event/params/screen/store。 */

@@ -38,7 +38,7 @@ class HydroKit(
         "sdk" to android.os.Build.VERSION.SDK_INT.toString(),
     )
 
-    private val kitRoutes = HydroKitRoutes(runtime, store, { level, message -> logFn(level, message) }, { hostInfo })
+    private val kitRoutes = HydroKitRoutes(runtime, store, { level, message -> logFn(level, message) }, { hostInfo }, { capabilities.serverBase() })
     private val kitApis = KitRoutes(store, bridge, capabilities, { msg -> logFn("info", msg) }, { hostInfo })
     private val hostPages = HostPageRoutes(hostAssets)
 

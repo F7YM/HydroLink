@@ -142,6 +142,7 @@ class Runtime(private val host: Host = Host.NOP) {
  */
 data class PluginSummary(
     @com.google.gson.annotations.SerializedName("package") val pkg: Package,
-    val apps: List<Item>,
-    val widgets: List<Item>,
+    /** 条目列表：var 是为了在 /api/hydro/list 时把包内图标路径改写成可取 URL（见 HydroKitRoutes）。 */
+    var apps: List<Item>,
+    var widgets: List<Item>,
 )

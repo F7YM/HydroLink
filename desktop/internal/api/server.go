@@ -93,6 +93,11 @@ func (s *Server) SetPairCallback(fn func(deviceID, deviceName string)) {
 // host state (music tracks, CPU/RAM) and clients poll the same URL.
 func (s *Server) SetHydroHandler(h http.Handler) {
 	s.hydro = h
+	// 插件条目的图标可能是包内相对路径（manifest 里写 assets/icon.png），
+	// list 时要解析成手表能直接取的绝对地址（局域网 IP + 本端口）。
+	hydrokit.BaseURLFor = func(r *http.Request) string {
+		return "http://" + apiBaseHost(r)
+	}
 }
 
 // SetWorkerHandler mounts the plugin-worker channel under

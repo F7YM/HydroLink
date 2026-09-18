@@ -35,7 +35,15 @@
             ontouchcancel="pressCancel('app_' + pi + '_' + ai)"
             onclick="openApp(plugin.package.id, app.id, app.name)"
           >
-            <text class="app-name">{{ app.name || app.id }}</text>
+            <div class="app-left">
+              <!-- 有图标就显示图标（宿主已在 /api/hydro/list 里解析成可取 URL）；
+                   没有就用名字首字兜底，避免空白 -->
+              <image if="{{ app.icon }}" class="app-icon" src="{{ app.icon }}"></image>
+              <div if="{{ !app.icon }}" class="app-icon app-icon-fallback">
+                <text class="app-icon-letter">{{ app.name[0] || '?' }}</text>
+              </div>
+              <text class="app-name">{{ app.name || app.id }}</text>
+            </div>
             <text class="chevron">›</text>
           </div>
 
@@ -78,6 +86,13 @@
   font-size: 20px; color: #888; font-weight: bold;
   margin-top: 12px; margin-bottom: 6px;
 }
+.app-left { flex-direction: row; align-items: center; flex: 1; }
+.app-icon { width: 56px; height: 56px; border-radius: 28px; margin-left: 6px; }
+.app-icon-fallback {
+  background-color: #3d4350;
+  justify-content: center; align-items: center;
+}
+.app-icon-letter { font-size: 26px; font-weight: bold; color: #cfd6e4; }
 .app-row {
   width: 100%; height: 84px;
   background-color: #2e323c; border-radius: 42px;

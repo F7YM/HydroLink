@@ -19,6 +19,11 @@ com.demo.weather.hpk                 ← zip 文件（.hpk 后缀，也是 zip�
 
 ### manifest.json 字段
 
+> **`apps[].icon` / `widgets[].icon`**：条目图标。可以写**包内相对路径**（推荐，
+> 例如 `assets/icon.png`）或绝对 URL（`https://…`）。写相对路径时，宿主在
+> `/api/hydro/list` 里会把它解析成手表能直接取的可取 URL（走免鉴权的 asset 路由），
+> 启动器直接用它渲染；不写则启动器显示插件名首字兜底。图标建议 96×96 以上、方形。
+
 ```json
 {
   "id": "com.demo.weather",

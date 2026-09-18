@@ -6,7 +6,8 @@
   "apps": [
     {
       "id": "main",
-      "name": "天气"
+      "name": "天气",
+      "icon": "assets/icon.png"
     }
   ],
   "widgets": [

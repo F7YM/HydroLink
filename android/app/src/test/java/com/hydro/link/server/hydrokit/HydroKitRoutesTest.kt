@@ -289,4 +289,29 @@ class HydroKitRoutesTest {
         assertEquals("arm64-v8a", seen[0].host?.get("arch"))
         assertEquals("36", seen[0].host?.get("sdk"))
     }
+
+    /** 启动器要能直接取图标：包内相对路径解析成绝对 URL，绝对 URL 原样保留。 */
+    @Test
+    fun listResolvesItemIcons() {
+        val rt = Runtime()
+        rt.register(object : Runtime.Plugin {
+            override fun manifest() = Manifests.parse(
+                """{"package":{"id":"com.x.icon","name":"图标","version":"1.0.0"},
+                    "apps":[{"id":"main","name":"带图标","icon":"assets/icon.png"},
+                            {"id":"abs","name":"绝对","icon":"https://example.com/i.png"},
+                            {"id":"none","name":"无"}]}""".trimIndent()
+            )
+            override fun view(surface: String, item: String, req: Request) = View(root = Node.text("x"))
+        })
+        val routes = HydroKitRoutes(rt, baseUrl = { "http://192.168.1.5:9000" })
+        val res = routes.handle(HydroHttpRequest("GET", "/api/hydro/list"))!!
+        val apps = com.google.gson.JsonParser.parseString(res.body).asJsonObject
+            .getAsJsonArray("plugins")[0].asJsonObject.getAsJsonArray("apps")
+        assertEquals(
+            "http://192.168.1.5:9000/api/hydro/worker/asset?package=com.x.icon&path=assets%2Ficon.png",
+            apps[0].asJsonObject["icon"].asString,
+        )
+        assertEquals("https://example.com/i.png", apps[1].asJsonObject["icon"].asString)
+        assertTrue("没有图标就不该有 icon 字段", !apps[2].asJsonObject.has("icon"))
+    }
 }

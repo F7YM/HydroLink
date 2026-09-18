@@ -1,9 +1,10 @@
 package hydrokit
 
 import (
-	goruntime "runtime"
 	"encoding/json"
 	"net/http"
+	"net/url"
+	goruntime "runtime"
 	"strconv"
 	"strings"
 )
@@ -28,6 +29,44 @@ func NewHandler(rt *Runtime) *Handler {
 // RoutePrefix is the path namespace handled by HydroKit.
 const RoutePrefix = "/api/hydro/"
 
+// BaseURLFor returns the origin (scheme://host[:port]) a client can reach this
+// host on, used to turn package-relative item icons into fetchable URLs. Wired
+// by the API layer (hydrokit must not import api); returns "" when unknown, in
+// which case icons stay as-is.
+var BaseURLFor func(r *http.Request) string
+
+// listForClient returns the installed plugins with every item icon that is a
+// package-relative path rewritten to an absolute, watch-reachable URL
+// (…/api/hydro/worker/asset?package=<id>&path=<icon>). The watch launcher fetches
+// that URL directly, so the asset route stays auth-free; absolute URLs and
+// data: URIs pass through untouched.
+func (h *Handler) listForClient(r *http.Request) []PluginSummary {
+	list := h.rt.List()
+	base := ""
+	if BaseURLFor != nil {
+		base = BaseURLFor(r)
+	}
+	if base == "" {
+		return list
+	}
+	for i := range list {
+		pkgID := list[i].Package.ID
+		resolve := func(items []Item) {
+			for j := range items {
+				ic := strings.TrimSpace(items[j].Icon)
+				if ic == "" || strings.Contains(ic, "://") || strings.HasPrefix(ic, "data:") {
+					continue
+				}
+				items[j].Icon = base + "/api/hydro/worker/asset?package=" +
+					url.QueryEscape(pkgID) + "&path=" + url.QueryEscape(ic)
+			}
+		}
+		resolve(list[i].Apps)
+		resolve(list[i].Widgets)
+	}
+	return list
+}
+
 // HostVersion 是报给插件的宿主应用版本（req.host.app）。由 app 装配处从
 // api.Version 注入——hydrokit 不能反过来 import api（会成环），而打包脚本
 // 是用 -X 注入 api.Version 的，所以保持单一来源。
@@ -42,7 +81,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Launcher listing: GET /api/hydro/list
 	if strings.Trim(strings.TrimPrefix(r.URL.Path, RoutePrefix), "/") == "list" {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"plugins": h.rt.List()})
+		_ = json.NewEncoder(w).Encode(map[string]any{"plugins": h.listForClient(r)})
 		return
 	}
 
