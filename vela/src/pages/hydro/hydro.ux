@@ -393,12 +393,25 @@ export default {
     const view = await deviceService.hydro(this.host, this.port, this.path('view'), 'GET', null, this._storeHeader())
     this.loading = false
     if (!view || !view.root) {
-      this.errorText = '加载失败，请检查服务端'
+      this.errorText = this._failText(view)
       return
     }
     this._apply(view)
     this._started = true
     this._startTimer()
+  },
+
+  /**
+   * 失败时把手表能拿到的最有用的信息显示出来，而不是一句"请检查服务端"。
+   * 服务端 404 时会回纯文本原因（例如 "hydrokit: plugin x worker is offline"），
+   * 互联通道/其它错误会回对象；两者都原样展示——上一版统一文案把
+   * "worker 没起来"和"网络不通"混成了一句，排查时白绕了很久。
+   */
+  _failText(view) {
+    if (typeof view === 'string' && view) return view.slice(0, 80)
+    if (view && (view.message || view.error)) return String(view.message || view.error).slice(0, 80)
+    if (!view) return '服务端没响应（检查网络/服务是否在运行）'
+    return '返回数据异常：缺少 root'
   },
 
   async refresh() {
