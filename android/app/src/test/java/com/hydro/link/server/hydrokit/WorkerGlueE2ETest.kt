@@ -242,6 +242,21 @@ class WorkerGlueE2ETest {
         val root = json.getAsJsonObject("root")
         assertNotNull("返回里应有 root 树", root)
         assertTrue("根节点应有 type", root.has("type"))
+
+        // 手表端存储的写后可读（真机上报过"开关点了关了、刷新又变回开"）：
+        // 快照说 powerSave=true，toggle 后必须渲染成 false，并把 false 回传给容器落盘。
+        val toggled = h.handle(
+            HydroHttpRequest(
+                "POST", "/api/hydro/${info.id}/app/main/event",
+                headers = mapOf("x-hydro-store" to """{"powerSave":true}"""),
+                body = """{"event":{"handler":"toggle"}}""",
+            )
+        )
+        assertEquals(200, toggled!!.status)
+        val t = JsonParser.parseString(toggled.body).asJsonObject
+        assertEquals("写后重读必须是新值", false, t.getAsJsonObject("storage").get("powerSave").asBoolean)
+        assertTrue("渲染出来的开关状态也要跟着变", toggled.body.contains("\"checked\": false")
+            || toggled.body.contains("\"checked\":false"))
         println("== weather(JS) 真实 worker 返回: ${resp.body.take(300)}")
     }
 

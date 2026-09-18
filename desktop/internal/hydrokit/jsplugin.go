@@ -88,17 +88,19 @@ var kit = {
     },
     setItem: function (k, v, opts) {
       var scope = (opts && opts.scope) || "server";
-      if (scope === "watch") { __storeWrites[k] = v; return Promise.resolve({ ok: true }); }
+      // 写穿到本地快照：同一个请求里写完再读要能读到（文档 §6 的示例语义）。
+      // 安卓端胶水保持同样行为，两端必须一致。
+      if (scope === "watch") { __storeWrites[k] = v; __storeWatch[k] = v; return Promise.resolve({ ok: true }); }
       return _remote("POST", "/api/hydro/worker/store", { package: __PKG, op: "set", key: k, value: v, scope: scope });
     },
     removeItem: function (k, opts) {
       var scope = (opts && opts.scope) || "server";
-      if (scope === "watch") { __storeWrites[k] = null; return Promise.resolve({ ok: true }); }
+      if (scope === "watch") { __storeWrites[k] = null; delete __storeWatch[k]; return Promise.resolve({ ok: true }); }
       return _remote("POST", "/api/hydro/worker/store", { package: __PKG, op: "remove", key: k, scope: scope });
     },
     clear: function (opts) {
       var scope = (opts && opts.scope) || "server";
-      if (scope === "watch") { __storeWrites = {}; return Promise.resolve({ ok: true }); }
+      if (scope === "watch") { __storeWrites = {}; __storeWatch = {}; return Promise.resolve({ ok: true }); }
       return _remote("POST", "/api/hydro/worker/store", { package: __PKG, op: "clear", scope: scope });
     }
   },

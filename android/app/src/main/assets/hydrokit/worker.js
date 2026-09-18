@@ -63,17 +63,20 @@
       },
       setItem: function (k, v, opts) {
         var scope = (opts && opts.scope) || "server";
-        if (scope === "watch") { storeWrites[k] = v; return Promise.resolve({ ok: true }); }
+        // 写穿到本地快照：同一个请求里"写完再读"要能读到（文档 §6 的示例就是这个
+        // 语义）。不写穿的话，像 toggle 这种"读→取反→写→重读渲染"的插件会渲染出
+        // 旧值，表现为"开关点一下关了，刷新又变回开"。
+        if (scope === "watch") { storeWrites[k] = v; storeWatch[k] = v; return Promise.resolve({ ok: true }); }
         return remote("POST", "/api/hydro/worker/store", { package: PKG, op: "set", key: k, value: v, scope: scope });
       },
       removeItem: function (k, opts) {
         var scope = (opts && opts.scope) || "server";
-        if (scope === "watch") { storeWrites[k] = null; return Promise.resolve({ ok: true }); }
+        if (scope === "watch") { storeWrites[k] = null; delete storeWatch[k]; return Promise.resolve({ ok: true }); }
         return remote("POST", "/api/hydro/worker/store", { package: PKG, op: "remove", key: k, scope: scope });
       },
       clear: function (opts) {
         var scope = (opts && opts.scope) || "server";
-        if (scope === "watch") { storeWrites = {}; return Promise.resolve({ ok: true }); }
+        if (scope === "watch") { storeWrites = {}; storeWatch = {}; return Promise.resolve({ ok: true }); }
         return remote("POST", "/api/hydro/worker/store", { package: PKG, op: "clear", scope: scope });
       },
     },
