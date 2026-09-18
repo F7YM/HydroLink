@@ -41,13 +41,18 @@ GRADLE_USER_HOME=/home/float/.gradle \
   --no-daemon -Dkotlin.compiler.execution.strategy=in-process :app:testDebugUnitTest
 ```
 
-- **131 个 JVM 单测全绿**：`ManifestTest` 7、`RuntimeTest` 13、`PluginStoreTest` 19、
+- **132 个 JVM 单测全绿**：`ManifestTest` 7、`RuntimeTest` 13、`PluginStoreTest` 19、
   `HydroKitRoutesTest` 18、`WorkerBridgeTest` 11、`WorkerPluginTest` 6、
   `KitRoutesTest` 12（权限门控/存储/ABI 上下文/资产二进制）、
   `ProtocolContractTest` 7（跨端字段契约）、`HydroInterconnectTest` 11（互联通道报文解析 + 响应包装）、
   `HostPageRoutesTest` 4（宿主页 script src 按浏览器规则解析）、
   `RequestBodyCharsetTest` 4（NanoHTTPD 请求体字符集）、
-  `WorkerGlueE2ETest` 2（**真产物 e2e**，见下）。
+  `WorkerGlueE2ETest` 3（**真产物 e2e**，见下；含「按浏览器方式加载宿主页」那条）。
+- **宿主页加载路径（真机上抓到的 bug）**：`WorkerGlueE2ETest.glueLoadsThroughTheHostPageLikeABrowser`
+  不直接 require 胶水，而是**按浏览器的方式**：抓 `worker.html` → 正则取 `<script src>` →
+  **按页面 URL 解析**（相对路径到这里就变成 `/api/hydro/worker/worker.js`）→ 取脚本 →
+  在带 `location` 的全局里执行。把 `script src` 改回相对路径它会红并打印
+  「胶水取不到（这就是真机上的 bug）」，已实测确认它真的会失败。
 - **真产物端到端（M5 的关键验证）**：用 Node 执行 **assets 里的真 `worker.js` 胶水**，
   对着**真 NanoHTTPD + HydroKit 路由**（JVM 里起服务）跑完整链路：
   `HTTP view → Runtime → WorkerPlugin → Bridge → worker.js 轮询 → 加载插件 → 回填 View → HTTP 响应`。
@@ -103,28 +108,33 @@ GRADLE_USER_HOME=/home/float/.gradle \
      比较 `baseUrl` 决定是否重建。
    · `hosts` 用 `ConcurrentHashMap`：`ensure` 可能来自 HTTP 工作线程（离线唤醒），
      `destroy` 来自主线程。
-7. **宿主页的 `script src` 必须指向宿主页路由**：宿主页地址是
+7. **改了胶水/宿主页，测试任务默认不会重跑**：e2e 是**运行时**读
+   `src/main/assets/hydrokit/*` 和 `desktop/examples/*.hpk` 的，Gradle 看不见这些
+   输入，改了它们 `:app:testDebugUnitTest` 照样报 UP-TO-DATE —— 真实发生过：
+   把 `script src` 改回相对路径，测试"全绿"其实一次都没跑。现在 `app/build.gradle`
+   用 `inputs.dir` / `inputs.files` 把它们声明成测试输入（改了就重跑）。
+8. **宿主页的 `script src` 必须指向宿主页路由**：宿主页地址是
    `/api/hydro/worker/host?file=worker.html&…`，浏览器按当前 URL 的目录解析相对
    路径，所以 `<script src="worker.js">` 会变成 `/api/hydro/worker/worker.js` ——
    那条路由不存在，胶水一行不执行，表现为"宿主页加载成功、worker 永远离线、手表上
    显示『加载失败，请检查服务端』"。自动化测试当时是绿的，因为 Node 端 e2e 用
    `globalThis.__HK_CONFIG` 直接跑胶水，根本不经过 HTML 的 script 标签；
    现在由 `HostPageRoutesTest` 按浏览器的解析规则钉住。
-8. **NanoHTTPD 对没有 charset 的请求体按 US-ASCII 解码**：`Content-Type:
+9. **NanoHTTPD 对没有 charset 的请求体按 US-ASCII 解码**：`Content-Type:
    application/json`（不带 charset）的 POST 体会被逐字节按 ASCII 解码，中文/emoji
    全变 U+FFFD —— 真机表现是"插件里的歌名是一串方块、事件里输入的中文存进插件
    存储也是方块"。修复在服务端：`HydroHttpServer.normalizeRequestBodyCharset()`
    在 `parseBody()` 之前给缺 charset 的请求补上 `charset=utf-8`（客户端也顺手带了，
    但那只是治标——手表容器和第三方插件都可能不带）。回归见
    `RequestBodyCharsetTest`（起真 NanoHTTPD，同时钉住"不补就会坏"）。
-9. **封面几何必须和桌面逐像素对齐**：桌面用 `imaging.Fit`（**截断**取整），
+10. **封面几何必须和桌面逐像素对齐**：桌面用 `imaging.Fit`（**截断**取整），
    安卓一开始用四舍五入，同一个 1200×900 封面在两端出来是 466×350 / 466×349。
    两端现在各有一条测试钉住 `466x349`（`MusicArtProcessorTest.watchBackgroundRecipeMatchesDesktopQuery`
    与 `TestProcessArtFitGeometry`），改一边不改另一边就会红。
    `dim` 同样对齐桌面的截断语义（Go 的 `uint8(float64(v)*dim)`）。
-10. **`/api/music/art` 故意不做设备信任校验**：手表渲染背景图是渲染器直接取 URL，
+11. **`/api/music/art` 故意不做设备信任校验**：手表渲染背景图是渲染器直接取 URL，
    带不了 `X-Device-Id`；桌面端一直如此。安卓端保持一致的公开行为。
-11. **互联通道没有自定义请求头**：手表经 XMS Wearable 转发过来的请求是 UDP 报文，
+12. **互联通道没有自定义请求头**：手表经 XMS Wearable 转发过来的请求是 UDP 报文，
    只有 method / path / body，`X-Hydro-Store` 传不进来。所以 `HttpServer.
    handleInternalRequest` 也要把 `/api/hydro` 插件路由交给 `HydroKit.handle()`
    （否则互联通道下插件页面直接 404），存储快照则按「请求头 → `store` 查询参数

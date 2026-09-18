@@ -102,9 +102,14 @@ class WorkerGlueE2ETest {
         }
         val kitRoutes = KitRoutes(store, bridge, caps)
         val pluginRoutes = HydroKitRoutes(runtime, store)
+        /** 宿主页路由：读的就是 assets 里的真文件（脚本 src 有没有写错在这里会被抓到）。 */
+        val hostRoutes = HostPageRoutes { name ->
+            val f = File("src/main/assets/hydrokit/$name")
+            if (f.isFile) f.readBytes() else null
+        }
 
         fun handle(req: HydroHttpRequest): HydroHttpResponse? =
-            kitRoutes.handle(req) ?: pluginRoutes.handle(req)
+            hostRoutes.handle(req) ?: kitRoutes.handle(req) ?: pluginRoutes.handle(req)
     }
 
     private fun realHpk(name: String): File? =
@@ -127,6 +132,86 @@ class WorkerGlueE2ETest {
             .start()
         node = p
         return p
+    }
+
+    /**
+     * 用 Node 模拟**浏览器加载宿主页**的过程（而不是直接 require 胶水）：
+     *   抓 worker.html → 正则取 `<script src>` → **按页面 URL 解析**（相对路径在这里
+     *   就会变成 /api/hydro/worker/worker.js）→ 取脚本 → 在带 `location` 的全局里执行。
+     *
+     * 这条用例存在的理由：真机上出过一次"宿主页加载成功、worker 永远离线、手表显示
+     * 加载失败"，根因就是 script src 写成了相对路径。当时两个 e2e 都是绿的，因为它们
+     * 用 `__HK_CONFIG` 直接 require 胶水，**绕过了 HTML 里的 script 标签**。
+     */
+    private fun startNodeWorkerViaHostPage(pkg: String, entry: String, runtime: String): Process {
+        val pageUrl = "$baseUrl/api/hydro/worker/host?file=worker.html" +
+            "&package=$pkg&base=${java.net.URLEncoder.encode(baseUrl, "UTF-8")}" +
+            "&entry=$entry&runtime=$runtime"
+        val cfg = """
+            (async () => {
+              const pageUrl = ${jsString(pageUrl)};
+              const page = await fetch(pageUrl);
+              if (!page.ok) { console.error("[e2e] 宿主页取不到: " + page.status); process.exit(3); }
+              const html = await page.text();
+              const m = html.match(/<script[^>]*\bsrc\s*=\s*["']([^"']+)["']/i);
+              if (!m) { console.error("[e2e] 宿主页里没有 script src"); process.exit(4); }
+              const jsUrl = new URL(m[1], pageUrl).toString();
+              const jsRes = await fetch(jsUrl);
+              if (!jsRes.ok) {
+                console.error("[e2e] 胶水取不到（这就是真机上的 bug）: " + jsUrl + " -> " + jsRes.status);
+                process.exit(5);
+              }
+              const code = await jsRes.text();
+              globalThis.location = { href: pageUrl, search: new URL(pageUrl).search, origin: new URL(pageUrl).origin };
+              globalThis.__hkLog = (msg) => console.log("[worker]", msg);
+              require("vm").runInThisContext(code); // 等价于浏览器执行 <script src>
+              console.log("[e2e] 宿主页按浏览器方式加载完成: " + jsUrl);
+            })().catch((e) => { console.error("[e2e] 加载失败", e); process.exit(6); });
+        """.trimIndent()
+        val script = File.createTempFile("hk-worker-page-", ".js")
+        script.writeText(cfg)
+        val p = ProcessBuilder("node", script.absolutePath)
+            .redirectErrorStream(true)
+            .redirectOutput(ProcessBuilder.Redirect.INHERIT)
+            .start()
+        node = p
+        return p
+    }
+
+    /** 拼进 Node 脚本里的字符串字面量。 */
+    private fun jsString(s: String): String = "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
+    @Test
+    fun glueLoadsThroughTheHostPageLikeABrowser() {
+        val hpk = realHpk("com.demo.weather.hpk")
+        Assume.assumeTrue("仓库里没有 weather .hpk", hpk != null)
+        val dir = File.createTempFile("hk-e2e-page-", "").let { it.delete(); it.mkdirs(); it }
+        val h = Harness(dir)
+        val info = h.store.install(hpk!!)
+        h.runtime.register(WorkerPlugin(info.id, h.store.manifest(info.id), h.bridge))
+        server.handler = { req -> h.handle(req) }
+
+        // 宿主页本身必须可取（胶水靠它引进来）
+        val page = httpGet("$baseUrl/api/hydro/worker/host?file=worker.html")
+        assertEquals(200, page.first)
+        assertTrue("宿主页应含 script 标签", page.second.contains("<script"))
+
+        startNodeWorkerViaHostPage(info.id, info.entry, info.runtime)
+
+        assertTrue(
+            "按浏览器方式加载胶水后 worker 应上线（script src 写错就会在这里失败）",
+            waitFor(6000) { h.bridge.isConnected(info.id) },
+        )
+        val resp = h.handle(
+            HydroHttpRequest(
+                "POST", "/api/hydro/${info.id}/app/main/view",
+                query = mapOf("shape" to "circle", "width" to "466", "height" to "466", "dt" to "watch"),
+            )
+        )
+        assertEquals(200, resp!!.status)
+        val root = JsonParser.parseString(resp.body).asJsonObject.getAsJsonObject("root")
+        assertNotNull("宿主页加载路径下也应返回 root 树", root)
+        println("== 宿主页加载路径（浏览器式）返回: ${resp.body.take(200)}")
     }
 
     @Test

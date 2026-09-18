@@ -47,6 +47,19 @@ android {
     }
 }
 
+// 单测会在**运行时**读这些文件（真胶水 worker.js、宿主页 worker.html、示例 .hpk），
+// Gradle 默认看不见它们：不声明的话改了胶水、测试任务照样显示 UP-TO-DATE —— 刚才
+// 就真的踩到了（把 script src 改回相对路径，测试"全绿"其实是一次都没跑）。
+tasks.withType(Test).configureEach {
+    inputs.dir(file('src/main/assets/hydrokit'))
+        .withPropertyName('hydrokitAssets')
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.files(fileTree('../../desktop/examples') { include '*.hpk' })
+        .withPropertyName('examplePackages')
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+        .optional(true)
+}
+
 dependencies {
     implementation fileTree(dir: "libs", include: ["*.aar", "*.jar"])
     implementation 'androidx.core:core-ktx:1.12.0'
