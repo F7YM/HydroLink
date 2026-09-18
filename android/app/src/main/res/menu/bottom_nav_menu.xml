@@ -12,4 +12,8 @@
         android:id="@+id/nav_commands"
         android:icon="@drawable/ic_nav_commands"
         android:title="@string/tab_commands" />
+    <item
+        android:id="@+id/nav_plugins"
+        android:icon="@drawable/ic_nav_plugins"
+        android:title="@string/tab_plugins" />
 </menu>

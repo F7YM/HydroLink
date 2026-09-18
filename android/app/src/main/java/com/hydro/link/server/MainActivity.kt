@@ -28,6 +28,8 @@ import com.hydro.link.server.model.TrustedDevice
 import com.hydro.link.server.service.LockAccessibilityService
 import com.hydro.link.server.service.ServerService
 import com.hydro.link.server.ui.CommandAdapter
+import com.hydro.link.server.ui.PluginAdapter
+import com.hydro.link.server.ui.PluginUi
 import com.hydro.link.server.ui.DeviceAdapter
 import com.hydro.link.server.ui.PairRequestAdapter
 import com.hydro.link.server.util.DataManager
@@ -73,6 +75,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvNoCommands: TextView
     private lateinit var rvCommands: RecyclerView
 
+    // Plugins views（HydroKit 插件 Tab）
+    private lateinit var tabPlugins: LinearLayout
+    private lateinit var tvPluginSummary: TextView
+    private lateinit var rvPlugins: RecyclerView
+
     // Guards the server switch against programmatic sync (refreshData)
     private var syncingServerSwitch = false
 
@@ -82,6 +89,22 @@ class MainActivity : AppCompatActivity() {
         onAccept = { pair -> respondPair(pair, "accept") },
         onReject = { pair -> respondPair(pair, "reject") }
     )
+    private val pluginAdapter = PluginAdapter(
+        onOpenWebUi = { row -> PluginUi.openWebUi(this, row.id, row.name) },
+        onUninstall = { row -> confirmUninstallPlugin(row.id, row.name) },
+    )
+
+    /** 插件 Tab 的「安装 .hpk」（SAF 选择器）。 */
+    private val pluginInstallLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val uri = result.data?.data ?: return@registerForActivityResult
+        PluginUi.install(this, uri) { message ->
+            Snackbar.make(tabPlugins, message, Snackbar.LENGTH_SHORT).show()
+            refreshPlugins()
+        }
+    }
+
     private val commandAdapter = CommandAdapter { index -> deleteCommand(index) }
 
     private val refreshRunnable = object : Runnable {
@@ -159,6 +182,9 @@ class MainActivity : AppCompatActivity() {
 
         tvNoCommands = findViewById(R.id.tvNoCommands)
         rvCommands = findViewById(R.id.rvCommands)
+        tabPlugins = findViewById(R.id.tabPlugins)
+        tvPluginSummary = findViewById(R.id.tvPluginSummary)
+        rvPlugins = findViewById(R.id.rvPlugins)
 
         // Setup RecyclerViews
         rvPairRequests.layoutManager = LinearLayoutManager(this)
@@ -170,6 +196,9 @@ class MainActivity : AppCompatActivity() {
 
         rvCommands.layoutManager = LinearLayoutManager(this)
         rvCommands.adapter = commandAdapter
+
+        rvPlugins.layoutManager = LinearLayoutManager(this)
+        rvPlugins.adapter = pluginAdapter
 
         // Set port
         tvPort.text = "端口: $port"
@@ -197,6 +226,12 @@ class MainActivity : AppCompatActivity() {
                     fabAddCommand.show()
                     true
                 }
+                R.id.nav_plugins -> {
+                    showTab(tabPlugins)
+                    fabAddCommand.hide()
+                    refreshPlugins()
+                    true
+                }
                 else -> false
             }
         }
@@ -206,6 +241,7 @@ class MainActivity : AppCompatActivity() {
         tabStatus.visibility = if (view == tabStatus) View.VISIBLE else View.GONE
         tabDevices.visibility = if (view == tabDevices) View.VISIBLE else View.GONE
         tabCommands.visibility = if (view == tabCommands) View.VISIBLE else View.GONE
+        tabPlugins.visibility = if (view == tabPlugins) View.VISIBLE else View.GONE
     }
 
     private fun setupListeners() {
@@ -256,6 +292,11 @@ class MainActivity : AppCompatActivity() {
         fabAddCommand.setOnClickListener {
             showAddCommandDialog()
         }
+
+        findViewById<View>(R.id.btnInstallPluginTab).setOnClickListener {
+            pluginInstallLauncher.launch(PluginUi.pickerIntent())
+        }
+        findViewById<View>(R.id.btnRefreshPluginsTab).setOnClickListener { refreshPlugins() }
     }
 
     private fun refreshData() {
@@ -331,6 +372,9 @@ class MainActivity : AppCompatActivity() {
             deviceAdapter.update(devices)
         }
 
+        // 插件 Tab（只在可见时刷新：要读插件目录，每 2 秒一次没必要）
+        if (::tabPlugins.isInitialized && tabPlugins.visibility == View.VISIBLE) refreshPlugins()
+
         // Commands
         val commands = dataManager.loadCommands()
         if (commands.isEmpty()) {
@@ -383,6 +427,38 @@ class MainActivity : AppCompatActivity() {
             detailParts.add("监听中")
         }
         tvInterconnectDetail.text = detailParts.joinToString(" · ")
+    }
+
+    /** 刷新插件列表与摘要（worker 在线状态来自 bridge，能直接看出插件跑没跑起来）。 */
+    private fun refreshPlugins() {
+        val srv = PluginUi.server()
+        if (srv == null) {
+            pluginAdapter.submit(emptyList(), "服务未运行——上面的开关打开后再试")
+            tvPluginSummary.text = "服务未运行"
+            return
+        }
+        val rows = PluginUi.rows(srv)
+        pluginAdapter.submit(rows, if (rows.isEmpty()) "还没有插件——点「安装 .hpk」添加" else null)
+        val online = rows.count { it.workerOnline }
+        tvPluginSummary.text = if (rows.isEmpty()) {
+            "已安装 0 个插件"
+        } else {
+            "已安装 ${rows.size} 个插件 · worker 在线 $online/${rows.size}"
+        }
+    }
+
+    private fun confirmUninstallPlugin(id: String, name: String) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("卸载插件")
+            .setMessage("确定卸载「$name」吗？\n插件的服务端存储会保留。")
+            .setNegativeButton("取消", null)
+            .setPositiveButton("卸载") { _, _ ->
+                PluginUi.uninstall(this, id, name) { message ->
+                    Snackbar.make(tabPlugins, message, Snackbar.LENGTH_SHORT).show()
+                    refreshPlugins()
+                }
+            }
+            .show()
     }
 
     private fun deleteDevice(device: TrustedDevice) {

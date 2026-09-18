@@ -38,7 +38,9 @@ function doFetch(url, method, data, headers) {
       url,
       method,
       data: data ? JSON.stringify(data) : undefined,
-      header: Object.assign({ 'Content-Type': 'application/json' }, headers || {}),
+      // charset 显式带上：手机端服务端（NanoHTTPD）对没有 charset 的请求体按
+      // US-ASCII 解码，中文会变 U+FFFD（服务端另有兜底，见 android HttpServer）
+      header: Object.assign({ 'Content-Type': 'application/json; charset=utf-8' }, headers || {}),
       responseType: 'json',
       success: (res) => {
         try {

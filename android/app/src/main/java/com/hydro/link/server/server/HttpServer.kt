@@ -128,6 +128,29 @@ class HydroHttpServer(
     companion object {
         private const val API_LEVEL = 6
         private const val VERSION = "1.0.0"
+
+        /** logcat tag（`adb logcat -s HydroLink`）。 */
+        private const val TAG_LOGCAT = "HydroLink"
+
+        /**
+         * 给**缺少 charset 的请求体**补上 `charset=utf-8`。
+         *
+         * NanoHTTPD 的 `ContentType.getEncoding()` 对非 text 系（`text/…`）的类型默认给
+         * **US-ASCII**，于是 `Content-Type: application/json` 的请求体会被逐字节按
+         * ASCII 解码 —— 中文和 emoji 全变成 U+FFFD（真机上的表现：插件里的歌名
+         * 是一串方块，事件里输入的中文存进插件存储也是方块）。
+         *
+         * 手表容器的 fetch 与插件胶水发的都是不带 charset 的 application/json，
+         * 第三方插件更不会带，所以**在服务端统一兜住**，而不是指望所有客户端都写对。
+         *
+         * 必须在 `session.parseBody()` **之前**调用：解码就发生在那里。
+         */
+        fun normalizeRequestBodyCharset(headers: MutableMap<String, String>) {
+            val key = headers.keys.firstOrNull { it.equals("content-type", ignoreCase = true) } ?: return
+            val value = headers[key] ?: return
+            if (value.contains("charset", ignoreCase = true)) return
+            headers[key] = "$value; charset=utf-8"
+        }
     }
 
     fun addLog(message: String, level: String = "info") {
@@ -135,6 +158,14 @@ class HydroHttpServer(
         val entry = LogEntry("[$timestamp] $message", level)
         logBuffer.add(entry)
         if (logBuffer.size > maxLogs) logBuffer.removeAt(0)
+        // 同时镜像到 logcat：真机上排查插件问题时，`adb logcat -s HydroLink`
+        // 就能看到 HydroKit 的每一步（宿主加载/worker 连上/请求路由），
+        // 不必让用户去截应用内日志的图。release 包也一样有用，所以不按 DEBUG 关。
+        when (level) {
+            "error" -> android.util.Log.e(TAG_LOGCAT, message)
+            "warning" -> android.util.Log.w(TAG_LOGCAT, message)
+            else -> android.util.Log.i(TAG_LOGCAT, message)
+        }
     }
 
     fun getLogs(): List<LogEntry> = logBuffer.toList()
@@ -162,6 +193,12 @@ class HydroHttpServer(
             var rawBody: String? = null
             val bodyJson: JsonObject? = if (method == Method.POST) {
                 try {
+                    // 先补 charset：NanoHTTPD 对没有 charset 的请求体按 US-ASCII 解码，
+                    // 中文会全变 U+FFFD（见 normalizeRequestBodyCharset 的注释）
+                    runCatching {
+                        @Suppress("UNCHECKED_CAST")
+                        normalizeRequestBodyCharset(session.headers as MutableMap<String, String>)
+                    }.onFailure { addLog("请求头 charset 归一化失败: ${it.message}", "warning") }
                     val files = HashMap<String, String>()
                     session.parseBody(files)
                     val jsonStr = files["postData"]

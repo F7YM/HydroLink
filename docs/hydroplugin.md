@@ -409,6 +409,11 @@ curl -X POST 'http://127.0.0.1:9000/api/hydro/com.demo.weather/app/main/view?sha
 
 ## 版本记录
 
+- v0.4.3（2026-09-18）：**安卓端两处真机才暴露的传输 bug** ——
+  ① 宿主页 `script src` 写成相对路径导致胶水不执行（worker 永远离线、手表显示
+  "加载失败，请检查服务端"）；② NanoHTTPD 对不带 charset 的请求体按 US-ASCII
+  解码，中文/emoji 全变 U+FFFD（服务端统一补 `charset=utf-8`，两端协议不变）。
+  另：安卓主界面新增底部「插件」Tab。
 - v0.4.2（2026-09-13）：**封面能力补齐到安卓端**（§7/§9.1）——`GET /api/music/art`
   与 ABI 上下文里的 `music.artUrl` / `music.artBlur` 在安卓端落地（此前 `artUrl`
   恒为空串、也没有封面端点，示例插件 deskbuddy 在手表上的背景图因此出不来）；

@@ -35,6 +35,7 @@
     <string name="tab_status">状态</string>
     <string name="tab_devices">设备</string>
     <string name="tab_commands">命令</string>
+    <string name="tab_plugins">插件</string>
     <string name="tab_logs">日志</string>
     <string name="settings">设置</string>
     <string name="interconnect_status">手表 Interconnect</string>

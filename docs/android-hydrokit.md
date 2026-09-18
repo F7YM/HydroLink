@@ -29,7 +29,7 @@
 | M5 | JS/WASM 宿主 | `assets/hydrokit/{worker.html,worker.js}`（移植桌面胶水，JS + WASM ABI v1）+ `PluginHostManager`（每插件一个隐藏 WebView）+ 同源宿主页路由 `HostPageRoutes` | ✅ 完成 |
 | M6 | 权限门控 + kit 能力 | `KitRoutes`（store/context/system/notify/music/lock/commands/asset，全部按 manifest 权限门控）+ `AndroidKitCapabilities`（接到通知/音乐/锁屏/命令/系统信息）+ 封面 `GET /api/music/art` 与 ABI 上下文的 `artUrl`/`artBlur`（`MusicArt.kt`：纯像素处理 + 路由，均有单测） | ✅ 完成 |
 | M7 | 插件 WebUI | `PluginWebUiActivity`：WebView 打开 `http://127.0.0.1:<port>/api/hydro/webui/<pkg>/index.html`（**同源**，页面直接调 kit），插件作者无需为安卓写第二套页面 | ✅ 完成 |
-| M8 | 安卓 UI 接入 | `PluginsActivity`（列表 + 从 SAF 选 `.hpk` 安装 + 卸载二次确认 + 打开界面 + worker 在线状态）、设置页入口、服务启动即 `startHosts()`、worker console 并入应用日志 | ✅ 完成 |
+| M8 | 安卓 UI 接入 | 主界面底部**「插件」Tab**（列表 + 安装 `.hpk` + 卸载二次确认 + 打开界面 + worker 在线状态 + 摘要）与设置里的 `PluginsActivity`（共用 `ui/PluginUi.kt` 一份实现）、服务启动即 `startHosts()`、worker console 与应用日志**同时进 logcat**（`adb logcat -s HydroLink`） | ✅ 完成 |
 | M9 | 文档与回归 | 更新 hydroplugin.md 的平台差异说明（已写：§9.1 差异表 + 三条存储快照通道）；跨端同一 `.hpk` 的安装/调用回归（已写：真产物 e2e + 真包解析）；剩余：**真机验证清单** | 🔶 部分完成 |
 
 ## 已完成部分（M1 / M2）的验证
@@ -41,10 +41,12 @@ GRADLE_USER_HOME=/home/float/.gradle \
   --no-daemon -Dkotlin.compiler.execution.strategy=in-process :app:testDebugUnitTest
 ```
 
-- **101 个 JVM 单测全绿**：`ManifestTest` 7、`RuntimeTest` 13、`PluginStoreTest` 19、
+- **124 个 JVM 单测全绿**：`ManifestTest` 7、`RuntimeTest` 13、`PluginStoreTest` 19、
   `HydroKitRoutesTest` 18、`WorkerBridgeTest` 11、`WorkerPluginTest` 6、
   `KitRoutesTest` 12（权限门控/存储/ABI 上下文/资产二进制）、
   `ProtocolContractTest` 7（跨端字段契约）、`HydroInterconnectTest` 6（互联通道报文解析）、
+  `HostPageRoutesTest` 4（宿主页 script src 按浏览器规则解析）、
+  `RequestBodyCharsetTest` 4（NanoHTTPD 请求体字符集）、
   `WorkerGlueE2ETest` 2（**真产物 e2e**，见下）。
 - **真产物端到端（M5 的关键验证）**：用 Node 执行 **assets 里的真 `worker.js` 胶水**，
   对着**真 NanoHTTPD + HydroKit 路由**（JVM 里起服务）跑完整链路：
@@ -81,14 +83,28 @@ GRADLE_USER_HOME=/home/float/.gradle \
      比较 `baseUrl` 决定是否重建。
    · `hosts` 用 `ConcurrentHashMap`：`ensure` 可能来自 HTTP 工作线程（离线唤醒），
      `destroy` 来自主线程。
-7. **封面几何必须和桌面逐像素对齐**：桌面用 `imaging.Fit`（**截断**取整），
+7. **宿主页的 `script src` 必须指向宿主页路由**：宿主页地址是
+   `/api/hydro/worker/host?file=worker.html&…`，浏览器按当前 URL 的目录解析相对
+   路径，所以 `<script src="worker.js">` 会变成 `/api/hydro/worker/worker.js` ——
+   那条路由不存在，胶水一行不执行，表现为"宿主页加载成功、worker 永远离线、手表上
+   显示『加载失败，请检查服务端』"。自动化测试当时是绿的，因为 Node 端 e2e 用
+   `globalThis.__HK_CONFIG` 直接跑胶水，根本不经过 HTML 的 script 标签；
+   现在由 `HostPageRoutesTest` 按浏览器的解析规则钉住。
+8. **NanoHTTPD 对没有 charset 的请求体按 US-ASCII 解码**：`Content-Type:
+   application/json`（不带 charset）的 POST 体会被逐字节按 ASCII 解码，中文/emoji
+   全变 U+FFFD —— 真机表现是"插件里的歌名是一串方块、事件里输入的中文存进插件
+   存储也是方块"。修复在服务端：`HydroHttpServer.normalizeRequestBodyCharset()`
+   在 `parseBody()` 之前给缺 charset 的请求补上 `charset=utf-8`（客户端也顺手带了，
+   但那只是治标——手表容器和第三方插件都可能不带）。回归见
+   `RequestBodyCharsetTest`（起真 NanoHTTPD，同时钉住"不补就会坏"）。
+9. **封面几何必须和桌面逐像素对齐**：桌面用 `imaging.Fit`（**截断**取整），
    安卓一开始用四舍五入，同一个 1200×900 封面在两端出来是 466×350 / 466×349。
    两端现在各有一条测试钉住 `466x349`（`MusicArtProcessorTest.watchBackgroundRecipeMatchesDesktopQuery`
    与 `TestProcessArtFitGeometry`），改一边不改另一边就会红。
    `dim` 同样对齐桌面的截断语义（Go 的 `uint8(float64(v)*dim)`）。
-8. **`/api/music/art` 故意不做设备信任校验**：手表渲染背景图是渲染器直接取 URL，
+10. **`/api/music/art` 故意不做设备信任校验**：手表渲染背景图是渲染器直接取 URL，
    带不了 `X-Device-Id`；桌面端一直如此。安卓端保持一致的公开行为。
-9. **互联通道没有自定义请求头**：手表经 XMS Wearable 转发过来的请求是 UDP 报文，
+11. **互联通道没有自定义请求头**：手表经 XMS Wearable 转发过来的请求是 UDP 报文，
    只有 method / path / body，`X-Hydro-Store` 传不进来。所以 `HttpServer.
    handleInternalRequest` 也要把 `/api/hydro` 插件路由交给 `HydroKit.handle()`
    （否则互联通道下插件页面直接 404），存储快照则按「请求头 → `store` 查询参数
@@ -144,6 +160,8 @@ assets/hydrokit/{worker.html,worker.js}   与桌面同协议的宿主胶水
     设置改动仍在（v0.4.1 修的就是这条：互联通道此前 `/api/hydro` 直接 404、
     存储快照也传不进来）
   · 状态页「通知权限」卡片显示已授权（否则插件 `notify` 返回 error，通知看不到）
+  · 出问题先 `adb logcat -s HydroLink`：插件加载/宿主加载/worker 连上/请求路由
+    每一步都有一条日志（`worker ready: … (wasm)` 出现才说明插件真的跑起来了）
   · 手机放歌 → 手表桌搭出**封面背景**（deskbuddy 用 `music.artBlur`；需要通知使用权，
     否则 `hasAlbumArt()` 为假，上下文里 `artUrl`/`artBlur` 是空串、插件自己退回纯色背景）
   · 卸载 → 手表启动器里对应条目消失、插件存储仍在（重装后设置还在）

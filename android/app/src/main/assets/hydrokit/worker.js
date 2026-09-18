@@ -38,7 +38,9 @@
   }
 
   function req(path, opts) {
-    return fetch(P + path, Object.assign({ headers: { "Content-Type": "application/json" } }, opts || {}))
+    // charset 必须写：安卓服务端是 NanoHTTPD，请求体没有 charset 时它按 US-ASCII
+    // 解码，中文/emoji 会变成 U+FFFD（服务端也补了一道，见 normalizeRequestBodyCharset）
+    return fetch(P + path, Object.assign({ headers: { "Content-Type": "application/json; charset=utf-8" } }, opts || {}))
       .then(function (r) { return r.json(); });
   }
   function remote(method, path, body) {

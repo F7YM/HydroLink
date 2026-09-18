@@ -9,10 +9,16 @@
 <!--
   隐藏的插件 worker 宿主页（安卓端）。
 
-  由 PluginHostManager 以 file:///android_asset/hydrokit/worker.html?package=…&base=…&entry=…&runtime=…
-  加载；页内脚本通过本机 HTTP 服务端的长轮询领取请求、调用插件代码、回填结果。
+  由 PluginHostManager 用同源 HTTP 加载：
+  http://127.0.0.1:<port>/api/hydro/worker/host?file=worker.html&package=…&base=…&entry=…&runtime=…
+  页内脚本通过本机 HTTP 服务端的长轮询领取请求、调用插件代码、回填结果。
   页面不渲染任何界面，也不与用户交互。
+
+  注意：下面的 script src 必须指向宿主页路由（绝对路径）。写成相对路径 "worker.js"
+  时浏览器会按当前 URL 的目录解析成 /api/hydro/worker/worker.js —— 那条路由不存在，
+  胶水一行都不会执行，表现为"宿主页加载成功、worker 却永远离线，手表上显示
+  加载失败"。HostPageRoutesTest 按浏览器的解析规则验证这里，别再写回相对路径。
 -->
-<script src="worker.js"></script>
+<script src="/api/hydro/worker/host?file=worker.js"></script>
 </body>
 </html>

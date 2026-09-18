@@ -90,11 +90,11 @@ class PluginWebUiActivity : AppCompatActivity() {
 
 /** 插件列表的 RecyclerView 适配器（简单两行布局，不引额外依赖）。 */
 class PluginAdapter(
-    private val onOpenWebUi: (PluginsActivity.PluginRow) -> Unit,
-    private val onUninstall: (PluginsActivity.PluginRow) -> Unit,
+    private val onOpenWebUi: (PluginRow) -> Unit,
+    private val onUninstall: (PluginRow) -> Unit,
 ) : RecyclerView.Adapter<PluginAdapter.VH>() {
 
-    private var rows: List<PluginsActivity.PluginRow> = emptyList()
+    private var rows: List<PluginRow> = emptyList()
     private var emptyText: String? = null
 
     class VH(v: View) : RecyclerView.ViewHolder(v) {
@@ -106,7 +106,7 @@ class PluginAdapter(
         val uninstall: View = v.findViewById(R.id.pluginUninstall)
     }
 
-    fun submit(list: List<PluginsActivity.PluginRow>, empty: String?) {
+    fun submit(list: List<PluginRow>, empty: String?) {
         rows = list
         emptyText = empty
         notifyDataSetChanged()
