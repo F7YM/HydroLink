@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 自适应图标：artwork 当背景层（深色底 + 居中终端符号），圆形/方圆遮罩只裁深色边角。
-     注意背景层引用的是 @drawable/ic_launcher_art，**不能**指向 @mipmap/ic_launcher 自己
-     —— 自引用会让资源解析失败：桌面图标丢失，前台服务通知拿应用图标时直接抛
-     BadForegroundServiceNotificationException 把 App 打崩。 -->
+<!-- 标准双层自适应图标：渐变背景 + 主体符号（由设计导出的两张 PNG）。
+     注意：两层都不能引用 @mipmap/ic_launcher 自己 —— 自引用会让资源解析成环，
+     桌面图标丢失、前台服务通知拿应用图标时抛 BadForegroundServiceNotificationException
+     把 App 打崩（LauncherIconTest 会挡这个回归）。 -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@drawable/ic_launcher_art" />
-    <foreground android:drawable="@android:color/transparent" />
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
 </adaptive-icon>
