@@ -70,6 +70,14 @@ class MusicArtProcessorTest {
     }
 
     @Test
+    fun whTakesEffectWhenCombinedWithSizeBlurDim() {
+        // 插件实际发的组合：w/h/size/blur/dim 全给 → cover 裁剪优先于 fit
+        val out = MusicArtProcessor.process(gradient(363, 363), blur = 26.0, dim = 0.3, size = 466, w = 800, h = 300)
+        assertEquals(800, out.width)
+        assertEquals(300, out.height)
+    }
+
+    @Test
     fun blurAveragesNeighbourhoods() {
         // 左右两半黑白分明，模糊后交界处应出现中间灰
         val w = 64

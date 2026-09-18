@@ -76,6 +76,19 @@ class MusicArtRouteTest {
     }
 
     @Test
+    fun onlyWhParamsFallBackToOriginalLikeDesktop() {
+        // 桌面的"原图捷径"在 handleMusicArt 里，判断只看 size/blur/dim：只给 w/h 时
+        // 它回原图，安卓这边必须一样（desktop 的 TestProcessArtParamsShortcut 有对应的
+        // 注释指向这里，因为桌面要跑这条分支得有真实媒体会话）。
+        val h = Harness(MusicArtSource("song-a", pixels(363, 363)))
+        val res = h.route.handle(mapOf("w" to "800", "h" to "300"))
+        assertEquals(200, res.status)
+        assertEquals("image/png", res.mime)
+        assertEquals(1, h.pngCalls)
+        assertEquals(0, h.jpegCalls)
+    }
+
+    @Test
     fun encoderFailureBecomesJsonError() {
         val route = MusicArtRoute(
             provider = { MusicArtSource("song", pixels(600, 600)) },

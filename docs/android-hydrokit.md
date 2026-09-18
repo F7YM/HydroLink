@@ -41,7 +41,7 @@ GRADLE_USER_HOME=/home/float/.gradle \
   --no-daemon -Dkotlin.compiler.execution.strategy=in-process :app:testDebugUnitTest
 ```
 
-- **124 个 JVM 单测全绿**：`ManifestTest` 7、`RuntimeTest` 13、`PluginStoreTest` 19、
+- **126 个 JVM 单测全绿**：`ManifestTest` 7、`RuntimeTest` 13、`PluginStoreTest` 19、
   `HydroKitRoutesTest` 18、`WorkerBridgeTest` 11、`WorkerPluginTest` 6、
   `KitRoutesTest` 12（权限门控/存储/ABI 上下文/资产二进制）、
   `ProtocolContractTest` 7（跨端字段契约）、`HydroInterconnectTest` 6（互联通道报文解析）、
@@ -58,6 +58,26 @@ GRADLE_USER_HOME=/home/float/.gradle \
   `desktop/examples/com.demo.weather.hpk`（JS）与 `com.hydro.deskbuddy.hpk`（WASM），
   断言 id/name/version/runtime/entry/permissions/`web/index.html` 均正确解出 ——
   证明安卓端能装桌面端同一份 `.hpk`。
+
+## 真机验证记录（Android 16 / OnePlus PLQ110）
+
+2026-09-18 用 `com.hydro.deskbuddy` v0.7.1（WASM）+ `adb forward` **在设备上实测**过：
+
+| 项 | 结果 |
+|---|---|
+| 插件注册 / 宿主 / worker | `已注册插件` → `worker 宿主已加载` → `worker connected` → `worker ready … (wasm)` |
+| 界面树（466×466 circle dpr2） | 200，1034B，`refreshMs:3000`，**0 个乱码** |
+| 事件请求 | 200 |
+| 长轮询存活（灭屏 75s 后） | 3 次请求 0.75~0.83s 全部 200（隐藏 WebView 没被后台冻结） |
+| 插件存储往返（故意不带 charset 的 POST） | 中文原样返回 |
+| WebUI 静态页 | `/api/hydro/webui/<pkg>/index.html` → 200 text/html |
+| 权限门控 | 未声明的能力一律 403「权限不足: xxx」 |
+| 宿主页白名单 | `file=../…` / 未知文件 → 400「不允许的宿主文件」 |
+| 封面链 | 上下文里 `artUrl`/`artBlur` 是局域网地址；`/api/music/art` → 200 PNG 363×363；`?size=466&blur=26&dim=0.3` → JPEG（源图小于 466 不放大）；加 `w/h` → 466×466 cover；同参数第二次命中缓存 4ms |
+| 插件真的用了封面 | 视图里 `backgroundImage = http://<lan-ip>:9000/api/music/art?w=466&h=466&…` |
+
+**还没在设备上验证**：手表侧渲染（需要手表）、手表只走互联通道的路径、
+6 分钟级后台静置（测到一半设备 USB 掉了，需重测）。
 
 ## 容易踩的坑（已在代码/测试里写明）
 
@@ -151,6 +171,10 @@ assets/hydrokit/{worker.html,worker.js}   与桌面同协议的宿主胶水
   3. 安卓侧权限的实际表现写清楚：`notify` 需 POST_NOTIFICATIONS（已声明，App
      首次进入主动申请；未授权时能力返回 error 而非谎报成功）、
      `lock` 需无障碍服务开关、`commands` 走 Shizuku 或 `sh`、`system` 用 /proc 近似。
+- **开机自启（待定，需要你拍板）**：`RECEIVE_BOOT_COMPLETED` 权限声明了，但
+  manifest 里**没有对应的 receiver**——手机重启后不打开 App，手表就连不上手机
+  （需要用户手动开一次 App 把服务拉起来）。要"重启也能用"就得加一个开机广播
+  receiver 起 `ServerService`（服务起来后 HydroKit 插件宿主会一起恢复）。
 - **真机验证清单**（需要你在手表/手机上过一遍）：
   · 设置 → 管理插件 → 安装 `com.demo.weather.hpk` → 列表出现且 worker 变在线
   · 手表进 Weather App（JS 插件）→ 应能出界面

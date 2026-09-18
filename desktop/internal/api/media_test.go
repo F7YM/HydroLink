@@ -97,6 +97,20 @@ func TestProcessArtCropsToScreenSize(t *testing.T) {
 	}
 }
 
+// TestProcessArtParamsShortcut pins the w/h + size/blur/dim combination that
+// plugins actually request (deskbuddy: ?w=466&h=466&size=466&blur=26&dim=0.3).
+//
+// NOTE: the "no params -> original" shortcut lives in handleMusicArt (it checks
+// only blur/dim/size, so w/h alone returns the source), and exercising it needs
+// a live media session, so it is pinned on the Android side instead:
+// MusicArtRouteTest.onlyWhParamsFallBackToOriginalLikeDesktop. Keep the two
+// conditions in sync — same URL must yield the same image size on both ends.
+func TestProcessArtParamsShortcut(t *testing.T) {
+	if out := processArt(synthImage(363, 363), 26, 0.3, 466, 800, 300); out.Bounds().Dx() != 800 || out.Bounds().Dy() != 300 {
+		t.Fatalf("w/h with size+blur+dim = %v, want 800x300", out.Bounds())
+	}
+}
+
 // TestProcessArtFitGeometry pins the exact output geometry of the
 // size=...&blur=...&dim=... recipe that plugins get as `music.artBlur`
 // (466x466 watch background). The Android port
