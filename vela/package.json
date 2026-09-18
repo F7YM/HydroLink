@@ -7,7 +7,7 @@
     "build": "aiot build",
     "server": "aiot server",
     "prerelease": "node scripts/update-buildinfo.js",
-    "release": "aiot release --drop-console=true --enable-protobuf --enable-jsc --complete-feature"
+    "release": "aiot release --drop-console=true --enable-jsc --complete-feature"
   },
   "devDependencies": {
     "aiot-toolkit": "^2.0.5"
