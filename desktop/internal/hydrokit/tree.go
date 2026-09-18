@@ -145,7 +145,7 @@ type View struct {
 	RefreshMs int   `json:"refreshMs,omitempty"`
 	Root      *Node `json:"root"`
 	// Storage carries watch-side storage writes back to the container, which
-	// persists them on the device (docs/plugin/03-storage.md, scope:'watch').
+	// persists them on the device (docs/03-storage.md, scope:'watch').
 	Storage map[string]any `json:"storage,omitempty"`
 }
 

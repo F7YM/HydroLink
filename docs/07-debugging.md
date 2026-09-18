@@ -57,7 +57,7 @@ bash android/scripts/device-check.sh      # 手机插着 USB
 | 存储写完读不到 | 是否同一请求内"写完立刻读" | 两端胶水已做写穿；若是手表端存储，还要确认容器在落盘（见 [存储](03-storage.md)） |
 
 平台特有的坑（WebView 渲染进程被杀、服务端口变化、通知权限、NanoHTTPD 字符集等）
-集中记在 [platforms/android.md 的坑列表](../platforms/android.md)。
+集中记在 [安卓端笔记里的坑列表](../android/NOTES.md)。
 
 ## 调试用的小技巧
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# 真机自检：把 docs/platforms/android.md 里那份"真机验证清单"变成一条命令。
+# 真机自检：把 android/NOTES.md 里那份"真机验证清单"变成一条命令。
 #
 #   bash android/scripts/device-check.sh                    # 手机插着 USB，自动建端口转发
 #   BASE_URL=http://127.0.0.1:9000 bash android/scripts/device-check.sh   # 打任意 HydroLink 服务端
