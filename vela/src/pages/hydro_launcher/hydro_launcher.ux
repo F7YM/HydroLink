@@ -26,7 +26,6 @@
     <scroll class="scroll-area" scroll-y="true" bounces="true" show="{{ !loading && !errorText && !emptyText }}">
       <div class="list">
         <div for="{{ (pi, plugin) in plugins }}">
-          <text class="plugin-name">{{ plugin.package.name || plugin.package.id }}</text>
           <div
             for="{{ (ai, app) in plugin.apps }}"
             class="app-row pressable {{ pressedKey === 'app_' + pi + '_' + ai ? 'is-down press-down' : '' }} {{ releasedKey === 'app_' + pi + '_' + ai ? 'press-up' : '' }}"
@@ -82,12 +81,11 @@
 .empty-text { color: #9aa2b1; font-size: 24px; }
 .scroll-area { position: absolute; top: 90px; bottom: 0; left: 0; right: 0; }
 .list { width: 100%; flex-direction: column; padding: 10px 20px 30px; }
-.plugin-name {
-  font-size: 20px; color: #888; font-weight: bold;
-  margin-top: 12px; margin-bottom: 6px;
-}
 .app-left { flex-direction: row; align-items: center; flex: 1; }
-.app-icon { width: 56px; height: 56px; border-radius: 28px; margin-left: 6px; }
+.app-icon {
+  width: 56px; height: 56px; border-radius: 28px;
+  margin-left: 8px; margin-right: 18px;   /* 与文字之间留出间距 */
+}
 .app-icon-fallback {
   background-color: #3d4350;
   justify-content: center; align-items: center;
