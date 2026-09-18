@@ -1,6 +1,7 @@
 package hydrokit
 
 import (
+	"runtime"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -151,5 +152,30 @@ func TestStoreSnapshotFromQueryAndBody(t *testing.T) {
 	}
 	if plugin.last.Event.Handler != "refresh" {
 		t.Fatalf("事件未解析: %#v", plugin.last.Event)
+	}
+}
+
+// 插件按平台分支要能拿到宿主 OS（安卓端同构，os="android"）。
+func TestRequestCarriesHostInfo(t *testing.T) {
+	plugin := &capturePlugin{m: Manifest{
+		Package: Package{ID: "test.pkg", Version: "1.0.0"},
+		Apps:    []Item{{ID: "main"}},
+	}}
+	rt := NewRuntime(nil)
+	if err := rt.Register(plugin); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	h := NewHandler(rt)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/hydro/test.pkg/app/main/view", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d", rec.Code)
+	}
+	host := plugin.last.Host
+	if host["os"] == "" || host["arch"] == "" || host["app"] == "" {
+		t.Fatalf("req.host 不完整: %#v", host)
+	}
+	if host["os"] != runtime.GOOS {
+		t.Fatalf("os=%q 应为 %q", host["os"], runtime.GOOS)
 	}
 }

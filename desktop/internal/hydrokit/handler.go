@@ -1,6 +1,7 @@
 package hydrokit
 
 import (
+	goruntime "runtime"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -27,6 +28,11 @@ func NewHandler(rt *Runtime) *Handler {
 // RoutePrefix is the path namespace handled by HydroKit.
 const RoutePrefix = "/api/hydro/"
 
+// HostVersion 是报给插件的宿主应用版本（req.host.app）。由 app 装配处从
+// api.Version 注入——hydrokit 不能反过来 import api（会成环），而打包脚本
+// 是用 -X 注入 api.Version 的，所以保持单一来源。
+var HostVersion = "1.0.0"
+
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet && r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -48,7 +54,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	pkg, surface, item, action := parts[0], parts[1], parts[2], parts[3]
 
-	req := Request{Trigger: triggerForAction(action), Params: map[string]string{}}
+	req := Request{
+		Trigger: triggerForAction(action),
+		Params:  map[string]string{},
+		// 插件按平台分支用（安卓端同构，os="android"）
+		Host: map[string]string{
+			"os":   goruntime.GOOS,
+			"arch": goruntime.GOARCH,
+			"app":  HostVersion,
+		},
+	}
 	// The container uploads the device-side storage snapshot with each request.
 	// HTTP uses the X-Hydro-Store header; transports without headers (e.g. the
 	// Android interconnect channel) put the same JSON in the "store" query

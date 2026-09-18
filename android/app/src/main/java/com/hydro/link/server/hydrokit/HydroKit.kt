@@ -30,8 +30,16 @@ class HydroKit(
     val bridge: WorkerBridge = WorkerBridge(log = { msg -> logFn("info", msg) })
     val runtime: Runtime = Runtime(this)
 
-    private val kitRoutes = HydroKitRoutes(runtime, store) { level, message -> logFn(level, message) }
-    private val kitApis = KitRoutes(store, bridge, capabilities) { msg -> logFn("info", msg) }
+    /** 宿主平台信息：插件用它按平台分支（os ∈ linux|windows|darwin|android）。 */
+    private val hostInfo: MutableMap<String, String> = mutableMapOf(
+        "os" to "android",
+        "arch" to (android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown"),
+        "app" to (runCatching { com.hydro.link.server.BuildConfig.VERSION_NAME }.getOrDefault("")),
+        "sdk" to android.os.Build.VERSION.SDK_INT.toString(),
+    )
+
+    private val kitRoutes = HydroKitRoutes(runtime, store, { level, message -> logFn(level, message) }, { hostInfo })
+    private val kitApis = KitRoutes(store, bridge, capabilities, { msg -> logFn("info", msg) }, { hostInfo })
     private val hostPages = HostPageRoutes(hostAssets)
 
     override fun log(level: String, message: String) = logFn(level, message)

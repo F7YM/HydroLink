@@ -189,4 +189,10 @@ data class Request(
     @SerializedName("params") val params: MutableMap<String, String> = mutableMapOf(),
     @SerializedName("screen") val screen: Screen = Screen(),
     @SerializedName("store") val store: MutableMap<String, Any?>? = null,
+    /**
+     * 宿主平台信息（插件按平台分支用）：os / arch / app / sdk。
+     * os ∈ linux|windows|darwin|android，两端同构；JS 读 req.host，WASM 读 ctx.req.host
+     * 或 ctx.host（ABI 上下文里也放了一份，省得再往 req 里钻）。
+     */
+    @SerializedName("host") val host: MutableMap<String, String>? = null,
 )

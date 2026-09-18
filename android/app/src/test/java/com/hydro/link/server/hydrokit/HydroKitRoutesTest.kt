@@ -270,4 +270,23 @@ class HydroKitRoutesTest {
         assertEquals("x", o.get("b").asString)
         assertTrue(o.get("c").asBoolean)
     }
+
+    /** 插件按平台分支要能拿到宿主 OS（桌面端同构，os=linux/windows/darwin）。 */
+    @Test
+    fun requestCarriesHostInfo() {
+        val seen = arrayListOf<Request>()
+        val rt = Runtime()
+        rt.register(object : Runtime.Plugin {
+            override fun manifest() = Manifests.parse("""{"package":{"id":"com.x.host","version":"1.0.0"},"apps":[{"id":"main"}]}""")
+            override fun view(surface: String, item: String, req: Request): View {
+                seen.add(req)
+                return View(root = Node.text("ok"))
+            }
+        })
+        val routes = HydroKitRoutes(rt, host = { mutableMapOf("os" to "android", "arch" to "arm64-v8a", "app" to "1.0.0", "sdk" to "36") })
+        routes.handle(HydroHttpRequest("GET", "/api/hydro/com.x.host/app/main/view"))
+        assertEquals("android", seen[0].host?.get("os"))
+        assertEquals("arm64-v8a", seen[0].host?.get("arch"))
+        assertEquals("36", seen[0].host?.get("sdk"))
+    }
 }

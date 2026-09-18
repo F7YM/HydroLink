@@ -203,6 +203,8 @@ HydroKit 路由（Go HTTP 服务）        ← 平台中立，与现有实现一
 ### 5.2 多屏适配
 
 - 每个 `/api/hydro` 请求携带屏幕信息（query 参数：`shape/width/height/dpr/dt`），插件在 `req.screen` 里读取
+- 请求还带 `req.host`：宿主平台（`os` ∈ `linux`/`windows`/`darwin`/`android`、`arch`、`app` 版本，安卓另有 `sdk`）。
+  插件按平台分支就靠它，不必嗅探 UA；WASM 插件的 ABI 上下文里另有一份顶层 `ctx.host`
 - 节点 `media` 覆盖块：`{ "style": {...}, "media": { "<shape>": {...} } }`，容器按当前形状合并（shape 键：`circle`/`rect`/`pill`，后写覆盖先写）
 - 写法参考：demo 的根节点 `media.circle.padding=24`、`media.pill.padding=12`
 
@@ -286,6 +288,7 @@ env.hydro_log(ptr, len)               # 可选，调试输出（进桌面端日�
   "surface": "app", "item": "main",
   "req": { "trigger": "open", "event": {...}, "screen": {...}, "store": {...} },
   "time":   { "unix": 0, "iso": "...", "hour": 9, "minute": 41 },
+  "host":   { "os": "linux", "arch": "amd64", "app": "1.0.0" },  // 安卓: os="android"，另有 sdk
   "server": { "base": "http://192.168.3.48:9000" },
   "system": { "cpu": 12.5, "memPercent": 43.2, "memUsedMB": 8192, "memTotalMB": 16384 },
   "music":  { "hasMedia": true, "title": "Feel Something", "artist": "Jaymes Young", "playing": true },
@@ -412,6 +415,9 @@ curl -X POST 'http://127.0.0.1:9000/api/hydro/com.demo.weather/app/main/view?sha
 
 ## 版本记录
 
+- v0.4.5（2026-09-18）：**插件可获知宿主平台**——请求新增 `req.host`（`os`/`arch`/`app`，安卓另有 `sdk`）：
+  桌面端 `os` 取 `runtime.GOOS`（linux/windows/darwin），安卓端为 `android`；WASM 的 ABI 上下文
+  另有一份顶层 `ctx.host`。此前 JS 插件只能嗅探 userAgent，WASM 插件完全拿不到。
 - v0.4.4（2026-09-18）：**封面链在安卓真机验证通过**（`artUrl`/`artBlur` 是局域网地址、
   `/api/music/art` 出图、插件视图里确实用上了封面）；补齐 `w/h` 只在配合
   `size`/`blur`/`dim` 时生效这条规则的**两端测试**（桌面在 handler 里判断、安卓在路由里，

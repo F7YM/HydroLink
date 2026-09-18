@@ -22,6 +22,8 @@ func NewServer() (*api.Server, *store.Store, error) {
 		return nil, nil, fmt.Errorf("store: %w", err)
 	}
 	srv := api.New(st)
+	// 宿主版本报给插件（req.host.app）
+	hydrokit.HostVersion = api.Version
 
 	// HydroKit: register JS plugins from disk (the weather demo ships as an
 	// installable plugin package: desktop/examples/com.demo.weather.hpk).

@@ -43,6 +43,11 @@ type Request struct {
 	// with every request (header X-Hydro-Store). Plugins read it for
 	// scope:'watch' kit.storage reads; writes go back in View.Storage.
 	Store map[string]any `json:"store,omitempty"`
+	// Host tells the plugin which platform it is running on (os = runtime.GOOS:
+	// linux/windows/darwin, plus arch and app version) so one .hpk can branch
+	// per platform instead of sniffing the environment. Mirrored on Android
+	// with os="android"; also exposed top-level in the WASM ABI context.
+	Host map[string]string `json:"host,omitempty"`
 }
 
 // Host is the set of capabilities HydroKit exposes to a plugin. Milestone 1

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"runtime"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -379,6 +380,12 @@ func (h *WorkerHandler) handleContext(w http.ResponseWriter, r *http.Request) {
 		},
 		"server": map[string]any{
 			"base": "http://" + apiBaseHost(r),
+		},
+		// 宿主平台：插件按 os 分支（linux/windows/darwin；安卓端 os="android"）
+		"host": map[string]string{
+			"os":   runtime.GOOS,
+			"arch": runtime.GOARCH,
+			"app":  Version,
 		},
 	}
 	if len(body.Req) > 0 {

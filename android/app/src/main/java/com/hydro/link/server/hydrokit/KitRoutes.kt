@@ -63,6 +63,8 @@ class KitRoutes(
     bridge: WorkerBridge,
     private val caps: KitCapabilities = KitCapabilities.NONE,
     private val log: (String) -> Unit = {},
+    /** 宿主平台信息（与请求里的 req.host 同源）。 */
+    private val host: () -> Map<String, String> = { emptyMap() },
 ) {
     private val gson = Gson()
     val workerRoutes = WorkerRoutes(bridge)
@@ -230,6 +232,8 @@ class KitRoutes(
             "minute" to java.util.Calendar.getInstance().get(java.util.Calendar.MINUTE),
         )
         ctx["server"] = mapOf("base" to caps.serverBase())
+        // 宿主平台：插件按 os 分支（linux/windows/darwin/android）
+        ctx["host"] = host()
         body.get("req")?.let { ctx["req"] = gson.fromJson(it, Any::class.java) }
         if (perms.contains(PERM_SYSTEM)) ctx["system"] = caps.perf()
         if (perms.contains(PERM_MUSIC)) ctx["music"] = caps.music()

@@ -58,6 +58,8 @@ class HydroKitRoutes(
     private val runtime: Runtime,
     private val store: PluginStore? = null,
     private val log: (level: String, message: String) -> Unit = { _, _ -> },
+    /** 宿主平台信息（插件按平台分支）：由门面注入，纯逻辑层不依赖 Android API。 */
+    private val host: () -> MutableMap<String, String> = { mutableMapOf() },
 ) {
     private val gson = Gson()
 
@@ -155,6 +157,7 @@ class HydroKitRoutes(
         if (store == null) store = parseStoreFromBody(req.body)
 
         return Request(
+            host = host(),
             trigger = trigger,
             event = event,
             params = params,
