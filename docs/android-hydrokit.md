@@ -91,6 +91,8 @@ bash android/scripts/device-check-selftest.sh   # 正常→全绿；坏服务端
 
 | 项 | 结果 |
 |---|---|
+| 自检脚本 | `bash android/scripts/device-check.sh` → **16/16 全过**（装了两个插件：WASM 的 deskbuddy + JS 的 weather） |
+| JS 插件（weather） | 出树 200，root=scroll 1774B，无乱码，存储往返正常 |
 | 插件注册 / 宿主 / worker | `已注册插件` → `worker 宿主已加载` → `worker connected` → `worker ready … (wasm)` |
 | 界面树（466×466 circle dpr2） | 200，1034B，`refreshMs:3000`，**0 个乱码** |
 | 事件请求 | 200 |
