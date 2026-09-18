@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-// PluginManifest mirrors docs/hydroplugin.md §3.1.
+// PluginManifest mirrors docs/plugin/01-manifest.md.
 type PluginManifest struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`
@@ -221,7 +221,7 @@ func orEmpty[T any](s []T) []T {
 
 // ReadPluginPackage validates an .hpk/.zip package and returns its manifest
 // WITHOUT installing (used by the install-confirmation UI). The layout
-// follows docs/hydroplugin.md §3: manifest.json + server.js at the package
+// follows docs/plugin/01-manifest.md: manifest.json + server.js at the package
 // root (a single wrapping top-level directory is tolerated and stripped).
 func (s *Store) ReadPluginPackage(zipPath string) (*PluginManifest, error) {
 	if zipPath == "" {

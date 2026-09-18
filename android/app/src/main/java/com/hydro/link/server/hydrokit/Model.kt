@@ -10,7 +10,7 @@ import com.google.gson.annotations.SerializedName
  *   hydrokit/tree.go     → Node / View
  *   hydrokit/plugin.go   → Request / Event / Screen / Trigger*
  *
- * 协议权威描述见 docs/hydroplugin.md；本文件只做数据结构与校验，
+ * 协议权威描述见 docs/plugin/README.md；本文件只做数据结构与校验，
  * 不依赖任何 Android API（可在 JVM 单测里直接跑）。
  */
 
@@ -120,7 +120,7 @@ data class Node(
 
 /**
  * 一次 surface 请求的返回：根树 + 可选刷新周期（毫秒）。
- * storage 用于把「手表侧存储」的写入带回容器落盘（docs/hydroplugin.md §6）。
+ * storage 用于把「手表侧存储」的写入带回容器落盘（docs/plugin/03-storage.md）。
  */
 data class View(
     @SerializedName("refreshMs") val refreshMs: Int = 0,

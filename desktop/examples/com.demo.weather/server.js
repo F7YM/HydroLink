@@ -1,5 +1,5 @@
 // HydroPlugin 示例：天气（与旧的 Go 内嵌 demo 等价的 JS 插件）
-// 环境与接口见 docs/hydroplugin.md；kit 由 HydroKit 注入。
+// 环境与接口见 docs/plugin/README.md；kit 由 HydroKit 注入。
 // 存储（docs §6）：
 //   place      → scope:'server'（服务端，WebUI/手表输入都可写，双向同步）
 //   powerSave  → scope:'watch'（手表端，设备本机偏好，随手表走）

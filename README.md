@@ -14,7 +14,7 @@
 | `desktop/` | 桌面端（Go + Wails v2）：HTTP 服务端 + 图形界面 + 插件运行时 |
 | `vela/` | 手表端（Vela 快应用）：HydroApps 启动器 + 插件容器 + 桌搭组件 |
 | `android/` | 安卓端（Kotlin）：HTTP 服务端 + 互联通道（XMS Wearable）+ 完整 HydroKit |
-| `docs/` | 文档：插件规范 `hydroplugin.md`、平台支持 `desktop-platforms.md`、安卓移植 `android-hydrokit.md` |
+| `docs/` | 文档：[插件开发](docs/plugin/README.md)（HydroPlugin 开发文档）、[平台实现](docs/platforms/README.md)（桌面/安卓）、[索引](docs/README.md) |
 | `packaging/` | 打包：Linux 的 deb/rpm、Windows 的安装程序（Inno Setup） |
 
 ## 构建
@@ -30,7 +30,7 @@ cd desktop && bash build-linux.sh          # 产物 bin/HydroLink
 ./bin/HydroLink -version
 ```
 
-Windows / macOS 见 `docs/desktop-platforms.md`（含各自构建命令与已知限制）。
+Windows / macOS 见 `docs/platforms/desktop.md`（含各自构建命令与已知限制）。
 
 ## 打包
 
@@ -61,4 +61,4 @@ cd android
 bash android/scripts/device-check.sh
 ```
 
-架构、里程碑与真机验证清单见 `docs/android-hydrokit.md`。
+架构、里程碑与真机验证清单见 `docs/platforms/android.md`。

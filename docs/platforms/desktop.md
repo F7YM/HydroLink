@@ -1,6 +1,6 @@
 # HydroLink 桌面端平台支持
 
-> 范围：`desktop/`（Go + Wails v2）。插件规范见 [hydroplugin.md](hydroplugin.md)。
+> 范围：`desktop/`（Go + Wails v2）。插件规范见 [插件协议参考](../plugin/99-reference.md)。
 > 更新于 2026-09-13。**本页区分"已验证"与"待真机确认"**，别把没验过的写成能用。
 
 ## 构建

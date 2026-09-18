@@ -1,8 +1,8 @@
-# 安卓端 HydroKit 移植计划
+# 安卓端 HydroKit 实现
 
 > 目标：**给安卓端加上完整 HydroKit** —— 安卓 App 与桌面端同为 WebView 宿主，
 > 跑同一套插件包（`.hpk`）、同一套 HTTP 协议、同一份 `server.js` / `plugin.wasm`。
-> 协议权威描述见 [hydroplugin.md](hydroplugin.md)；桌面参考实现见
+> 协议权威描述见 [插件协议参考](../plugin/99-reference.md)；桌面参考实现见
 > `desktop/internal/hydrokit/` 与 `desktop/internal/api/{worker,media}.go`。
 
 ## 架构决策
@@ -30,7 +30,7 @@
 | M6 | 权限门控 + kit 能力 | `KitRoutes`（store/context/system/notify/music/lock/commands/asset，全部按 manifest 权限门控）+ `AndroidKitCapabilities`（接到通知/音乐/锁屏/命令/系统信息）+ 封面 `GET /api/music/art` 与 ABI 上下文的 `artUrl`/`artBlur`（`MusicArt.kt`：纯像素处理 + 路由，均有单测） | ✅ 完成 |
 | M7 | 插件 WebUI | `PluginWebUiActivity`：WebView 打开 `http://127.0.0.1:<port>/api/hydro/webui/<pkg>/index.html`（**同源**，页面直接调 kit），插件作者无需为安卓写第二套页面 | ✅ 完成 |
 | M8 | 安卓 UI 接入 | 主界面底部**「插件」Tab**（列表 + 安装 `.hpk` + 卸载二次确认 + 打开界面 + worker 在线状态 + 摘要）与设置里的 `PluginsActivity`（共用 `ui/PluginUi.kt` 一份实现）、服务启动即 `startHosts()`、worker console 与应用日志**同时进 logcat**（`adb logcat -s HydroLink`） | ✅ 完成 |
-| M9 | 文档与回归 | 更新 hydroplugin.md 的平台差异说明（已写：§9.1 差异表 + 三条存储快照通道）；跨端同一 `.hpk` 的安装/调用回归（已写：真产物 e2e + 真包解析）；剩余：**真机验证清单** | 🔶 部分完成 |
+| M9 | 文档与回归 | 更新平台差异说明（已写：§9.1 差异表 + 三条存储快照通道）；跨端同一 `.hpk` 的安装/调用回归（已写：真产物 e2e + 真包解析）；剩余：**真机验证清单** | 🔶 部分完成 |
 
 ## 已完成部分（M1 / M2）的验证
 
@@ -215,7 +215,7 @@ assets/hydrokit/{worker.html,worker.js}   与桌面同协议的宿主胶水
 ## 后续轮次的切入点
 
 - **M9 文档与回归**（剩下的主要工作）：
-  1. `docs/hydroplugin.md` 补"平台差异"一节：桌面 vs 安卓（宿主实现、性能/能力差异、
+  1. `docs/plugin/README.md` 补"平台差异"一节：桌面 vs 安卓（宿主实现、性能/能力差异、
      通知/锁屏/命令在安卓上的前置条件）。
   2. 跨端回归：同一 `.hpk` 在两端都能装、能出树（桌面已有 Go e2e；安卓已有
      Node 跑真胶水的 e2e），把两者的期望字段对齐写进文档。
