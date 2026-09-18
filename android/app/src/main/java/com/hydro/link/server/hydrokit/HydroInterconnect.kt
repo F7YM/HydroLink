@@ -46,4 +46,32 @@ object HydroInterconnect {
             body = body,
         )
     }
+
+    /**
+     * 把 HydroKit 的响应包成互联通道能传的 [JsonElement]。
+     *
+     * 互联通道（XMS Wearable）只能传 JSON 对象，所以：
+     *   · 没有响应（路由没匹配上）→ 错误对象
+     *   · 二进制响应（wasm/图片）→ 明确报"走 HTTP"，而不是塞一段乱码
+     *   · 空正文（204 之类）→ `{"status":"ok","code":…}`
+     *   · JSON 正文 → 原样解析（手表读的就是这个对象）
+     *   · 非 JSON 正文（例如 HTML）→ 包一层，至少不丢信息
+     *
+     * 抽成纯函数是为了能单测：这条链路只有在手表真的走互联时才会用到，
+     * 真机复现成本高，逻辑写错了表现为手表上"加载失败"但服务端日志一片正常。
+     */
+    fun toJsonElement(gson: com.google.gson.Gson, res: HydroHttpResponse?): com.google.gson.JsonElement {
+        if (res == null) return gson.toJsonTree(mapOf("status" to "error", "message" to "Not found"))
+        if (res.bytes != null) {
+            return gson.toJsonTree(mapOf("status" to "error", "message" to "二进制资源请走 HTTP"))
+        }
+        if (res.body.isBlank()) {
+            return gson.toJsonTree(mapOf("status" to "ok", "code" to res.status))
+        }
+        return try {
+            com.google.gson.JsonParser.parseString(res.body)
+        } catch (e: Exception) {
+            gson.toJsonTree(mapOf("status" to "ok", "code" to res.status, "body" to res.body))
+        }
+    }
 }

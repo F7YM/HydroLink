@@ -41,10 +41,10 @@ GRADLE_USER_HOME=/home/float/.gradle \
   --no-daemon -Dkotlin.compiler.execution.strategy=in-process :app:testDebugUnitTest
 ```
 
-- **126 个 JVM 单测全绿**：`ManifestTest` 7、`RuntimeTest` 13、`PluginStoreTest` 19、
+- **131 个 JVM 单测全绿**：`ManifestTest` 7、`RuntimeTest` 13、`PluginStoreTest` 19、
   `HydroKitRoutesTest` 18、`WorkerBridgeTest` 11、`WorkerPluginTest` 6、
   `KitRoutesTest` 12（权限门控/存储/ABI 上下文/资产二进制）、
-  `ProtocolContractTest` 7（跨端字段契约）、`HydroInterconnectTest` 6（互联通道报文解析）、
+  `ProtocolContractTest` 7（跨端字段契约）、`HydroInterconnectTest` 11（互联通道报文解析 + 响应包装）、
   `HostPageRoutesTest` 4（宿主页 script src 按浏览器规则解析）、
   `RequestBodyCharsetTest` 4（NanoHTTPD 请求体字符集）、
   `WorkerGlueE2ETest` 2（**真产物 e2e**，见下）。

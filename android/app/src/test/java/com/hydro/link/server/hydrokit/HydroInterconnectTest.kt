@@ -69,6 +69,48 @@ class HydroInterconnectTest {
         assertEquals("""{"event":{"handler":"refresh"}}""", req.body)
     }
 
+    // ---- 响应包装（互联通道只能传 JSON）----
+
+    private val gson = com.google.gson.Gson()
+
+    @Test
+    fun wrapsJsonBodyAsIs() {
+        val res = HydroHttpResponse(200, "application/json", """{"root":{"type":"text"}}""", null)
+        val el = HydroInterconnect.toJsonElement(gson, res)
+        assertEquals("text", el.asJsonObject["root"].asJsonObject["type"].asString)
+    }
+
+    @Test
+    fun unknownRouteBecomesErrorObject() {
+        val el = HydroInterconnect.toJsonElement(gson, null)
+        assertEquals("error", el.asJsonObject["status"].asString)
+    }
+
+    @Test
+    fun emptyBodyBecomesStatusObject() {
+        // 204/空正文：手表侧需要一个对象，不能是空字符串
+        val el = HydroInterconnect.toJsonElement(gson, HydroHttpResponse(204, "application/json", "", null))
+        assertEquals("ok", el.asJsonObject["status"].asString)
+        assertEquals(204, el.asJsonObject["code"].asInt)
+    }
+
+    @Test
+    fun binaryResponseIsRejectedWithAHint() {
+        // wasm/图片走不了互联通道：明确报错，而不是把二进制塞进 JSON
+        val res = HydroHttpResponse(200, "application/wasm", "", ByteArray(8))
+        val el = HydroInterconnect.toJsonElement(gson, res)
+        assertEquals("error", el.asJsonObject["status"].asString)
+        assertTrue(el.asJsonObject["message"].asString.contains("HTTP"))
+    }
+
+    @Test
+    fun nonJsonBodyIsWrappedNotLost() {
+        val res = HydroHttpResponse(404, "text/plain", "hydrokit: 未知插件包 \"com.nope\"", null)
+        val el = HydroInterconnect.toJsonElement(gson, res)
+        assertEquals(404, el.asJsonObject["code"].asInt)
+        assertTrue(el.asJsonObject["body"].asString.contains("com.nope"))
+    }
+
     /**
      * 端到端：互联通道报文 → 真路由 → 插件收到的 Request。
      * 这条用例覆盖的就是 v0.4.1 修的洞（此前 `/api/hydro/…` 在互联通道下 404）。

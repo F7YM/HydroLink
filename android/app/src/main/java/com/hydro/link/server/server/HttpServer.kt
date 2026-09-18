@@ -396,20 +396,8 @@ class HydroHttpServer(
             method = method,
             body = bodyJson?.toString(),
         )
-        val out = hydroKit.handle(req)
-            ?: return gson.toJsonTree(mapOf("status" to "error", "message" to "Not found"))
-        if (out.bytes != null) {
-            return gson.toJsonTree(mapOf("status" to "error", "message" to "二进制资源请走 HTTP"))
-        }
-        if (out.body.isBlank()) {
-            return gson.toJsonTree(mapOf("status" to "ok", "code" to out.status))
-        }
-        return try {
-            com.google.gson.JsonParser.parseString(out.body)
-        } catch (e: Exception) {
-            // 非 JSON 正文（例如 HTML 页面）在互联通道上没法原样传，包一层
-            gson.toJsonTree(mapOf("status" to "ok", "code" to out.status, "body" to out.body))
-        }
+        // 响应包装（二进制/空正文/非 JSON）在 HydroInterconnect 里，有单测
+        return com.hydro.link.server.hydrokit.HydroInterconnect.toJsonElement(gson, hydroKit.handle(req))
     }
 
     /**
