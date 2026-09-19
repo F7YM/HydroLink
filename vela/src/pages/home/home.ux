@@ -18,6 +18,7 @@
           ontouchstart="onIcTouchStart"
           ontouchend="onIcTouchEnd"
           ontouchcancel="onIcTouchCancel"
+          onclick="onIcTap"
         >
           <image class="device-icon" src="/common/icons/cellphone.png"></image>
           <div class="device-info">
@@ -35,6 +36,7 @@
           ontouchstart="onDeviceTouchStart(index)"
           ontouchend="onDeviceTouchEnd(index)"
           ontouchcancel="onDeviceTouchCancel(index)"
+          onclick="onDeviceTap(index)"
         >
           <image class="device-icon" src="/common/icons/{{ item.deviceType }}.png"></image>
           <div class="device-info">
@@ -456,7 +458,11 @@ export default {
   },
 
   onIcTouchEnd() {
+    // 同上：只做按压视觉，跳转在 onclick（避免滚动时误触）
     this.pressRelease('ic_device')
+  },
+
+  onIcTap() {
     this.openIcDevice('deviceInfo')
   },
 
@@ -492,11 +498,21 @@ export default {
       clearTimeout(this._longPressTimer)
       this._longPressTimer = null
     }
+    // 这里**只**做按压视觉：跳转交给 onclick。
+    // 之前直接在 touchend 跳转，滚动列表时手指抬起就会误进设备页。
+    this.pressRelease('device_' + index)
+  },
+
+  /**
+   * 点击进设备页。放在 onclick 而不是 touchend：滚动列表时的滑动不会产生 click，
+   * 于是"滑动结束"不会再误触发（插件启动器一直是这个写法，所以那边没这个问题）。
+   * 长按已经进过详情页的话，这一次 click 吃掉，避免连推两个页面。
+   */
+  onDeviceTap(index) {
     if (this.longPressTriggered) {
       this.longPressTriggered = false
       return
     }
-    this.pressRelease('device_' + index)
     this.openDevice(index, 'deviceInfo')
   },
 
