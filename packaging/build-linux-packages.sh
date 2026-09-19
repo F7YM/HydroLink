@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# 构建 Linux 安装包（deb 与 rpm），不依赖第三方打包器：
-#   · deb 用 dpkg-deb + DEBIAN/control
-#   · rpm 用 rpmbuild + packaging/rpm/hydrolink.spec
+# 构建 Linux 安装包（deb / rpm / Arch），不依赖第三方打包器：
+#   · deb  用 dpkg-deb + DEBIAN/control
+#   · rpm  用 rpmbuild + packaging/rpm/hydrolink.spec
+#   · Arch 手搓 .pkg.tar.zst（见 packaging/build-arch-package.sh），不需要 makepkg/pacman
 #
 # 用法：
-#   bash packaging/build-linux-packages.sh            # deb + rpm
+#   bash packaging/build-linux-packages.sh            # deb + rpm + arch
 #   bash packaging/build-linux-packages.sh deb        # 只出 deb
 #   bash packaging/build-linux-packages.sh rpm        # 只出 rpm
+#   bash packaging/build-linux-packages.sh arch       # 只出 Arch 包
 #
 # 产物在 dist/。版本号来自 desktop/VERSION，并通过 -ldflags -X 注入二进制，
 # 保证「包版本」与「程序自报版本（hydrolink -version）」永远一致。
@@ -99,17 +101,25 @@ if [ "$WHAT" = "all" ] || [ "$WHAT" = "rpm" ]; then
   command -v rpmbuild >/dev/null || { echo "缺少 rpmbuild，跳过 rpm"; exit 0; }
   TOP="$ROOT/packaging/build/rpmbuild"
   rm -rf "$TOP"
-  mkdir -p "$TOP"/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+  # _tmppath 指向工作目录：rpmbuild 默认往 /var/tmp 写临时脚本，在受限环境里会失败
+  mkdir -p "$TOP"/{BUILD,RPMS,SOURCES,SPECS,SRPMS,tmp}
 
   # spec 从「已装好的文件树」打二进制包：把 stage 打成 tar 放进 SOURCES，
   # spec 里只做 %install 拷贝 + %files 列表（不重新编译，避免 rpmbuild 里跑 Go）。
   tar -C "$STAGE" -czf "$TOP/SOURCES/hydrolink-$VERSION-files.tar.gz" .
   rpmbuild --define "_topdir $TOP" \
+           --define "_tmppath $TOP/tmp" \
            --define "hydrolink_version $VERSION" \
            -bb "$ROOT/packaging/rpm/hydrolink.spec" 2>&1 | tail -5
   mkdir -p "$DIST"
   find "$TOP/RPMS" -name '*.rpm' -exec cp {} "$DIST/" \;
   ls -1 "$DIST"/*.rpm
+fi
+
+# ---- 6) Arch 包 ----
+if [ "$WHAT" = "all" ] || [ "$WHAT" = "arch" ]; then
+  echo "== 构建 Arch 包 =="
+  bash "$ROOT/packaging/build-arch-package.sh" "$STAGE" "$VERSION" "$MAINTAINER"
 fi
 
 echo

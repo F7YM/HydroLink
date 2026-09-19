@@ -39,8 +39,9 @@ type Config struct {
 	LastPort      int    `json:"last_port"`
 	AcceptAll     bool   `json:"accept_all"`
 	UseShizuku    bool   `json:"use_shizuku"` // kept for compatibility; unused on desktop
-	// TrayEnabled 控制是否在系统托盘区显示图标。指针语义：老配置文件里没有这个
-	// 键时视为"开启"（nil），显式写 false 才是用户关掉了托盘。
+	// TrayEnabled 控制是否在系统托盘区显示图标（关闭窗口时最小化到托盘、服务继续跑）。
+	// 指针语义：**默认开启**——老配置文件里没有这个键（nil）也算开，只有显式写 false
+	// 才是用户关掉了托盘。
 	TrayEnabled *bool `json:"tray_enabled,omitempty"`
 }
 

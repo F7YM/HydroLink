@@ -45,7 +45,10 @@ func NewApp(srv *api.Server, st *store.Store, port int, trayIcon, trayICO []byte
 	return a
 }
 
-// trayEnabledFrom reads the persisted preference (missing key = enabled).
+// trayEnabledFrom reads the persisted preference.
+//
+// **默认开启**：老配置文件里没有这个键（nil）时也算开 —— 装完就有托盘图标，
+// 关窗口 = 最小化到托盘、服务继续跑；不想要的人到设置里关掉即可。
 func trayEnabledFrom(cfg store.Config) bool {
 	return cfg.TrayEnabled == nil || *cfg.TrayEnabled
 }
