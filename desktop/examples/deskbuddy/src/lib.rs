@@ -14,8 +14,8 @@ use std::alloc::{alloc, dealloc, Layout};
 /// 设计稿画布边长（466×466 圆屏）与其中的关键尺寸。
 const DESIGN: f64 = 466.0;
 const D_COVER: f64 = 135.0; // 封面边长
-const D_COVER_LEFT: f64 = 46.0; // 封面左边距
-const D_RIGHT_PAD: f64 = 42.0; // 文字列右侧安全边距（圆屏弧边）
+const D_COVER_LEFT: f64 = 28.0; // 封面左边距
+const D_RIGHT_PAD: f64 = 28.0; // 文字列右侧安全边距（圆屏弧边）
 const D_GAP: f64 = 18.0; // 封面与文字列间距
 const D_CLOCK_TOP: f64 = 26.0; // 时钟顶部
 const D_RADIUS: f64 = 21.0; // 封面圆角
@@ -93,10 +93,14 @@ fn text(v: &Value, path: &[&str]) -> String {
 }
 
 /// 单行文本：超出宽度由容器补省略号（Vela text 的 lines + text-overflow）。
+///
+/// 这里先在插件侧截一次：容器上的 `text-overflow:ellipsis` 在部分固件上只裁不加点
+/// （歌名/歌手直接断在半截），估算宽度自己补 `…` 才稳。截得比容器略短，所以容器
+/// 那层省略号仍然可以作为兜底。
 fn one_line(s: &str, width: f64, size: f64, weight: f64, color: &str) -> Value {
     json!({
         "type": "text",
-        "props": { "text": s },
+        "props": { "text": elide(s, width, size) },
         "style": {
             "width": width,
             "fontSize": size,
@@ -106,6 +110,50 @@ fn one_line(s: &str, width: f64, size: f64, weight: f64, color: &str) -> Value {
             "textOverflow": "ellipsis"
         }
     })
+}
+
+/// 估算一个字符占几个字号（CJK/全角算 1，ASCII 算 0.55，空格更窄）。
+fn char_width(c: char) -> f64 {
+    let cp = c as u32;
+    let wide = (0x1100..=0x115F).contains(&cp)      // 谚文字母
+        || (0x2E80..=0xA4CF).contains(&cp)          // 部首/假名/中日韩统一表意文字/彝文
+        || (0xAC00..=0xD7A3).contains(&cp)          // 谚文音节
+        || (0xF900..=0xFAFF).contains(&cp)          // 中日韩兼容表意
+        || (0xFE30..=0xFE6F).contains(&cp)          // 中日韩兼容形式
+        || (0xFF00..=0xFF60).contains(&cp)          // 全角
+        || (0xFFE0..=0xFFE6).contains(&cp)
+        || cp >= 0x1F300; // emoji
+    if wide {
+        1.0
+    } else if cp == 0x20 {
+        0.3
+    } else {
+        0.55
+    }
+}
+
+/// 放不下就截断并补 `…`（留 2px 余量，免得容器再裁掉省略号本身）。
+fn elide(s: &str, max_w: f64, font_px: f64) -> String {
+    let max_w = max_w - 2.0;
+    if font_px <= 0.0 {
+        return s.to_string();
+    }
+    let total: f64 = s.chars().map(|c| char_width(c) * font_px).sum();
+    if total <= max_w {
+        return s.to_string();
+    }
+    let ell = char_width('…') * font_px;
+    let mut out = String::new();
+    let mut used = 0.0;
+    for c in s.chars() {
+        let w = char_width(c) * font_px;
+        if used + w + ell > max_w {
+            break;
+        }
+        used += w;
+        out.push(c);
+    }
+    format!("{}…", out.trim_end())
 }
 
 #[no_mangle]
@@ -467,7 +515,7 @@ mod tests {
         assert_eq!(t["refreshMs"], 500, "歌词版式 0.5s 一刷");
         assert_eq!(t["root"]["type"], "column");
         let row = board(&t);
-        assert_eq!(row["style"]["left"].as_f64().unwrap(), 46.0, "封面前的安全边距");
+        assert_eq!(row["style"]["left"].as_f64().unwrap(), 28.0, "封面前的安全边距");
         assert_eq!(row["style"]["top"].as_f64().unwrap(), 166.0, "封面垂直居中 (466-135)/2");
         let cover = &row["children"][0];
         assert_eq!(cover["type"], "image");
@@ -475,8 +523,8 @@ mod tests {
         assert_eq!(cover["style"]["borderRadius"].as_f64().unwrap(), 21.0);
         let col = &row["children"][1];
         assert_eq!(col["style"]["marginLeft"].as_f64().unwrap(), 18.0);
-        assert_eq!(col["style"]["width"].as_f64().unwrap(), 225.0);
-        assert_eq!(row["style"]["width"].as_f64().unwrap(), 378.0); // 46…424
+        assert_eq!(col["style"]["width"].as_f64().unwrap(), 257.0);
+        assert_eq!(row["style"]["width"].as_f64().unwrap(), 410.0); // 28…438（左右对称）
     }
 
     #[test]
@@ -510,18 +558,41 @@ mod tests {
     }
 
     #[test]
-    fn title_is_single_line_with_ellipsis() {
-        let long = "这是一个非常非常长的歌曲名字用来验证省略号是否生效 A Very Long Song Title";
+    fn long_title_and_artist_are_elided_in_the_plugin() {
+        // 容器上的 text-overflow 在部分固件上只裁不加点，所以插件自己先截；
+        // 这里同时钉住"短文本不动"。
+        let long_title = "这是一个非常非常长的歌曲名字用来验证省略号是否生效 A Very Long Song Title";
+        let long_artist = "一个同样非常非常长的歌手名字用来验证省略号 A Very Long Artist Name Here";
         let t = view(&format!(
-            r#"{{"music":{{"hasMedia":true,"title":"{long}","artist":"A","artUrl":"file:///tmp/c.jpg",
-                "lyrics":{{"line":"L"}}}},"req":{{"screen":{{"width":466,"height":466}}}}}}"#
+            r#"{{"music":{{"hasMedia":true,"title":"{long_title}","artist":"{long_artist}",
+                "artUrl":"file:///tmp/c.jpg","lyrics":{{"line":"L"}}}},
+                "req":{{"screen":{{"width":466,"height":466}}}}}}"#
         ));
-        let title = find_text(&t, long);
-        assert_eq!(title["style"]["lines"].as_f64().unwrap(), 1.0, "歌名必须单行");
-        assert_eq!(title["style"]["textOverflow"], "ellipsis");
-        assert!(title["style"]["width"].as_f64().unwrap() > 0.0);
-        // 歌手行同样单行省略（设计稿里它只有一行）
-        assert_eq!(find_text(&t, "A")["style"]["lines"].as_f64().unwrap(), 1.0);
+        let col = &board(&t)["children"][1];
+        let title = &col["children"][0];
+        let artist = &col["children"][1];
+        for (node, full) in [(title, long_title), (artist, long_artist)] {
+            let shown = node["props"]["text"].as_str().unwrap();
+            assert!(shown.ends_with('…'), "没补省略号: {shown}");
+            assert!(shown.chars().count() < full.chars().count(), "没有截短: {shown}");
+            assert_eq!(node["style"]["lines"].as_f64().unwrap(), 1.0);
+            assert_eq!(node["style"]["textOverflow"], "ellipsis");
+            assert!(node["style"]["width"].as_f64().unwrap() > 0.0);
+        }
+        // 短的照旧原样显示
+        let short = view(&with_lyrics("L"));
+        assert_eq!(find_text(&short, "Feel Something")["props"]["text"], "Feel Something");
+        assert_eq!(find_text(&short, "Jaymes Young")["props"]["text"], "Jaymes Young");
+    }
+
+    #[test]
+    fn elide_measures_cjk_as_full_width() {
+        // 22px 高、220px 宽的一行：中文 10 个字符放不下，ASCII 可以放 18 个
+        assert_eq!(elide("短", 220.0, 22.0), "短");
+        assert_eq!(elide("一二三四五六七八九十", 220.0, 22.0), "一二三四五六七八九…");
+        assert_eq!(elide("abcdefghijklmnop", 220.0, 22.0), "abcdefghijklmnop");
+        // 放不下就截到能放下 + 省略号为止（"abc def" = 6 个半角 ≈ 79px，再加 … 刚好）
+        assert_eq!(elide("abc defghijklmnopqrst", 100.0, 22.0), "abc def…");
     }
 
     #[test]
@@ -620,19 +691,21 @@ mod tests {
 
     #[test]
     fn font_scale_setting_scales_all_text() {
-        let base = view(&with_lyrics("L"));
-        let big = view(r#"{"music":{"hasMedia":true,"title":"Feel Something","artist":"Jaymes Young",
-            "artUrl":"file:///tmp/c.jpg","lyrics":{"line":"L"}},"storage":{"fontScale":1.5},
-            "req":{"screen":{"width":466,"height":466}}}"#);
+        let mk = |scale: &str| view(&format!(
+            r#"{{"music":{{"hasMedia":true,"title":"T","artist":"A","artUrl":"file:///tmp/c.jpg",
+                "lyrics":{{"line":"L"}}}}{scale},"req":{{"screen":{{"width":466,"height":466}}}}}}"#
+        ));
         let size_of = |t: &Value, txt: &str| -> f64 {
             find_text(t, txt)["style"]["fontSize"].as_f64().unwrap()
         };
+        let base = mk("");
+        let big = mk(r#","storage":{"fontScale":1.5}"#);
         assert_eq!(size_of(&base, "00:00"), 36.0);
         assert_eq!(size_of(&big, "00:00"), 54.0);
-        assert_eq!(size_of(&base, "Feel Something"), 32.0);
-        assert_eq!(size_of(&big, "Feel Something"), 48.0);
-        assert_eq!(size_of(&base, "Jaymes Young"), 22.0);
-        assert_eq!(size_of(&big, "Jaymes Young"), 33.0);
+        assert_eq!(size_of(&base, "T"), 32.0);
+        assert_eq!(size_of(&big, "T"), 48.0);
+        assert_eq!(size_of(&base, "A"), 22.0);
+        assert_eq!(size_of(&big, "A"), 33.0);
         assert_eq!(size_of(&base, "L"), 26.0);
         assert_eq!(size_of(&big, "L"), 39.0);
     }
