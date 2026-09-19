@@ -578,7 +578,7 @@ class InterconnectHandler(
     private fun routeApiRequest(path: String, method: String, body: JsonElement?): JsonElement {
         return try {
             val result = server.handleInternalRequest(path, method, body)
-            result ?: gson.toJsonTree(mapOf("status" to "error", "message" to "Not found"))
+            result ?: gson.toJsonTree(mapOf("status" to "error", "message" to "Not found: $path"))
         } catch (e: Exception) {
             Log.e(TAG, "routeApiRequest error for $path", e)
             gson.toJsonTree(mapOf("status" to "error", "message" to (e.message ?: "Internal error")))

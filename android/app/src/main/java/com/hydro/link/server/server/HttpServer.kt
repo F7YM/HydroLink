@@ -453,28 +453,12 @@ class HydroHttpServer(
 
                 // Commands
                 cleanPath == "/api/commands" || cleanPath == "/commands" ->
-                    gson.toJsonTree(mapOf("status" to "ok", "commands" to dataManager.loadCommands()))
+                    // 与 HTTP 路径共用同一份形状（必须带数字 id）
+                    gson.toJsonTree(mapOf("status" to "ok", "commands" to commandsListJson()))
 
                 cleanPath.matches(Regex("/api/commands/\\d+/run")) || cleanPath.matches(Regex("/commands/\\d+/run")) -> {
-                    val parts = cleanPath.split("/")
-                    val cmdId = parts[parts.indexOfLast { it.matches(Regex("\\d+")) }].toInt()
-                    val commands = dataManager.loadCommands()
-                    if (cmdId >= 0 && cmdId < commands.size) {
-                        val cmd = commands[cmdId]
-                        val cfg = dataManager.loadConfig()
-                        val (success, output, _) = if (cfg.useRoot) {
-                            val r = RootShell.exec(cmd.command); Triple(r.ok, r.output, r.code)
-                        } else {
-                            val p = java.lang.ProcessBuilder("sh", "-c", cmd.command)
-                                .redirectErrorStream(true).start()
-                            val out = p.inputStream.bufferedReader().readText()
-                            val rc = p.waitFor()
-                            Triple(rc == 0, out, rc)
-                        }
-                        gson.toJsonTree(mapOf("status" to if (success) "ok" else "error", "output" to output))
-                    } else {
-                        gson.toJsonTree(mapOf("status" to "error", "message" to "Invalid command ID"))
-                    }
+                    val cmdId = cleanPath.split("/").last { it.matches(Regex("\\d+")) }.toInt()
+                    gson.toJsonTree(runCommandResult(cmdId).second)
                 }
 
                 else -> null
@@ -716,89 +700,76 @@ class HydroHttpServer(
     }
 
     // ---- Commands ----
-    private fun handleGetCommands(): Response {
-        val commands = dataManager.loadCommands()
-        val result = commands.mapIndexed { i, cmd ->
+    /**
+     * 命令列表的统一形状：**必须带数字 id**（手表用它拼 /api/commands/{id}/run）。
+     * 互联通道原来直接回 dataManager.loadCommands()（只有 name/command，没有 id），
+     * 手表拿到 undefined 就拼出 /api/commands/undefined/run → 服务端匹配不上 →
+     * 手表上显示"Not found"。两条通道共用这一个函数，避免再漂移。
+     */
+    private fun commandsListJson(): List<Map<String, Any?>> =
+        dataManager.loadCommands().mapIndexed { i, cmd ->
             mapOf(
                 "id" to i,
                 "name" to cmd.name.take(50),
-                "command" to cmd.command.take(200)
+                "command" to cmd.command.take(200),
             )
         }
-        return jsonResp(mapOf("status" to "ok", "commands" to result))
-    }
 
-    private fun handleRunCommand(cmdId: Int): Response {
+    /**
+     * 执行一条命令（HTTP 与互联通道共用）。
+     * 语义：**跑起来了就算成功**（回 returncode + output），只有压根没法跑才 error。
+     * 返回 (HTTP 状态码, 响应体)。
+     */
+    private fun runCommandResult(cmdId: Int): Pair<Int, Map<String, Any?>> {
         val commands = dataManager.loadCommands()
         if (cmdId < 0 || cmdId >= commands.size) {
-            return jsonResp(mapOf("status" to "error", "message" to "Invalid command ID"), Response.Status.BAD_REQUEST)
+            return 400 to mapOf("status" to "error", "message" to "Invalid command ID")
         }
-
         val cmd = commands[cmdId]
         val cmdStr = cmd.command.trim()
-        addLog("收到执行请求: #$cmdId ${cmd.name}（root=${dataManager.loadConfig().useRoot}）", "info")
         if (cmdStr.isEmpty()) {
-            return jsonResp(mapOf("status" to "error", "message" to "Empty command"), Response.Status.BAD_REQUEST)
+            return 400 to mapOf("status" to "error", "message" to "Empty command")
         }
+        addLog("收到执行请求: #$cmdId ${cmd.name}（root=${dataManager.loadConfig().useRoot}）", "info")
 
-        val config = dataManager.loadConfig()
-
-        // 设置里开了"使用 root 执行"就走 su -c
-        if (config.useRoot) {
-            if (!RootShell.isAvailable()) {
-                addLog("root 不可用，命令执行失败", "error")
-                return jsonResp(mapOf("status" to "error", "message" to "root 不可用"), Response.Status.INTERNAL_ERROR)
-            }
-
+        if (dataManager.loadConfig().useRoot) {
             addLog("执行命令(root): ${cmd.name}", "warning")
             val r = RootShell.exec(cmdStr)
-            // 语义：命令**跑起来了**就算成功（带退出码 + 输出），只有压根没法跑
-            // （找不到 su / 等授权超时，code 为 -1）才报错。退出码非 0 的常见原因是
-            // 命令本身没匹配到东西（grep 返回 1 之类），那不是"执行失败"。
             if (r.code < 0) {
                 addLog("命令无法执行: ${r.output}", "error")
-                return jsonResp(
-                    mapOf("status" to "error", "message" to r.output.take(200)),
-                    Response.Status.INTERNAL_ERROR,
-                )
+                return 500 to mapOf("status" to "error", "message" to r.output.take(200))
             }
             addLog("命令完成: 返回码 ${r.code}｜输出: ${r.output.take(200)}", if (r.code == 0) "success" else "warning")
-            return jsonResp(mapOf(
-                "status" to "ok",
-                "returncode" to r.code,
-                "output" to r.output.take(1000),
-            ))
+            return 200 to mapOf("status" to "ok", "returncode" to r.code, "output" to r.output.take(1000))
         }
 
-        // Fallback: direct execution (app user privileges)
-        // 非 root：应用自身权限跑 sh -c。合并 stderr（分两条流顺序读会互相阻塞），
-        // 并给 15s 超时，避免某条命令把服务线程挂住。
         return try {
             addLog("执行命令(sh): ${cmd.name}", "warning")
-            val process = ProcessBuilder("sh", "-c", cmdStr)
-                .redirectErrorStream(true)
-                .start()
+            val process = ProcessBuilder("sh", "-c", cmdStr).redirectErrorStream(true).start()
             val output = process.inputStream.bufferedReader().readText()
-            val finished = process.waitFor(15, java.util.concurrent.TimeUnit.SECONDS)
-            if (!finished) {
+            if (!process.waitFor(15, java.util.concurrent.TimeUnit.SECONDS)) {
                 process.destroy()
                 addLog("命令超时（15s）", "error")
-                return jsonResp(mapOf("status" to "error", "message" to "执行超时（15s）"), Response.Status.INTERNAL_ERROR)
+                return 500 to mapOf("status" to "error", "message" to "执行超时（15s）")
             }
-            val returnCode = process.exitValue()
-            addLog("命令完成: 返回码 $returnCode｜输出: ${output.take(200)}", if (returnCode == 0) "success" else "warning")
-            jsonResp(mapOf(
-                "status" to "ok",
-                "returncode" to returnCode,
-                "output" to output.take(1000),
-            ))
+            val rc = process.exitValue()
+            addLog("命令完成: 返回码 $rc｜输出: ${output.take(200)}", if (rc == 0) "success" else "warning")
+            200 to mapOf("status" to "ok", "returncode" to rc, "output" to output.take(1000))
         } catch (e: Exception) {
             addLog("命令无法执行: ${e.message}", "error")
-            jsonResp(mapOf("status" to "error", "message" to "无法执行: ${e.message}"), Response.Status.INTERNAL_ERROR)
+            500 to mapOf("status" to "error", "message" to "无法执行: ${e.message}")
         }
     }
 
-    // ---- System info helpers ----
+    private fun handleGetCommands(): Response =
+        jsonResp(mapOf("status" to "ok", "commands" to commandsListJson()))
+
+    private fun handleRunCommand(cmdId: Int): Response {
+        val (code, body) = runCommandResult(cmdId)
+        val status = Response.Status.values().firstOrNull { it.requestStatus == code } ?: Response.Status.OK
+        return jsonResp(body, status)
+    }
+
     private fun getSystemInfo(): SystemInfo {
         val hostname = try {
             Build.MODEL ?: "Android Device"
