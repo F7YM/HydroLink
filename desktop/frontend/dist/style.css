@@ -117,14 +117,13 @@ body {
 
 .rail-footer { padding-top: 6px; }
 .version-badge {
-  font-size: 10px; font-weight: 700;
-  color: var(--md-on-secondary-container);
-  background: var(--md-secondary-container);
-  border-radius: 9px; padding: 3px 8px;
+  /* 纯文字：不再用容器色块做底 */
+  font-size: 11px; font-weight: 600;
+  color: var(--md-outline);
+  background: none;
+  padding: 0;
   white-space: nowrap;
-  transition: transform 200ms var(--md-ease-emphasized);
 }
-.version-badge:hover { transform: scale(1.06); }
 
 /* ================= Content ================= */
 
@@ -306,17 +305,6 @@ input::placeholder { color: var(--md-outline); }
 .check-row input:active { transform: scale(0.85); }
 
 /* ---------- Logs ---------- */
-
-.logs {
-  font-family: "JetBrains Mono", Consolas, monospace;
-  font-size: 11px; line-height: 1.8;
-  max-height: calc(100vh - 210px);
-  overflow-y: auto; word-break: break-all;
-}
-.log-line.info { color: var(--md-on-surface-var); }
-.log-line.success { color: var(--md-success); }
-.log-line.warning { color: var(--md-warning); }
-.log-line.error { color: var(--md-error); }
 
 .muted { color: var(--md-outline); font-size: 12px; }
 .empty { color: var(--md-outline); font-size: 12px; text-align: center; padding: 12px 0; }

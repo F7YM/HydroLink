@@ -144,12 +144,12 @@ rm -rf /tmp/x && mkdir /tmp/x && cd /tmp/x && rpm2cpio <rpm> | cpio -idm   # 解
 3. 只签 `HydroLink-amd64.exe` 也可以，但安装包本身不签的话 SmartScreen 仍会提示 ——
    所以最好连安装包一起签（上面的 `SignTool` 就是给安装包用的）。
 
-### ### 已验证程度
+### 已验证程度
 
-我用 wine + Inno Setup 6.7.3 在本机跑通了完整链路（命令见下），**已实测**：
+在 **Windows 虚拟机**里用 Inno Setup 6.7.3 跑通过完整链路，**已实测**：
 
-- 编译：不传 `/D` 时自动读 `desktop/VERSION` → `dist/HydroLink-1.0.0-setup.exe`；
-  `/DMyAppVersion=9.9.9` 可覆盖；缺二进制时给出可读的 `#error`。
+- 编译：不传 `/D` 时自动读 `desktop/VERSION` → `dist/HydroLink-<版本>-setup.exe`；
+  `/DMyAppVersion=9.9.9` 可覆盖；缺二进制时给出可读的 `#error`（并告诉你该先跑哪条命令）。
 - 安装（`/VERYSILENT`）：装到 `%LocalAppData%\Programs\HydroLink`，
   含 `HydroLink.exe`/`LICENSE`/`README.md`，开始菜单快捷方式与卸载项
   （`HKCU\...\Uninstall\com.hydro.hydrolink_is1`）都正确建立。
@@ -158,32 +158,29 @@ rm -rf /tmp/x && mkdir /tmp/x && cd /tmp/x && rpm2cpio <rpm> | cpio -idm   # 解
 未验证：WebView2 缺失时的提示分支、开机自启任务、桌面快捷方式、代码签名
 （这些需要在真实 Windows 上点一遍）。
 
-```bash
-# 本机复现（Linux + wine，一次性准备）
-curl -sSL -o /tmp/innosetup.exe \
-  https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe
-WINEPREFIX=/tmp/wine-inno wine /tmp/innosetup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-
-# 编译
-WINEPREFIX=/tmp/wine-inno wine "/tmp/wine-inno/drive_c/Program Files (x86)/Inno Setup 6/ISCC.exe" \
-  "$PWD/packaging/windows/hydrolink.iss"
-```
+### 出安装包：在 Windows 里跑
 
-### 在 Linux 上出安装包（可选）
-
-Inno Setup 本体是 Windows 程序，Linux 上要经 wine：
+**不在 Linux 上用 wine 打包**（wine 里的 ISCC 是额外环境依赖，装出来的东西也没人验证过）。
+流程是"Linux 侧交叉编译二进制 → Windows 侧编译安装包"：
 
 ```bash
-# 一次性准备（约 100MB 下载）
-sudo dnf install wine
-# 下载 Inno Setup 6 安装包并在 wine 前缀里静默安装：
-#   wine innosetup-6.x.x.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
-# 然后：
-wine "$WINEPREFIX/drive_c/Program Files (x86)/Inno Setup 6/ISCC.exe" \
-     /DMyAppVersion=1.0.0 /DMySourceDir=desktop\\bin packaging/windows/hydrolink.iss
+# 1) Linux：交叉编译出 Windows 二进制（纯 Go 交叉编译，不需要 wine）
+bash packaging/build-windows.sh
+#    产物：desktop/bin/HydroLink-amd64.exe
 ```
 
-本仓库**未**在 Linux 上验证这条路径（wine 里的 ISCC 属于额外环境依赖）；更稳的做法是
-在 Windows 机器或 CI 的 `windows-latest` runner 上跑 `build-installer.bat`。
+```
+2) Windows 虚拟机：把仓库（或至少 desktop\ 与 packaging\）拷进去，双击
+   packaging\windows\build-installer.bat
+   ——它会在同目录找 ISCC，自动带上版本号与二进制路径。
+   产物：dist\HydroLink-<版本>-setup.exe
+```
+
+`build-installer.bat` 也可以直接命令行调用：
+
+```
+ISCC.exe /DMyAppVersion=1.1.0 /DMySourceDir=..\..\desktop\bin packaging\windows\hydrolink.iss
+```
 
 ## 未做（需要时再加）
 

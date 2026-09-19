@@ -7,7 +7,7 @@
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
   let activeTab = "status";
-  const tabTitles = { status: "状态", pair: "配对", commands: "命令", plugins: "插件", settings: "设置", logs: "日志" };
+  const tabTitles = { status: "状态", pair: "配对", commands: "命令", plugins: "插件", settings: "设置" };
 
   function switchTab(name) {
     activeTab = name;
@@ -170,19 +170,6 @@
       msg.textContent = String(e && e.message ? e.message : e);
     }
   });
-
-  // ---- logs ----
-  async function loadLogs() {
-    const logs = await api("GetLogs");
-    const list = $("logList");
-    if (!logs || logs.length === 0) {
-      list.innerHTML = `<p class="empty">暂无日志</p>`;
-      return;
-    }
-    list.innerHTML = logs.map((l) =>
-      `<div class="log-line ${esc(l.level)}">${esc(l.text)}</div>`).join("");
-    list.scrollTop = list.scrollHeight;
-  }
 
   // ---- plugins ----
   // Dedicated WebWorker per installed plugin: it long-polls the Kit worker
@@ -412,7 +399,6 @@
     loadPending();
     loadCommands();
     loadPlugins();
-    loadLogs();
   }
 
   // ---- pairing popup (pushed from backend via Wails event) ----
