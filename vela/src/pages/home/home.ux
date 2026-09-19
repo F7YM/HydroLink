@@ -43,6 +43,17 @@
             <text class="device-name">{{ item.name }}</text>
             <text class="device-ip">{{ item.host }}:{{ item.port }}</text>
           </div>
+          <!-- 更多（进设备详情/管理页）。原来是"长按卡片"，但长按既难发现又容易和
+               滚动/点击打架，改成显式按钮。图标半透明（见 .device-more-icon）。 -->
+          <div
+            class="device-more pressable {{ pressedKey === 'more_' + index ? 'is-down' : '' }}"
+            ontouchstart="pressDown('more_' + index)"
+            ontouchend="pressRelease('more_' + index)"
+            ontouchcancel="pressCancel('more_' + index)"
+            onclick="onDeviceMore(index)"
+          >
+            <image class="device-more-icon" src="/common/icons/more_vert.png"></image>
+          </div>
         </div>
       </div>
 
@@ -168,6 +179,19 @@
   flex-direction: column;
   justify-content: center;
 }
+.device-more {
+  width: 64px;
+  height: 64px;
+  border-radius: 32px;
+  justify-content: center;
+  align-items: center;
+}
+.device-more-icon {
+  width: 32px;
+  height: 32px;
+  /* 半透明：按钮是次要操作，别抢卡片的视觉权重 */
+  opacity: 0.55;
+}
 .device-name {
   font-size: 26px;
   font-weight: bold;
@@ -287,7 +311,6 @@ export default {
     currentTime: '00:00',
     pressedKey: '',
     releasedKey: '',
-    longPressTriggered: false,
     icDevice: null
   },
 
@@ -485,21 +508,10 @@ export default {
   /* ---- Manual device handlers ---- */
   onDeviceTouchStart(index) {
     this.pressDown('device_' + index)
-    this.longPressTriggered = false
-    this._longPressTimer = setTimeout(() => {
-      this.longPressTriggered = true
-      this.pressedKey = ''
-      this.openDevice(index, 'deviceDetail')
-    }, 600)
   },
 
   onDeviceTouchEnd(index) {
-    if (this._longPressTimer) {
-      clearTimeout(this._longPressTimer)
-      this._longPressTimer = null
-    }
-    // 这里**只**做按压视觉：跳转交给 onclick。
-    // 之前直接在 touchend 跳转，滚动列表时手指抬起就会误进设备页。
+    // 只做按压视觉：跳转交给 onclick（滚动时不会产生 click，避免误触）
     this.pressRelease('device_' + index)
   },
 
@@ -509,11 +521,12 @@ export default {
    * 长按已经进过详情页的话，这一次 click 吃掉，避免连推两个页面。
    */
   onDeviceTap(index) {
-    if (this.longPressTriggered) {
-      this.longPressTriggered = false
-      return
-    }
     this.openDevice(index, 'deviceInfo')
+  },
+
+  /** 右侧「更多」：进设备详情页（改名/地址/端口/类型/删除） */
+  onDeviceMore(index) {
+    this.openDevice(index, 'deviceDetail')
   },
 
   openDevice(index, page) {
@@ -531,11 +544,6 @@ export default {
   },
 
   onDeviceTouchCancel(index) {
-    if (this._longPressTimer) {
-      clearTimeout(this._longPressTimer)
-      this._longPressTimer = null
-    }
-    this.longPressTriggered = false
     this.pressCancel('device_' + index)
   },
 
