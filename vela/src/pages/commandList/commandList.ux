@@ -287,7 +287,11 @@ export default {
     if (res && res.status === 'ok') {
       prompt.showToast({ message: '执行成功' })
     } else {
-      prompt.showToast({ message: '执行失败' })
+      // 把服务端的真实原因带出来（未受信任 / root 不可用 / 命令返回非 0 等），
+      // 否则手表上只有一句"执行失败"，手机上也没日志可查
+      let why = (res && (res.message || res.error)) || ''
+      if (why && why.length > 40) why = why.slice(0, 40) + '…'
+      prompt.showToast({ message: why ? '执行失败: ' + why : '执行失败' })
     }
   },
 

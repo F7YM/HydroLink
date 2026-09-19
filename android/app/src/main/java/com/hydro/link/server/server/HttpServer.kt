@@ -371,9 +371,13 @@ class HydroHttpServer(
 
         val deviceId = headers["x-device-id"] ?: ""
         if (deviceId.isEmpty() || deviceId.length > 100) {
+            // 手表执行命令必带这个头；没有就说明请求没带设备标识（或走的传输通道丢了头）
+            addLog("请求被拒：缺少 X-Device-ID（可能是互联通道丢了请求头）", "warning")
             return jsonResp(mapOf("status" to "error", "message" to "Missing device ID"), Response.Status.UNAUTHORIZED)
         }
         if (!dataManager.isTrusted(deviceId)) {
+            val short = deviceId.take(12)
+            addLog("请求被拒：设备未受信任（$short…）——在「设备」页确认已配对", "warning")
             return jsonResp(mapOf("status" to "error", "message" to "Device not trusted"), Response.Status.FORBIDDEN)
         }
         return block()
@@ -732,6 +736,7 @@ class HydroHttpServer(
 
         val cmd = commands[cmdId]
         val cmdStr = cmd.command.trim()
+        addLog("收到执行请求: #$cmdId ${cmd.name}（root=${dataManager.loadConfig().useRoot}）", "info")
         if (cmdStr.isEmpty()) {
             return jsonResp(mapOf("status" to "error", "message" to "Empty command"), Response.Status.BAD_REQUEST)
         }
