@@ -14,11 +14,23 @@ use std::alloc::{alloc, dealloc, Layout};
 /// 设计稿画布边长（466×466 圆屏）与其中的关键尺寸。
 const DESIGN: f64 = 466.0;
 const D_COVER: f64 = 135.0; // 封面边长
-const D_COVER_LEFT: f64 = 28.0; // 封面左边距
-const D_RIGHT_PAD: f64 = 28.0; // 文字列右侧安全边距（圆屏弧边）
+// 设计稿的边距（**屏幕坐标**；减掉容器的安全区后才是内容盒坐标）。
+// 46/42 正好等于容器圆屏安全区的左右内边距（42），所以减完就是"贴着安全区两端"，
+// 再往左就出安全区、会被容器硬裁。
+const D_COVER_LEFT: f64 = 46.0; // 封面左边距
+const D_RIGHT_PAD: f64 = 42.0; // 文字列右侧安全边距
 const D_GAP: f64 = 18.0; // 封面与文字列间距
-const D_CLOCK_TOP: f64 = 26.0; // 时钟顶部
+const D_CLOCK_TOP: f64 = 30.0; // 时钟顶部
 const D_RADIUS: f64 = 21.0; // 封面圆角
+
+/// 容器的圆屏安全区内边距（vela/src/pages/hydro/hydro.ux 的 `.safe-circle`）。
+///
+/// 容器里 `position:absolute` 的原点是**内容盒**而不是屏幕，而且超出内容盒的部分
+/// 会被**硬裁**（连省略号一起裁掉）——所以设计稿的屏幕坐标必须先减掉这段内边距，
+/// 否则整块内容会右移 42px、被裁在安全区边缘（真机上就表现为"歌名断在半截、
+/// 没有省略号"）。方屏/圆角矩形下容器把安全区置零。
+const SAFE_INSET_X: f64 = 42.0;
+const SAFE_INSET_TOP: f64 = 30.0;
 
 /// 歌词版式的刷新间隔：歌词要跟着播放下走。
 const LYRICS_REFRESH_MS: i64 = 500;
@@ -251,17 +263,29 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
 
     let title_text = if title.is_empty() { "HydroLink".to_string() } else { title };
 
+    // 显示哪一句：优先当前句；还没唱到第一句（前奏/间奏）时退而显示**下一句**，
+    // 颜色压暗一档——真机上"前奏十几秒空白"看起来就像歌词坏了。
+    let next_line = text(&ctx, &["music", "lyrics", "next"]);
+    let upcoming = lyric_line.is_empty() && !next_line.is_empty();
+    let shown_line = if upcoming { next_line } else { lyric_line };
+
     let (root_type, root_style, children, refresh_ms) = if lyrics_on {
         // ---------- 设计稿版式 ----------
         // 字号沿用原来那套（设计稿的 21/24/17 在真机上太小）：时钟 36、歌名 32、
         // 歌手 22；歌词取二者之间的 26，最多三行（字号大了，两行装不下整句）。
+        // 坐标全部按**内容盒**算（设计稿的 46/42 边距恰好等于容器的安全区）。
+        let inset_x = if shape == "circle" { SAFE_INSET_X } else { 0.0 };
+        let inset_top = if shape == "circle" { SAFE_INSET_TOP } else { 0.0 };
+        let canvas_w = sw - 2.0 * inset_x;
+
         let cover = (D_COVER * s).round();
-        let cover_left = (D_COVER_LEFT * s).round();
+        let cover_left = (D_COVER_LEFT * s).round() - inset_x;
         let gap = (D_GAP * s).round();
         let text_left = cover_left + cover + gap;
-        let text_width = (sw - text_left - D_RIGHT_PAD * s).round();
+        let text_right = (D_RIGHT_PAD * s).round() - inset_x;
+        let text_width = canvas_w - text_left - text_right;
         // 封面垂直居中于屏幕
-        let top = ((sh - cover) / 2.0).round();
+        let top = ((sh - cover) / 2.0).round() - inset_top;
 
         let cover_node = if !cover_src.is_empty() {
             json!({
@@ -299,15 +323,15 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
                 "rgba(255,255,255,0.4)",
             ),
         ];
-        if !lyric_line.is_empty() {
+        if !shown_line.is_empty() {
             text_kids.push(json!({
                 "type": "text",
-                "props": { "text": lyric_line },
+                "props": { "text": shown_line },
                 "style": {
                     "width": text_width,
                     "fontSize": f(26.0),
                     "lineHeight": f(32.0),
-                    "color": "#FFFFFF",
+                    "color": if upcoming { "rgba(255,255,255,0.45)" } else { "#FFFFFF" },
                     "marginTop": (5.0 * s).round(),
                     "lines": 3,
                     "textOverflow": "ellipsis"
@@ -324,11 +348,11 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
                     "props": { "text": clock },
                     "style": {
                         "position": "absolute",
-                        "top": (D_CLOCK_TOP * s).round(),
+                        "top": (D_CLOCK_TOP * s).round() - inset_top,
                         "left": 0,
                         "right": 0,
-                        // 显式给整屏宽：容器里的百分比宽度会随包装层收缩，居中就不再可靠
-                        "width": sw.round() as i64,
+                        // 显式给整个内容盒宽：容器里的百分比宽度会随包装层收缩，居中就不再可靠
+                        "width": canvas_w.round() as i64,
                         "fontSize": f(36.0),
                         "fontWeight": 700,
                         "color": "#FFFFFF",
@@ -453,10 +477,11 @@ mod tests {
         serde_json::from_slice(payload).expect("envelope payload is not valid JSON")
     }
 
-    /// 开了歌词集成的上下文（那时宿主总会带上 ctx.music.lyrics）
+    /// 开了歌词集成的上下文（那时宿主总会带上 ctx.music.lyrics）。
+    /// 标题/歌手用短串，免得先被省略号截掉。
     fn with_lyrics(line: &str) -> String {
         format!(
-            r#"{{"music":{{"hasMedia":true,"title":"Feel Something","artist":"Jaymes Young",
+            r#"{{"music":{{"hasMedia":true,"title":"Song","artist":"Artist",
                 "artUrl":"file:///tmp/c.jpg","lyrics":{{"source":"splayer","line":"{line}","next":"下一句"}}}},
                 "req":{{"screen":{{"shape":"circle","width":466,"height":466}}}}}}"#
         )
@@ -514,17 +539,22 @@ mod tests {
         let t = view(&with_lyrics("Make me feel something, something"));
         assert_eq!(t["refreshMs"], 500, "歌词版式 0.5s 一刷");
         assert_eq!(t["root"]["type"], "column");
+        // 坐标是**内容盒**坐标：容器圆屏内边距 42/30，设计稿的屏幕坐标要减掉它
+        // （覆盖 28…438 会被容器的安全区硬裁，省略号一起消失）
         let row = board(&t);
-        assert_eq!(row["style"]["left"].as_f64().unwrap(), 28.0, "封面前的安全边距");
-        assert_eq!(row["style"]["top"].as_f64().unwrap(), 166.0, "封面垂直居中 (466-135)/2");
+        assert_eq!(row["style"]["left"].as_f64().unwrap(), D_COVER_LEFT - SAFE_INSET_X);
+        assert_eq!(row["style"]["top"].as_f64().unwrap(), 136.0, "封面垂直居中 (466-135)/2-30");
         let cover = &row["children"][0];
         assert_eq!(cover["type"], "image");
         assert_eq!(cover["style"]["width"].as_f64().unwrap(), 135.0);
         assert_eq!(cover["style"]["borderRadius"].as_f64().unwrap(), 21.0);
         let col = &row["children"][1];
         assert_eq!(col["style"]["marginLeft"].as_f64().unwrap(), 18.0);
-        assert_eq!(col["style"]["width"].as_f64().unwrap(), 257.0);
-        assert_eq!(row["style"]["width"].as_f64().unwrap(), 410.0); // 28…438（左右对称）
+        assert_eq!(col["style"]["width"].as_f64().unwrap(), 225.0);
+        // 整行必须落在内容盒里：46…424（容器只给 42…424，越界会被硬裁）
+        assert_eq!(row["style"]["width"].as_f64().unwrap(), 378.0);
+        assert_eq!(row["style"]["left"].as_f64().unwrap() + 42.0, 46.0, "封面落在设计稿的位置");
+        assert_eq!(row["style"]["left"].as_f64().unwrap() + 42.0 + 378.0, 424.0, "右边界=安全区右缘");
     }
 
     #[test]
@@ -534,9 +564,11 @@ mod tests {
         let clock = find_text(&t, "00:00");
         assert_eq!(clock["style"]["fontSize"].as_f64().unwrap(), 36.0);
         assert_eq!(clock["style"]["textAlign"], "center");
-        assert_eq!(clock["style"]["width"].as_f64().unwrap(), 466.0, "时钟占满整屏宽才能居中");
-        assert_eq!(find_text(&t, "Feel Something")["style"]["fontSize"].as_f64().unwrap(), 32.0);
-        assert_eq!(find_text(&t, "Jaymes Young")["style"]["fontSize"].as_f64().unwrap(), 22.0);
+        // 时钟铺满整个内容盒（382）→ 居中即屏幕中心 233
+        assert_eq!(clock["style"]["width"].as_f64().unwrap(), 466.0 - 2.0 * SAFE_INSET_X);
+        assert_eq!(clock["style"]["top"].as_f64().unwrap(), 0.0);
+        assert_eq!(find_text(&t, "Song")["style"]["fontSize"].as_f64().unwrap(), 32.0);
+        assert_eq!(find_text(&t, "Artist")["style"]["fontSize"].as_f64().unwrap(), 22.0);
         let lyric = find_text(&t, "L");
         assert_eq!(lyric["style"]["fontSize"].as_f64().unwrap(), 26.0);
         assert_eq!(lyric["style"]["lineHeight"].as_f64().unwrap(), 32.0);
@@ -546,6 +578,7 @@ mod tests {
 
     #[test]
     fn design_layout_scales_to_other_screens() {
+        // 方屏没有安全区内边距：坐标就是屏幕坐标
         let t = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A","artUrl":"file:///tmp/c.jpg",
             "lyrics":{"line":"L"}},"req":{"screen":{"shape":"rect","width":432,"height":514}}}"#);
         let row = board(&t);
@@ -555,6 +588,20 @@ mod tests {
         let top = row["style"]["top"].as_f64().unwrap();
         let cover = 135.0 * (432.0 / 466.0);
         assert!((top - (514.0 - cover) / 2.0).abs() <= 1.0, "封面未垂直居中: {top}");
+    }
+
+    #[test]
+    fn intro_shows_the_upcoming_line_dimmed() {
+        // 前奏/间奏（还没唱到第一句）：显示下一句并压暗，而不是留一块空白
+        let t = view(r#"{"music":{"hasMedia":true,"title":"Song","artist":"Artist",
+            "artUrl":"file:///tmp/c.jpg","lyrics":{"source":"splayer","line":"","next":"I don't care if it hurts"}},
+            "req":{"screen":{"shape":"circle","width":466,"height":466}}}"#);
+        let up = find_text(&t, "I don't care if it hurts");
+        assert_eq!(up["style"]["color"], "rgba(255,255,255,0.45)", "前奏里的下一句要压暗");
+        assert_eq!(up["style"]["lines"].as_f64().unwrap(), 3.0);
+        // 正在唱的那句是纯白
+        let playing = view(&with_lyrics("正在唱"));
+        assert_eq!(find_text(&playing, "正在唱")["style"]["color"], "#FFFFFF");
     }
 
     #[test]
@@ -581,8 +628,8 @@ mod tests {
         }
         // 短的照旧原样显示
         let short = view(&with_lyrics("L"));
-        assert_eq!(find_text(&short, "Feel Something")["props"]["text"], "Feel Something");
-        assert_eq!(find_text(&short, "Jaymes Young")["props"]["text"], "Jaymes Young");
+        assert_eq!(find_text(&short, "Song")["props"]["text"], "Song");
+        assert_eq!(find_text(&short, "Artist")["props"]["text"], "Artist");
     }
 
     #[test]
