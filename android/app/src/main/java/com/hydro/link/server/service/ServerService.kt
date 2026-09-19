@@ -52,6 +52,16 @@ class ServerService : Service() {
             // Start interconnect handler (XMS Wearable SDK based)
             interconnectHandler = InterconnectHandler(this, server, port).also { it.start() }
             httpServer?.addLog("Interconnect 已启动", "info")
+            // root 模式开着时记一条 su 解析结果：真机上"命令执行失败"十有八九是
+            // su 不在 PATH（KernelSU 只对已授权进程暴露 su），日志里先看清这个再排查
+            if (DataManager.get(this).loadConfig().useRoot) {
+                val su = com.hydro.link.server.util.RootShell.resolveSu()
+                server.addLog(
+                    if (su == null) "root 模式：未找到 su（请在 KernelSU/Magisk 里给本应用授权）"
+                    else "root 模式：su = $su",
+                    if (su == null) "error" else "info",
+                )
+            }
             ServerService.instance = this
         } catch (e: Exception) {
             httpServer?.addLog("启动失败: ${e.message}", "error")

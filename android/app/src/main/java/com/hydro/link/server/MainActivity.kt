@@ -534,6 +534,21 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    override fun onResume() {
+        super.onResume()
+        refreshData()
+        // 每 2 秒刷新一次状态（服务/互联/worker 在线数都要是活的）
+        handler.postDelayed(refreshRunnable, 2000)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        handler.removeCallbacks(refreshRunnable)
+    }
+
+    /**
+     * Check if the notification listener service is enabled in system settings.
+     */
     private fun isNotificationServiceEnabled(): Boolean {
         val packageName = packageName
         val flat = Settings.Secure.getString(contentResolver, "enabled_notification_listeners")
