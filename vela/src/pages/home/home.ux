@@ -37,7 +37,7 @@
           class="device-item {{ !item.reachable ? 'device-offline' : '' }}"
         >
           <div
-            class="device-main pressable {{ pressedKey === 'device_' + index ? 'is-down press-down' : '' }} {{ releasedKey === 'device_' + index ? 'press-up' : '' }}"
+            class="device-main pressable {{ pressedKey === 'device_' + index ? 'is-down' : '' }}"
             ontouchstart="onDeviceTouchStart(index)"
             ontouchend="onDeviceTouchEnd(index)"
             ontouchcancel="onDeviceTouchCancel(index)"

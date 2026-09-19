@@ -12,8 +12,8 @@
       >‹设置</text>
     </div>
 
-    <!-- Settings list -->
-    <div class="form-area">
+    <!-- Settings list（内容变多时能滚：原来是一层 div，超出就直接被裁掉） -->
+    <scroll class="scroll-area" scroll-y="true" bounces="true">
       <div class="form-list">
         <!-- App info card -->
         <div
@@ -52,7 +52,7 @@
           ></switch>
         </div>
       </div>
-    </div>
+    </scroll>
   </div>
 </template>
 
@@ -88,15 +88,12 @@
 }
 
 /* ---- Form ---- */
-.form-area {
+.scroll-area {
   position: absolute;
   top: 90px;
   bottom: 0;
   left: 0;
   right: 0;
-  width: 100%;
-  flex-direction: column;
-  align-items: center;
 }
 .form-list {
   width: 100%;
@@ -133,12 +130,12 @@
 }
 .app-version {
   font-size: 20px;
-  color: #888;
+  color: #fff;
   margin-top: 4px;
 }
 .app-group {
   font-size: 18px;
-  color: #888;
+  color: #fff;
   margin-top: 2px;
 }
 .app-chevron {
@@ -151,8 +148,8 @@
 .form-item {
   width: 420px;
   height: 96px;
-  margin: 5px 0;
-  padding: 0 24px;
+  margin: 0 0 12px 0;
+  padding: 0 20px;
   background-color: #2e323c;
   border-radius: 48px;
   flex-direction: row;
@@ -206,6 +203,7 @@
 @media (shape: circle) {
   .form-list {
     padding-top: 30px;
+    padding-bottom: 120px;
   }
   .app-card {
     width: 380px;
