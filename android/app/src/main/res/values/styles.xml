@@ -51,6 +51,15 @@
         <item name="android:background">?attr/selectableItemBackground</item>
     </style>
 
+    <!-- 行尾图标按钮（编辑/删除/刷新等统一用它，避免有的用 MaterialButton、有的用系统图标） -->
+    <style name="Widget.Hydro.IconButton" parent="Widget.Material3.Button.IconButton">
+        <item name="android:layout_width">44dp</item>
+        <item name="android:layout_height">44dp</item>
+        <item name="android:padding">10dp</item>
+        <item name="android:background">?attr/selectableItemBackgroundBorderless</item>
+        <item name="android:tint">?attr/colorOnSurfaceVariant</item>
+    </style>
+
     <!-- 行里的图标容器（圆角方块 + 主色容器底） -->
     <style name="Widget.Hydro.RowIcon" parent="">
         <item name="android:layout_width">44dp</item>

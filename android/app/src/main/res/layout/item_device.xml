@@ -4,21 +4,25 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    style="@style/Widget.Hydro.Card"
     android:layout_marginHorizontal="16dp"
-    android:layout_marginVertical="4dp"
-    app:cardCornerRadius="16dp"
-    app:cardElevation="1dp">
+    android:layout_marginTop="4dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="16dp"
         android:gravity="center_vertical">
+
+        <ImageView
+            style="@style/Widget.Hydro.RowIcon"
+            android:contentDescription=""
+            android:src="@drawable/ic_device" />
 
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
             android:layout_weight="1"
             android:orientation="vertical">
 
@@ -42,12 +46,10 @@
                 android:ellipsize="end" />
         </LinearLayout>
 
-        <com.google.android.material.button.MaterialButton
+        <ImageButton
             android:id="@+id/btnDelete"
-            style="@style/Widget.Material3.Button.IconButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            app:icon="@android:drawable/ic_menu_delete"
-            app:iconTint="?attr/colorError" />
+            style="@style/Widget.Hydro.IconButton"
+            android:contentDescription="删除设备"
+            android:src="@drawable/ic_delete" />
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

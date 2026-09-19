@@ -472,7 +472,7 @@
             android:layout_margin="16dp"
             android:text="@string/add_command"
             android:contentDescription="@string/add_command"
-            app:icon="@android:drawable/ic_input_add"
+            app:icon="@drawable/ic_add"
             android:visibility="gone" />
     </FrameLayout>
 

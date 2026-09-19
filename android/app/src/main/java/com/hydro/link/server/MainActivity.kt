@@ -110,7 +110,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private val commandAdapter = CommandAdapter { index -> deleteCommand(index) }
+    private val commandAdapter = CommandAdapter(
+        onEdit = { index -> showAddCommandDialog(index) },
+        onDelete = { index -> deleteCommand(index) },
+    )
 
     private val refreshRunnable = object : Runnable {
         override fun run() {
@@ -298,7 +301,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         fabAddCommand.setOnClickListener {
-            showAddCommandDialog()
+            showAddCommandDialog(null)
         }
 
         findViewById<View>(R.id.btnInstallPluginTab).setOnClickListener {
@@ -492,15 +495,24 @@ class MainActivity : AppCompatActivity() {
         Snackbar.make(rvCommands, "已删除命令", Snackbar.LENGTH_SHORT).show()
     }
 
-    private fun showAddCommandDialog() {
+    /**
+     * 新建 / 编辑快速命令（同一个弹窗：index == null 表示新建）。
+     * 编辑时预填现有名称与命令。
+     */
+    private fun showAddCommandDialog(index: Int? = null) {
         val view = layoutInflater.inflate(R.layout.dialog_edit_command, null)
-        val tilName = view.findViewById<TextInputLayout>(R.id.tilCommandName)
-        val tilCommand = view.findViewById<TextInputLayout>(R.id.tilCommandContent)
         val etName = view.findViewById<TextInputEditText>(R.id.etCommandName)
         val etCommand = view.findViewById<TextInputEditText>(R.id.etCommandContent)
+        val editing = index != null && index in dataManager.loadCommands().indices
+        val existing = if (editing) dataManager.loadCommands()[index!!] else null
+        if (existing != null) {
+            etName.setText(existing.name)
+            etCommand.setText(existing.command)
+            etCommand.setSelection(existing.command.length)
+        }
 
         MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.add_command)
+            .setTitle(if (editing) "编辑命令" else getString(R.string.add_command))
             .setView(view)
             .setPositiveButton(R.string.confirm) { _, _ ->
                 val name = etName.text?.toString()?.trim() ?: ""
@@ -509,28 +521,19 @@ class MainActivity : AppCompatActivity() {
                     Snackbar.make(fabAddCommand, "名称和命令不能为空", Snackbar.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
-                dataManager.addCommand(name, command)
+                if (editing) {
+                    dataManager.updateCommand(index!!, name, command)
+                    Snackbar.make(fabAddCommand, "已保存", Snackbar.LENGTH_SHORT).show()
+                } else {
+                    dataManager.addCommand(name, command)
+                    Snackbar.make(fabAddCommand, "已添加命令", Snackbar.LENGTH_SHORT).show()
+                }
                 refreshData()
-                Snackbar.make(fabAddCommand, "已添加命令", Snackbar.LENGTH_SHORT).show()
             }
             .setNegativeButton(R.string.cancel, null)
             .show()
     }
 
-    override fun onResume() {
-        super.onResume()
-        refreshData()
-        handler.postDelayed(refreshRunnable, 2000)
-    }
-
-    override fun onPause() {
-        super.onPause()
-        handler.removeCallbacks(refreshRunnable)
-    }
-
-    /**
-     * Check if the notification listener service is enabled in system settings.
-     */
     private fun isNotificationServiceEnabled(): Boolean {
         val packageName = packageName
         val flat = Settings.Secure.getString(contentResolver, "enabled_notification_listeners")

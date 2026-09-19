@@ -100,6 +100,15 @@ class DataManager private constructor(private val context: Context) {
         saveCommands(commands)
     }
 
+    /** 编辑已有命令（索引越界则忽略）。 */
+    fun updateCommand(index: Int, name: String, command: String) {
+        val commands = loadCommands()
+        if (index in commands.indices) {
+            commands[index] = Command(name, command)
+            saveCommands(commands)
+        }
+    }
+
     fun removeCommand(index: Int) {
         val commands = loadCommands()
         if (index in commands.indices) {

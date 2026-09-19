@@ -43,7 +43,7 @@ class DeviceAdapter(
     class VH(view: View) : RecyclerView.ViewHolder(view) {
         val tvName: TextView = view.findViewById(R.id.tvDeviceName)
         val tvId: TextView = view.findViewById(R.id.tvDeviceId)
-        val btnDelete: MaterialButton = view.findViewById(R.id.btnDelete)
+        val btnDelete: View = view.findViewById(R.id.btnDelete)
     }
 }
 
@@ -86,7 +86,8 @@ class PairRequestAdapter(
 
 // ---- Command Adapter ----
 class CommandAdapter(
-    private val onDelete: (Int) -> Unit
+    private val onEdit: (Int) -> Unit,
+    private val onDelete: (Int) -> Unit,
 ) : RecyclerView.Adapter<CommandAdapter.VH>() {
 
     private val items = mutableListOf<Command>()
@@ -106,6 +107,7 @@ class CommandAdapter(
         val cmd = items[position]
         holder.tvName.text = cmd.name.ifEmpty { "命令 ${position + 1}" }
         holder.tvContent.text = cmd.command
+        holder.btnEdit.setOnClickListener { onEdit(position) }
         holder.btnDelete.setOnClickListener { onDelete(position) }
     }
 
@@ -114,7 +116,8 @@ class CommandAdapter(
     class VH(view: View) : RecyclerView.ViewHolder(view) {
         val tvName: TextView = view.findViewById(R.id.tvCommandName)
         val tvContent: TextView = view.findViewById(R.id.tvCommandContent)
-        val btnDelete: MaterialButton = view.findViewById(R.id.btnDeleteCommand)
+        val btnEdit: View = view.findViewById(R.id.btnEditCommand)
+        val btnDelete: View = view.findViewById(R.id.btnDeleteCommand)
     }
 }
 

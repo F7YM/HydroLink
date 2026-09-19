@@ -1,24 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 快速命令行：与插件列表行同一套 MD3 语言（色调面卡片 + 行内图标块 + 图标按钮） -->
 <com.google.android.material.card.MaterialCardView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    style="@style/Widget.Hydro.Card"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginHorizontal="16dp"
-    android:layout_marginVertical="4dp"
-    app:cardCornerRadius="16dp"
-    app:cardElevation="1dp">
+    android:layout_marginTop="4dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="16dp"
         android:gravity="center_vertical">
+
+        <ImageView
+            style="@style/Widget.Hydro.RowIcon"
+            android:contentDescription=""
+            android:src="@drawable/ic_command" />
 
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
             android:layout_weight="1"
             android:orientation="vertical">
 
@@ -39,17 +44,20 @@
                 android:textAppearance="?attr/textAppearanceBodySmall"
                 android:textColor="?attr/colorOnSurfaceVariant"
                 android:fontFamily="monospace"
-                android:textSize="12sp"
                 android:maxLines="1"
                 android:ellipsize="end" />
         </LinearLayout>
 
-        <com.google.android.material.button.MaterialButton
+        <ImageButton
+            android:id="@+id/btnEditCommand"
+            style="@style/Widget.Hydro.IconButton"
+            android:contentDescription="编辑命令"
+            android:src="@drawable/ic_edit" />
+
+        <ImageButton
             android:id="@+id/btnDeleteCommand"
-            style="@style/Widget.Material3.Button.IconButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            app:icon="@android:drawable/ic_menu_delete"
-            app:iconTint="?attr/colorError" />
+            style="@style/Widget.Hydro.IconButton"
+            android:contentDescription="删除命令"
+            android:src="@drawable/ic_delete" />
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>
