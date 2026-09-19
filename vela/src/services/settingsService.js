@@ -55,5 +55,19 @@ export default {
     s.forceFetch = !!value
     await writeText(SETTINGS_FILE, JSON.stringify(s))
     return s.forceFetch
+  },
+
+  /** 屏幕常亮（默认关）：开着时手表在使用本应用期间不自动息屏。 */
+  async getKeepScreenOn() {
+    const s = await getSettings()
+    return !!s.keepScreenOn
+  },
+
+  /** 记住屏幕常亮开关。 */
+  async setKeepScreenOn(value) {
+    const s = await getSettings()
+    s.keepScreenOn = !!value
+    await writeText(SETTINGS_FILE, JSON.stringify(s))
+    return s.keepScreenOn
   }
 }

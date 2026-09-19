@@ -32,6 +32,16 @@
           <text class="app-chevron">›</text>
         </div>
 
+        <!-- 屏幕常亮 -->
+        <div class="form-item">
+          <text class="form-label">屏幕常亮</text>
+          <switch
+            class="switch"
+            checked="{{ keepScreenOn }}"
+            @change="onKeepScreenOnChange"
+          ></switch>
+        </div>
+
         <!-- 强制使用 fetch -->
         <div class="form-item">
           <text class="form-label">强制使用 fetch</text>
@@ -236,13 +246,30 @@
 <script>
 import router from '@system.router'
 import app from '@system.app'
+import brightness from '@system.brightness'
 import settingsService from '../../services/settingsService.js'
+
+/**
+ * 应用"屏幕常亮"（@system.brightness 的 keepScreenOn）。
+ * 平台不支持或调用失败时只记日志——这只是个体验开关，不该让设置页崩掉。
+ */
+function applyKeepScreenOn(on) {
+  try {
+    brightness.setKeepScreenOn({
+      keepScreenOn: !!on,
+      fail: (data, code) => console.warn('[settings] setKeepScreenOn failed', data, code)
+    })
+  } catch (e) {
+    console.warn('[settings] brightness 不可用', e)
+  }
+}
 
 export default {
   private: {
     currentTime: '00:00',
     appVersion: '1.0.0',
     forceFetch: false,
+    keepScreenOn: false,
     pressedKey: '',
     releasedKey: ''
   },
@@ -272,8 +299,22 @@ export default {
   async loadSettings() {
     try {
       this.forceFetch = await settingsService.getForceFetch()
+      this.keepScreenOn = await settingsService.getKeepScreenOn()
+      // 重新进入设置页时按当前值再应用一次（系统可能在息屏后重置）
+      applyKeepScreenOn(this.keepScreenOn)
     } catch (e) {
       console.warn('[settings] load failed', e)
+    }
+  },
+
+  async onKeepScreenOnChange(e) {
+    const value = e && e.checked
+    this.keepScreenOn = !!value
+    applyKeepScreenOn(this.keepScreenOn)
+    try {
+      await settingsService.setKeepScreenOn(this.keepScreenOn)
+    } catch (err) {
+      console.warn('[settings] save failed', err)
     }
   },
 

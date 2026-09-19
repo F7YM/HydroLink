@@ -1,5 +1,7 @@
 <script>
+import brightness from '@system.brightness'
 import interconnectService from './services/interconnectService.js'
+import settingsService from './services/settingsService.js'
 
 export default {
   devices: [],
@@ -10,6 +12,15 @@ export default {
   interconnectReady: false,
 
   onCreate() {
+    // 屏幕常亮：启动时按用户设置应用一次（设置页里改会立即生效）
+    settingsService.getKeepScreenOn().then((on) => {
+      if (!on) return
+      try {
+        brightness.setKeepScreenOn({ keepScreenOn: true })
+      } catch (e) {
+        console.warn('[app] brightness 不可用', e)
+      }
+    })
     // Initialize interconnect for auto-discovery
     this.interconnect = interconnectService.init((ready) => {
       this.interconnectReady = ready

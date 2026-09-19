@@ -35,13 +35,18 @@ echo "== 编译 desktop =="
 
 # ---- 2) 生成图标（源图 192px → hicolor 各尺寸）----
 echo "== 生成图标 =="
-python3 - "$DESKTOP/appicon.png" "$ROOT/packaging/build/icons" <<'PY'
+python3 - "$DESKTOP/appicon.png" "$DESKTOP/icon-small.png" "$ROOT/packaging/build/icons" <<'PY'
 import os, sys
 from PIL import Image
-src_path, out = sys.argv[1], sys.argv[2]
+src_path, small_path, out = sys.argv[1], sys.argv[2], sys.argv[3]
 os.makedirs(out, exist_ok=True)
 src = Image.open(src_path).convert("RGBA")
+# 小尺寸（托盘/窗口/菜单里的 16~48）用 icon-small.png，大尺寸仍用 appicon.png
+small = Image.open(small_path).convert("RGBA") if os.path.exists(small_path) else src
 for size in (16, 24, 32, 48, 64, 128, 192, 256):
+    if size <= 48:
+        small.resize((size, size), Image.LANCZOS).save(os.path.join(out, "hydrolink-%d.png" % size))
+        continue
     img = src if src.width == size else src.resize((size, size), Image.LANCZOS)
     img.save(os.path.join(out, f"hydrolink-{size}.png"))
 print("icons ->", out)
