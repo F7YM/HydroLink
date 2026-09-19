@@ -32,7 +32,7 @@
             ontouchstart="pressDown('app_' + pi + '_' + ai)"
             ontouchend="pressRelease('app_' + pi + '_' + ai)"
             ontouchcancel="pressCancel('app_' + pi + '_' + ai)"
-            onclick="openApp(plugin.package.id, app.id, app.name)"
+            onclick="openApp(plugin.package.id, app.id)"
           >
             <div class="app-left">
               <!-- 有图标就显示图标（宿主已在 /api/hydro/list 里解析成可取 URL）；
@@ -191,7 +191,7 @@ export default {
     }
   },
 
-  openApp(packageId, appId, appName) {
+  openApp(packageId, appId) {
     router.push({
       uri: '/pages/hydro',
       params: {
