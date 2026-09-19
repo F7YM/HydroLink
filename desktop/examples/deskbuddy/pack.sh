@@ -1,25 +1,15 @@
 #!/usr/bin/env bash
-# 构建桌搭插件并打包为 HydroPlugin 安装包（.hpk）
-# 用法: bash pack.sh          # 编译 wasm + 打包
-#       bash pack.sh --test   # 先跑 Rust 单测再打包
+# 打包桌搭插件为 HydroPlugin 安装包（.hpk）
+# 用法: bash pack.sh
 set -e
 cd "$(dirname "$0")"
-
-if [ "$1" = "--test" ]; then
-  echo "== cargo test =="
-  cargo test
-fi
-
-echo "== cargo build (wasm32-unknown-unknown) =="
-cargo build --release --target wasm32-unknown-unknown
-cp target/wasm32-unknown-unknown/release/hydro_deskbuddy.wasm plugin.wasm
 
 echo "== package .hpk =="
 python3 - <<'PY'
 import zipfile, os
 out = '../com.hydro.deskbuddy.hpk'
-files = ['manifest.json', 'plugin.wasm']
-# web/ 是插件 WebUI，assets/ 是清单里声明的图标等资源——两者都要进包，
+files = ['manifest.json', 'server.js']
+# web/ 是插件 WebUI，assets/ 是清单里声明的图标——都要进包，
 # 少一个就会出现"页面打不开"或"图标 404"
 for d in ('web', 'assets'):
     for root, _dirs, names in os.walk(d):

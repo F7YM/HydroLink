@@ -262,8 +262,8 @@ class WorkerGlueE2ETest {
 
     @Test
     fun wasmPluginServedThroughRealWorkerGlue() {
-        val hpk = realHpk("com.hydro.deskbuddy.hpk")
-        Assume.assumeTrue("仓库里没有 deskbuddy .hpk", hpk != null)
+        val hpk = realHpk("com.hydro.wasmfixture.hpk")
+        Assume.assumeTrue("仓库里没有 wasm 夹具 .hpk", hpk != null)
         val dir = File.createTempFile("hk-e2e-wasm-", "").let { it.delete(); it.mkdirs(); it }
         val h = Harness(dir)
         val info = h.store.install(hpk!!)
@@ -286,7 +286,7 @@ class WorkerGlueE2ETest {
         assertEquals(200, resp!!.status)
         val root = JsonParser.parseString(resp.body).asJsonObject.getAsJsonObject("root")
         assertNotNull("wasm 插件也应返回 root 树", root)
-        println("== deskbuddy(WASM) 真实 worker 返回: ${resp.body.take(300)}")
+        println("== wasm 夹具真实 worker 返回: ${resp.body.take(300)}")
     }
 
     /** 简单 GET，返回 (状态码, body)。 */

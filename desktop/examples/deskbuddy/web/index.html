@@ -141,36 +141,45 @@
       $('splayerPort').value = (p > 0 && p < 65536) ? p : SP_DEFAULT_PORT;
     }
 
-    /** 问一次宿主：开关是否生效、有没有连上 SPlayer、现在唱到哪一句。 */
+    /**
+     * 连接是插件自己的事（它用 kit.ws 直连 SPlayer），所以状态由插件写进
+     * 自己的存储、这里读出来显示。
+     */
     async function spStatus() {
       if ($('splayerCard').hidden) return;
       if (!$('splayerLyrics').checked) {
         spState('已关闭。开启后桌搭会显示 SPlayer 的实时歌词。', false);
         return;
       }
-      var d;
-      try {
-        var r = await fetch('/api/hydro/worker/splayer', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ package: PKG })
-        });
-        d = await r.json();
-      } catch (e) {
-        spState('无法获取状态（宿主连接中断）', false);
+      var d = await store('get', 'splayerState').catch(function () { return null; });
+      var st = (d && d.found) ? d.value : null;
+      if (!st) {
+        spState('还没有状态：在手表上打开一次桌搭，插件就会开始连接。', false);
         return;
       }
-      if (!d || !d.connected) {
+      if (!st.connected) {
         spState('未连接。请确认 SPlayer 正在运行，且 WebSocket 服务已在 ' +
-          ((d && d.port) || $('splayerPort').value) + ' 端口开启。', false);
+          (st.port || $('splayerPort').value) + ' 端口开启。' +
+          (st.error ? '\n' + st.error : ''), false);
         return;
       }
-      var track = d.title ? d.title + (d.artist ? ' — ' + d.artist : '') : '没有正在播放的歌曲';
-      spState('已连接 · ' + track + (d.line ? '\n' + d.line : ''), true);
+      var track = st.title ? st.title + (st.artist ? ' — ' + st.artist : '') : '没有正在播放的歌曲';
+      spState('已连接 · ' + track + (st.line ? '\n' + st.line : ''), true);
+    }
+
+    /**
+     * 插件只在有请求时才会跑；设置页开着的时候戳一下视图端点，
+     * 好让连接在这一页就能建起来（顺带在 SPlayer 重开后自动重连）。
+     */
+    function spPoke() {
+      fetch('/api/hydro/' + PKG + '/app/main/view?shape=circle&width=466&height=466&dpr=2&dt=watch')
+        .catch(function () {});
     }
 
     $('splayerLyrics').addEventListener('change', async function () {
       await store('set', 'splayerLyrics', this.checked);
       msg(this.checked ? '已开启 SPlayer 歌词集成' : '已关闭 SPlayer 歌词集成');
+      if (this.checked) spPoke();
       spStatus();
     });
     $('splayerPort').addEventListener('change', async function () {
@@ -186,8 +195,9 @@
       $('splayerCard').hidden = false;
       await spLoad();
       spStatus();
-      // 插件视图那边是 1s 刷一次，状态跟着刷才有意义
+      if ($('splayerLyrics').checked) spPoke();
       setInterval(spStatus, 1000);
+      setInterval(function () { if ($('splayerLyrics').checked) spPoke(); }, 5000);
     })();
   </script>
 </body>

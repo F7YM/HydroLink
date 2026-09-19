@@ -1,3 +1,6 @@
+# Go 构建缓存（会话沙箱下 ~/.cache 只读时用工作区内缓存）
+.gocache/
+
 # Android build artifacts
 android/.gradle/
 android/build/

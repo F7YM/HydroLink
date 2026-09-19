@@ -108,12 +108,29 @@ var kit = {
     return _remote("POST", "/api/hydro/worker/notify", { package: __PKG, title: (n && n.title) || "", text: (n && n.text) || "" });
   },
   music: {
-    action: function (a) { return _remote("POST", "/api/hydro/worker/music", { package: __PKG, action: a }); }
+    action: function (a) { return _remote("POST", "/api/hydro/worker/music", { package: __PKG, action: a }); },
+    // 读当前媒体（与 WASM 的 ctx.music 同构，artUrl/artBlur 是手表可达的地址）
+    now: function () { return _remote("POST", "/api/hydro/worker/music", { package: __PKG, op: "now" }); }
+  },
+  // 通用 WebSocket 客户端：平台只给入口（地址校验 + 报错），连什么、说什么
+  // 全归插件自己。返回原生 WebSocket 实例，用 onopen/onmessage/send/close。
+  ws: {
+    connect: function (url, handlers) {
+      if (typeof url !== "string" || !/^wss?:\/\//i.test(url)) {
+        throw new Error("kit.ws.connect 需要 ws:// 或 wss:// 地址");
+      }
+      var h = handlers || {};
+      var sock = new WebSocket(url);
+      if (typeof h.onopen === "function") { sock.onopen = function (e) { h.onopen(e, sock); }; }
+      if (typeof h.onmessage === "function") { sock.onmessage = function (e) { h.onmessage(e, sock); }; }
+      if (typeof h.onerror === "function") { sock.onerror = function (e) { h.onerror(e, sock); }; }
+      if (typeof h.onclose === "function") { sock.onclose = function (e) { h.onclose(e, sock); }; }
+      return sock;
+    }
   },
   lock: function () { return _remote("POST", "/api/hydro/worker/lock", { package: __PKG }); },
   system: {
-    perf: function () { return _remote("POST", "/api/hydro/worker/system", { package: __PKG, op: "perf" }); },
-    music: function () { return _remote("POST", "/api/hydro/worker/system", { package: __PKG, op: "music" }); }
+    perf: function () { return _remote("POST", "/api/hydro/worker/system", { package: __PKG, op: "perf" }); }
   },
   commands: {
     list: function () { return _remote("POST", "/api/hydro/worker/commands", { package: __PKG, op: "list" }); },

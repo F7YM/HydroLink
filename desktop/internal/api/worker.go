@@ -6,12 +6,10 @@ import (
 	"net/http"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
 	"hydrolink-desktop/internal/hydrokit"
-	"hydrolink-desktop/internal/splayer"
 	"hydrolink-desktop/internal/store"
 	"hydrolink-desktop/internal/system"
 )
@@ -23,7 +21,6 @@ import (
 //	POST /respond                      worker posts results
 //	POST /store                        kit.storage (server scope; watch scope pending)
 //	POST /notify | /music | /lock | /commands   capability APIs (permission-gated)
-//	POST /splayer                      SPlayer 歌词集成状态（桌面端专属）
 //	GET  /platform                     宿主平台（插件 WebUI 按 os 分支，无权限门控）
 //	GET  /asset                        plugin's own packaged files (loadWasm/images)
 //
@@ -32,13 +29,11 @@ import (
 type WorkerHandler struct {
 	bridge *hydrokit.WorkerBridge
 	st     *store.Store
-	// sp 是 SPlayer 歌词集成（仅桌面端存在；nil 表示宿主没有这个能力）。
-	sp *splayer.Client
 }
 
-// NewWorkerHandler builds the worker channel handler. sp may be nil.
-func NewWorkerHandler(bridge *hydrokit.WorkerBridge, st *store.Store, sp *splayer.Client) http.Handler {
-	return &WorkerHandler{bridge: bridge, st: st, sp: sp}
+// NewWorkerHandler builds the worker channel handler.
+func NewWorkerHandler(bridge *hydrokit.WorkerBridge, st *store.Store) http.Handler {
+	return &WorkerHandler{bridge: bridge, st: st}
 }
 
 func (h *WorkerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -63,8 +58,6 @@ func (h *WorkerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleLock(w, r)
 	case path == "commands" && r.Method == http.MethodPost:
 		h.handleCommands(w, r)
-	case path == "splayer" && r.Method == http.MethodPost:
-		h.handleSplayer(w, r)
 	case path == "platform" && r.Method == http.MethodGet:
 		h.handlePlatform(w)
 	case path == "asset" && r.Method == http.MethodGet:
@@ -171,6 +164,7 @@ func (h *WorkerHandler) handleNotify(w http.ResponseWriter, r *http.Request) {
 func (h *WorkerHandler) handleMusic(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Package string `json:"package"`
+		Op      string `json:"op"`
 		Action  string `json:"action"`
 	}
 	if !parseWorkerBody(r, &body) {
@@ -178,6 +172,11 @@ func (h *WorkerHandler) handleMusic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !h.requirePermission(w, body.Package, "music") {
+		return
+	}
+	// kit.music.now()：读当前媒体（与 WASM 的 ctx.music 同构）
+	if body.Op == "now" {
+		writeJSON(w, http.StatusOK, musicNow(r))
 		return
 	}
 	switch body.Action {
@@ -260,71 +259,6 @@ func (h *WorkerHandler) handlePlatform(w http.ResponseWriter) {
 		"os":   runtime.GOOS,
 		"arch": runtime.GOARCH,
 		"app":  Version,
-	})
-}
-
-// ---- SPlayer 歌词集成（桌面端专属）----
-
-// 插件在自己 server 作用域的存储里声明这两项（由插件页面写入），
-// 宿主只读它们来决定要不要去连 SPlayer。
-const (
-	kvSplayerLyrics = "splayerLyrics"
-	kvSplayerPort   = "splayerPort"
-)
-
-// splayerConfig 读插件存储里的开关与端口。
-func (h *WorkerHandler) splayerConfig(pkg string) (bool, int) {
-	kv, err := h.st.LoadPluginKV(pkg)
-	if err != nil {
-		return false, splayer.DefaultPort
-	}
-	on, _ := kv[kvSplayerLyrics].(bool)
-	port := splayer.DefaultPort
-	switch v := kv[kvSplayerPort].(type) {
-	case float64:
-		if v > 0 && v < 65536 {
-			port = int(v)
-		}
-	case string:
-		if n, err := strconv.Atoi(v); err == nil && n > 0 && n < 65536 {
-			port = n
-		}
-	}
-	return on, port
-}
-
-// handleSplayer 返回歌词集成的当前状态（插件 WebUI 用它显示"已连接/未连接"）。
-// 每一次调用都算一次"有人在看"，连接因此在页面打开期间保持、关闭后回收。
-func (h *WorkerHandler) handleSplayer(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Package string `json:"package"`
-	}
-	if !parseWorkerBody(r, &body) {
-		writeWorkerError(w, http.StatusBadRequest, "invalid body")
-		return
-	}
-	if !h.requirePermission(w, body.Package, "music") {
-		return
-	}
-	on, port := h.splayerConfig(body.Package)
-	if h.sp == nil {
-		writeJSON(w, http.StatusOK, map[string]any{"enabled": on, "port": port, "connected": false})
-		return
-	}
-	if on {
-		h.sp.Touch(port)
-	}
-	snap := h.sp.Snapshot()
-	writeJSON(w, http.StatusOK, map[string]any{
-		"enabled":   on,
-		"port":      port,
-		"connected": snap.Connected,
-		"playing":   snap.Playing,
-		"hasTrack":  snap.HasTrack,
-		"title":     snap.Title,
-		"artist":    snap.Artist,
-		"line":      snap.Lyric,
-		"next":      snap.Next,
 	})
 }
 
@@ -493,7 +427,7 @@ func (h *WorkerHandler) handleContext(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if has("music") {
-		ctx["music"] = h.musicContext(r, body.Package)
+		ctx["music"] = h.musicContext(r)
 	}
 	if has("storage") || has("system") || has("music") {
 		if kv, err := h.st.LoadPluginKV(body.Package); err == nil {
@@ -504,12 +438,18 @@ func (h *WorkerHandler) handleContext(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, ctx)
 }
 
-// musicContext 组装 ctx.music：曲目信息以系统媒体会话为准；插件开了
-// SPlayer 歌词集成时再挂上实时歌词（music.lyrics）。
-func (h *WorkerHandler) musicContext(r *http.Request, pkg string) map[string]any {
+// musicContext 组装 ctx.music（WASM 的 ABI 上下文），和 kit.music.now() 是同一份数据：
+// 系统媒体会话的曲目信息 + 手表可达的封面地址。宿主不认识任何第三方播放器 ——
+// 需要额外信息的插件自己用 kit.ws / fetch 去取。
+func (h *WorkerHandler) musicContext(r *http.Request) map[string]any {
+	return musicNow(r)
+}
+
+// musicNow 是 kit.music.now() 与 ctx.music 的公共实现。
+func musicNow(r *http.Request) map[string]any {
 	base := "http://" + apiBaseHost(r)
 	info := system.GetMusic()
-	m := map[string]any{
+	return map[string]any{
 		"hasMedia": info.HasMedia,
 		"title":    info.Title,
 		"artist":   info.Artist,
@@ -518,39 +458,6 @@ func (h *WorkerHandler) musicContext(r *http.Request, pkg string) map[string]any
 		"artUrl":  base + "/api/music/art",
 		"artBlur": base + "/api/music/art?size=466&blur=26&dim=0.3",
 	}
-	if h.sp == nil {
-		return m
-	}
-	on, port := h.splayerConfig(pkg)
-	if !on {
-		return m
-	}
-	h.sp.Touch(port)
-	snap := h.sp.Snapshot()
-	// **开了集成就一定给 lyrics**（哪怕还没连上、这一句是空串）：插件据此切换版式，
-	// 空 line 只表示"这一句还没有"，而不是"宿主没这个能力"。
-	m["lyrics"] = map[string]any{
-		"source":     "splayer",
-		"line":       snap.Lyric,
-		"next":       snap.Next,
-		"positionMs": snap.PositionMs,
-		"connected":  snap.Connected,
-	}
-	if !snap.Connected {
-		return m
-	}
-	// SPlayer（Electron）经常不注册系统媒体会话，系统侧就会报"没有媒体"。
-	// 它自己在放歌时用它的曲目信息兜底，但**不**给 artUrl：封面归系统接口管，
-	// 这里给个取不到的地址只会让插件白铺一张黑图。
-	if !info.HasMedia && snap.HasTrack && snap.Title != "" {
-		m["hasMedia"] = true
-		m["title"] = snap.Title
-		m["artist"] = snap.Artist
-		m["playing"] = snap.Playing
-		m["artUrl"] = ""
-		m["artBlur"] = ""
-	}
-	return m
 }
 
 // apiBaseHost returns the LAN-reachable host:port for the current server

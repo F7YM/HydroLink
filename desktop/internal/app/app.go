@@ -8,7 +8,6 @@ import (
 
 	"hydrolink-desktop/internal/api"
 	"hydrolink-desktop/internal/hydrokit"
-	"hydrolink-desktop/internal/splayer"
 	"hydrolink-desktop/internal/store"
 	"hydrolink-desktop/internal/system"
 )
@@ -43,12 +42,7 @@ func NewServer() (*api.Server, *store.Store, error) {
 	})
 
 	srv.SetHydroHandler(hydrokit.NewHandler(rt))
-	// SPlayer 歌词集成：插件页面轮询/插件视图取上下文时才会真正建连，
-	// 没人要了就自己回收（见 internal/splayer）。
-	sp := splayer.New(func(format string, args ...any) {
-		srv.AddLog(fmt.Sprintf(format, args...), "info")
-	})
-	srv.SetWorkerHandler(api.NewWorkerHandler(bridge, st, sp))
+	srv.SetWorkerHandler(api.NewWorkerHandler(bridge, st))
 	srv.SetWorkerBridge(bridge)
 
 	// Hot-load/unload after GUI install/uninstall — no server restart needed.

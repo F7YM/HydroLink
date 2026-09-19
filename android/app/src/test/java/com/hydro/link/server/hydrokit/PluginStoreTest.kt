@@ -258,16 +258,30 @@ class PluginStoreTest {
     }
 
     @Test
-    fun installsRealDeskBuddyWasmPackage() {
+    fun installsRealDeskBuddyPackage() {
+        // 桌搭是 JS 插件（它自己用 kit.ws 连 SPlayer 拿歌词）
         val hpk = realHpk("com.hydro.deskbuddy.hpk")
         org.junit.Assume.assumeTrue("仓库里没有 deskbuddy .hpk，跳过", hpk != null)
         val s = store()
         val info = s.install(hpk!!)
         assertEquals("com.hydro.deskbuddy", info.id)
+        assertEquals("js", info.runtime)
+        assertEquals("server.js", info.entry)
+        assertTrue("server.js 应当解压出来", File(info.dir, "server.js").length() > 0)
+        assertTrue("安装包带 web/index.html", info.hasWeb)
+        assertTrue(info.permissions.contains("music"))
+    }
+
+    @Test
+    fun installsRealWasmFixturePackage() {
+        val hpk = realHpk("com.hydro.wasmfixture.hpk")
+        org.junit.Assume.assumeTrue("仓库里没有 wasm 夹具 .hpk，跳过", hpk != null)
+        val s = store()
+        val info = s.install(hpk!!)
+        assertEquals("com.hydro.wasmfixture", info.id)
         assertEquals("wasm", info.runtime)
         assertEquals("plugin.wasm", info.entry)
         assertTrue("plugin.wasm 应当解压出来", File(info.dir, "plugin.wasm").length() > 0)
-        assertTrue(info.permissions.contains("music"))
     }
 
     @Test

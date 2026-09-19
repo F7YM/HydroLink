@@ -268,7 +268,6 @@ class KitRoutes(
         requirePermission(pkg, PERM_SYSTEM)?.let { return it }
         return when (body.str("op")) {
             "perf" -> HydroHttpResponse.json(gson.toJson(caps.perf()))
-            "music" -> HydroHttpResponse.json(gson.toJson(caps.music()))
             else -> HydroHttpResponse.json("""{"error":"未知操作: ${body.str("op")}"}""", 400)
         }
     }
@@ -287,6 +286,8 @@ class KitRoutes(
         val body = parseJsonBody(req) ?: return HydroHttpResponse.json("""{"error":"invalid body"}""", 400)
         val pkg = body.str("package")
         requirePermission(pkg, PERM_MUSIC)?.let { return it }
+        // kit.music.now()：读当前媒体（与桌面 ctx.music 同构）
+        if (body.str("op") == "now") return HydroHttpResponse.json(gson.toJson(caps.music()))
         val action = body.str("action")
         val ok = caps.musicAction(action)
         return HydroHttpResponse.json(gson.toJson(mapOf("status" to if (ok) "ok" else "error", "action" to action)))

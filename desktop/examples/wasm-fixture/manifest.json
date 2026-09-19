@@ -1,0 +1,15 @@
+{
+  "id": "com.hydro.wasmfixture",
+  "name": "WASM 夹具",
+  "version": "0.1.0",
+  "runtime": "wasm",
+  "entry": "plugin.wasm",
+  "apps": [
+    {
+      "id": "main",
+      "name": "夹具"
+    }
+  ],
+  "widgets": [],
+  "permissions": []
+}
