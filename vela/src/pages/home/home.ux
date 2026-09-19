@@ -30,21 +30,27 @@
 
       <!-- Manual devices -->
       <div if="{{ devices.length > 0 }}" class="list-content">
+        <!-- 外层只负责外观；点击区拆成并列的两块（主体 + 更多），互不嵌套 →
+             不用赌事件冒泡/stopPropagation 的行为 -->
         <div
           for="{{ (index, item) in devices }}"
-          class="device-item pressable {{ !item.reachable ? 'device-offline' : '' }} {{ pressedKey === 'device_' + index ? 'is-down press-down' : '' }} {{ releasedKey === 'device_' + index ? 'press-up' : '' }}"
-          ontouchstart="onDeviceTouchStart(index)"
-          ontouchend="onDeviceTouchEnd(index)"
-          ontouchcancel="onDeviceTouchCancel(index)"
-          onclick="onDeviceTap(index)"
+          class="device-item {{ !item.reachable ? 'device-offline' : '' }}"
         >
-          <image class="device-icon" src="/common/icons/{{ item.deviceType }}.png"></image>
-          <div class="device-info">
-            <text class="device-name">{{ item.name }}</text>
-            <text class="device-ip">{{ item.host }}:{{ item.port }}</text>
+          <div
+            class="device-main pressable {{ pressedKey === 'device_' + index ? 'is-down press-down' : '' }} {{ releasedKey === 'device_' + index ? 'press-up' : '' }}"
+            ontouchstart="onDeviceTouchStart(index)"
+            ontouchend="onDeviceTouchEnd(index)"
+            ontouchcancel="onDeviceTouchCancel(index)"
+            onclick="onDeviceTap(index)"
+          >
+            <image class="device-icon" src="/common/icons/{{ item.deviceType }}.png"></image>
+            <div class="device-info">
+              <text class="device-name">{{ item.name }}</text>
+              <text class="device-ip">{{ item.host }}:{{ item.port }}</text>
+            </div>
           </div>
-          <!-- 更多（进设备详情/管理页）。原来是"长按卡片"，但长按既难发现又容易和
-               滚动/点击打架，改成显式按钮。图标半透明（见 .device-more-icon）。 -->
+          <!-- 更多（进设备详情/管理页）。原来是"长按卡片"：既难发现又和滚动/点击打架。
+               图标半透明（见 .device-more-icon）。 -->
           <div
             class="device-more pressable {{ pressedKey === 'more_' + index ? 'is-down' : '' }}"
             ontouchstart="pressDown('more_' + index)"
@@ -155,11 +161,17 @@
   width: 400px;
   height: 120px;
   margin: 8px 0;
-  padding: 0 20px;
+  padding: 0 8px 0 20px;
   background-color: #2e323c;
   border-radius: 60px;
   flex-direction: row;
-  justify-content: flex-start;
+  align-items: center;
+}
+/* 卡片主体：点它进设备信息页（占满左侧，更多按钮固定在右边） */
+.device-main {
+  flex-grow: 1;
+  height: 120px;
+  flex-direction: row;
   align-items: center;
 }
 .device-offline {
@@ -185,6 +197,9 @@
   border-radius: 32px;
   justify-content: center;
   align-items: center;
+  /* 极淡的圆形底：让"更多"可发现，也保证这块区域一定可点（透明 div 的
+     命中测试在某些运行时上会偷懒）。嫌多余就删掉这一行。 */
+  background-color: rgba(255, 255, 255, 0.08);
 }
 .device-more-icon {
   width: 32px;
