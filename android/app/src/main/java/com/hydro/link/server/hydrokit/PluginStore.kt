@@ -28,7 +28,11 @@ class PluginStore(private val root: File) {
     data class Installed(
         val id: String,
         val name: String,
+        /** 作者（必填，展示用）。 */
+        val author: String,
         val version: String,
+        /** 可选：项目地址。 */
+        val url: String? = null,
         val entry: String,
         val runtime: String,
         val apps: List<Item>,
@@ -43,6 +47,11 @@ class PluginStore(private val root: File) {
     private data class RawManifest(
         val id: String? = null,
         val name: String? = null,
+        /** 作者（必填）。 */
+        val author: String? = null,
+        /** 可选项目地址 / 可选最低 HydroLink 版本。 */
+        val url: String? = null,
+        val minHydroLink: String? = null,
         val version: String? = null,
         val runtime: String? = null,
         val entry: String? = null,
@@ -52,6 +61,9 @@ class PluginStore(private val root: File) {
     ) {
         fun toManifest() = Manifest(
             pkg = Package(id = id.orEmpty(), name = name.orEmpty(), version = version.orEmpty()),
+            author = author.orEmpty(),
+            url = url,
+            minHydroLink = minHydroLink,
             apps = apps ?: emptyList(),
             widgets = widgets ?: emptyList(),
             permissions = permissions ?: emptyList(),
@@ -63,6 +75,9 @@ class PluginStore(private val root: File) {
     companion object {
         const val RUNTIME_JS = "js"
         const val RUNTIME_WASM = "wasm"
+
+        /** 宿主（本 App）版本，装配处从 BuildConfig.VERSION_NAME 注入，用来校验 minHydroLink。 */
+        var hostVersion: String = "0.0.0"
 
         private val ID_RE = Regex("^[A-Za-z0-9][A-Za-z0-9._-]{1,120}$")
 
@@ -115,7 +130,7 @@ class PluginStore(private val root: File) {
                 infoFor(dir)
             } catch (e: Exception) {
                 Installed(
-                    id = dir.name, name = dir.name, version = "", entry = "", runtime = RUNTIME_JS,
+                    id = dir.name, name = dir.name, author = "", version = "", entry = "", runtime = RUNTIME_JS,
                     apps = emptyList(), widgets = emptyList(), permissions = emptyList(),
                     dir = dir, hasWeb = false, error = e.message ?: e.toString(),
                 )
@@ -136,7 +151,9 @@ class PluginStore(private val root: File) {
         return Installed(
             id = m.pkg.id.ifBlank { dir.name },
             name = m.pkg.name.ifBlank { m.pkg.id.ifBlank { dir.name } },
+            author = m.author,
             version = m.pkg.version,
+            url = m.url,
             entry = entry,
             runtime = runtime,
             apps = m.apps,
@@ -181,6 +198,10 @@ class PluginStore(private val root: File) {
         }
         val manifest = raw.copy(entry = entry, runtime = runtime).toManifest()
         Manifests.validate(manifest)
+        val need = manifest.minHydroLink?.trim().orEmpty()
+        if (need.isNotEmpty() && compareVersions(hostVersion, need) < 0) {
+            throw HydroException("该插件需要 HydroLink ≥ $need，当前 $hostVersion")
+        }
         return manifest
     }
 

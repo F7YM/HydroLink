@@ -69,6 +69,7 @@ func TestWasmPluginProductionChain(t *testing.T) {
 	manifest := `{
   "id": "com.test.wasmfix",
   "name": "WASM 夹具",
+  "author": "测试作者",
   "version": "0.1.0",
   "runtime": "wasm",
   "entry": "plugin.wasm",

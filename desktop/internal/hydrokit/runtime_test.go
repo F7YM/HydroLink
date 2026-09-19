@@ -22,6 +22,7 @@ func TestDispatchView(t *testing.T) {
 	rt := NewRuntime(nil)
 	err := rt.Register(stubPlugin{m: Manifest{
 		Package: Package{ID: "com.x.a", Version: "1.0.0"},
+		Author:  "测试作者",
 		Apps:    []Item{{ID: "main"}},
 		Widgets: []Item{{ID: "now"}},
 	}})
@@ -53,6 +54,7 @@ func TestDispatchEvent(t *testing.T) {
 	rt := NewRuntime(nil)
 	_ = rt.Register(stubPlugin{m: Manifest{
 		Package: Package{ID: "com.x.b"},
+		Author:  "测试作者",
 		Apps:    []Item{{ID: "main"}},
 	}})
 	h := NewHandler(rt)
@@ -85,7 +87,8 @@ func TestUnknownPluginOrItem(t *testing.T) {
 
 func TestRegisterDuplicate(t *testing.T) {
 	rt := NewRuntime(nil)
-	m := Manifest{Package: Package{ID: "com.x"}, Apps: []Item{{ID: "a"}}}
+	m := Manifest{Package: Package{ID: "com.x"},
+		Author: "测试作者", Apps: []Item{{ID: "a"}}}
 	if err := rt.Register(stubPlugin{m: m}); err != nil {
 		t.Fatal(err)
 	}
@@ -100,6 +103,7 @@ func TestListResolvesItemIcons(t *testing.T) {
 	rt := NewRuntime(nil)
 	err := rt.Register(stubPlugin{m: Manifest{
 		Package: Package{ID: "com.x.icon", Version: "1.0.0"},
+		Author:  "测试作者",
 		Apps: []Item{
 			{ID: "main", Name: "带图标", Icon: "assets/icon.png"},
 			{ID: "abs", Name: "绝对地址", Icon: "https://example.com/i.png"},

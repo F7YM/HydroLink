@@ -1,6 +1,7 @@
 {
   "id": "com.demo.weather",
   "name": "示例天气",
+  "author": "HydroLink",
   "version": "0.2.4",
   "entry": "server.js",
   "apps": [

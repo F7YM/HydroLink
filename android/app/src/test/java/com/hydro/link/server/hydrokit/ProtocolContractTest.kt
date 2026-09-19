@@ -21,7 +21,7 @@ class ProtocolContractTest {
 
     private val manifest = Manifests.parse(
         """
-        {"package":{"id":"com.demo.weather","name":"示例天气","version":"0.2.4"},
+        {"package":{"id":"com.demo.weather","name":"示例天气", "author": "测试作者","version":"0.2.4"}, "author": "测试作者",
          "apps":[{"id":"main","name":"天气"}],
          "widgets":[{"id":"card","name":"卡片","refreshMs":30000}]}
         """.trimIndent()

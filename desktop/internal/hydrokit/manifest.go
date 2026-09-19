@@ -3,6 +3,7 @@ package hydrokit
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // Item is a registered HydroApp or HydroWidget entry.
@@ -22,17 +23,26 @@ type Package struct {
 
 // Manifest describes a HydroPlugin: which apps/widgets it registers and the
 // permissions it requests.
+//
+// Author 必填（只是展示信息，无签名）；URL 是可选的项目地址；
+// MinHydroLink 是可选的最低宿主版本要求。
 type Manifest struct {
-	Package     Package  `json:"package"`
-	Apps        []Item   `json:"apps,omitempty"`
-	Widgets     []Item   `json:"widgets,omitempty"`
-	Permissions []string `json:"permissions,omitempty"`
+	Package      Package  `json:"package"`
+	Author       string   `json:"author"`
+	URL          string   `json:"url,omitempty"`
+	MinHydroLink string   `json:"minHydroLink,omitempty"`
+	Apps         []Item   `json:"apps,omitempty"`
+	Widgets      []Item   `json:"widgets,omitempty"`
+	Permissions  []string `json:"permissions,omitempty"`
 }
 
 // Validate checks required fields and unique item ids per surface.
 func (m Manifest) Validate() error {
 	if m.Package.ID == "" {
 		return fmt.Errorf("hydrokit: manifest missing package.id")
+	}
+	if strings.TrimSpace(m.Author) == "" {
+		return fmt.Errorf("hydrokit: manifest missing author")
 	}
 	if len(m.Apps) == 0 && len(m.Widgets) == 0 {
 		return fmt.Errorf("hydrokit: manifest registers no apps or widgets")

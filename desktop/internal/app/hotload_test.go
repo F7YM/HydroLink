@@ -25,7 +25,7 @@ func TestPluginHotLoad(t *testing.T) {
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 	for name, content := range map[string]string{
-		"manifest.json": `{"id":"com.test.hot","name":"热载测试","version":"0.1.0","entry":"server.js","apps":[{"id":"main","name":"主页"}]}`,
+		"manifest.json": `{"id":"com.test.hot","name":"热载测试","author":"测试作者","version":"0.1.0","entry":"server.js","apps":[{"id":"main","name":"主页"}]}`,
 		"server.js":     `module.exports = { manifest(){ return {} }, view: function(s,i,r){ return null } }`,
 	} {
 		w, _ := zw.Create(name)

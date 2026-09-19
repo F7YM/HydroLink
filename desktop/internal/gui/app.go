@@ -243,7 +243,6 @@ func (a *App) Shutdown(ctx context.Context) {
 // Status is the snapshot shown on the status tab.
 type Status struct {
 	Version        string                `json:"version"`
-	APILevel       int                   `json:"apiLevel"`
 	Port           int                   `json:"port"`
 	IP             string                `json:"ip"`
 	DataDir        string                `json:"dataDir"`
@@ -260,7 +259,6 @@ func (a *App) GetStatus() Status {
 	devices, _ := a.st.LoadTrustedDevices()
 	return Status{
 		Version:        api.Version,
-		APILevel:       api.APILevel,
 		Port:           a.port,
 		IP:             api.LocalIP(),
 		DataDir:        a.st.Dir(),

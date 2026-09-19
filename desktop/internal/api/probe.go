@@ -24,12 +24,11 @@ func AnotherInstanceRunning(port int) bool {
 		return false
 	}
 	var v struct {
-		Version  string `json:"version"`
-		APILevel int    `json:"api_level"`
+		App string `json:"app"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&v); err != nil {
 		return false
 	}
-	// HydroLink 的 /api/version 一定带 api_level（其他 HTTP 服务几乎不可能）。
-	return v.APILevel > 0
+	// HydroLink 的 /api/version 一定带 app="hydrolink"（别家 HTTP 服务不会）。
+	return v.App == "hydrolink"
 }

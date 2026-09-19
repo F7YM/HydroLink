@@ -1,6 +1,7 @@
 {
   "id": "com.hydro.wasmfixture",
   "name": "WASM 夹具",
+  "author": "HydroLink",
   "version": "0.1.0",
   "runtime": "wasm",
   "entry": "plugin.wasm",

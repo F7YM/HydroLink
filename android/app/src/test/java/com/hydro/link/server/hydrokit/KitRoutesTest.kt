@@ -45,7 +45,7 @@ class KitRoutesTest {
         val hpk = File(tmp.root, "p-${System.nanoTime()}.hpk")
         val perms = permissions.joinToString(",") { "\"$it\"" }
         val manifest = """
-            {"id":"com.demo.weather","name":"天气","version":"1.0.0","runtime":"$runtime","entry":"$entry",
+            {"id":"com.demo.weather","name":"天气", "author": "测试作者","version":"1.0.0","runtime":"$runtime","entry":"$entry",
              "apps":[{"id":"main"}],"permissions":[$perms]}
         """.trimIndent()
         ZipOutputStream(hpk.outputStream()).use { z ->

@@ -18,6 +18,7 @@ import java.io.File
 data class PluginRow(
     val id: String,
     val name: String,
+    val author: String,
     val version: String,
     val runtime: String,
     val items: String,
@@ -26,8 +27,12 @@ data class PluginRow(
     val workerOnline: Boolean,
     val error: String?,
 ) {
-    /** 副标题：只显示包名和版本。 */
-    val pkgLine: String get() = if (version.isBlank()) id else "$id · v$version"
+    /** 副标题：作者 · 包名 · 版本。 */
+    val pkgLine: String get() = buildString {
+        if (author.isNotBlank()) append(author).append(" · ")
+        append(id)
+        if (version.isNotBlank()) append(" · v").append(version)
+    }
 }
 
 /**
@@ -49,6 +54,7 @@ object PluginUi {
             PluginRow(
                 id = info.id,
                 name = info.name.ifBlank { info.id },
+                author = info.author,
                 version = info.version,
                 runtime = info.runtime,
                 items = buildString {
@@ -172,6 +178,7 @@ object PluginUi {
     /** 点插件卡片时的详情弹窗：列表里放不下的信息都在这。 */
     fun showDetails(activity: Activity, row: PluginRow) {
         val msg = buildString {
+            append("作者：").append(row.author.ifBlank { "—" }).append('\n')
             append("包名：").append(row.id).append('\n')
             append("版本：").append(if (row.version.isBlank()) "—" else "v${row.version}").append('\n')
             append("运行时：").append(row.runtime).append('\n')

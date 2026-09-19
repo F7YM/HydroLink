@@ -36,10 +36,9 @@
   async function loadStatus() {
     const st = await api("GetStatus");
     if (!st) return;
-    $("versionBadge").textContent = `v${st.version} · api ${st.apiLevel}`;
+    $("versionBadge").textContent = `v${st.version}`;
     $("stAddr").textContent = `0.0.0.0:${st.port}`;
     $("stIp").textContent = st.ip;
-    $("stApi").textContent = st.apiLevel;
     $("stDataDir").textContent = st.dataDir;
     $("stLogFile").textContent = st.logFile || "（文件日志未启用）";
     $("stLogFile").title = st.logFile || "";
@@ -258,7 +257,7 @@
       const perms = (p.permissions || []).map((x) => `<span class="tag permission">${esc(x)}</span>`).join("");
       const meta = p.error
         ? `<span class="sub" style="color:var(--md-error)">${esc(p.error)}</span>`
-        : `<span class="sub">${esc(p.id)} · v${esc(p.version)} · ${esc(p.entry)}</span>`;
+        : `<span class="sub">${esc(p.author || "未署名")} · v${esc(p.version)} · ${esc(p.id)} · ${esc(p.entry)}</span>`;
       return `
         <div class="item">
           <div class="meta">

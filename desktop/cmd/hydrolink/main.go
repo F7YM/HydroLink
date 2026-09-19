@@ -39,7 +39,7 @@ func main() {
 	// remembered port, so ad-hoc runs never change the default.
 
 	addr := fmt.Sprintf("0.0.0.0:%d", listenPort)
-	log.Printf("HydroLink desktop server v%s (api_level %d)", api.Version, api.APILevel)
+	log.Printf("HydroLink desktop server v%s", api.Version)
 	log.Printf("listening on http://%s  (data dir: %s)", addr, st.Dir())
 	ipInfo := api.LocalIPInfo()
 	log.Printf("local IP: %s (iface %s, %s)", ipInfo.IP, ipInfo.Iface, ipInfo.Source)

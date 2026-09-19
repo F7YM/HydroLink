@@ -16,7 +16,7 @@ class ManifestTest {
         val m = Manifests.parse(
             """
             {
-              "package": {"id": "com.demo.weather", "name": "示例天气", "version": "0.2.4"},
+              "package": {"id": "com.demo.weather", "name": "示例天气", "author": "测试作者", "version": "0.2.4"}, "author": "测试作者",
               "apps": [{"id": "main", "name": "示例天气"}],
               "widgets": [{"id": "card", "name": "天气组件", "refreshMs": 30000}],
               "permissions": ["fetch", "storage"],
@@ -41,19 +41,19 @@ class ManifestTest {
 
     @Test(expected = HydroException::class)
     fun rejectsNoItems() {
-        Manifests.parse("""{"package":{"id":"com.a.b"}}""")
+        Manifests.parse("""{"package":{"id":"com.a.b"}, "author": "测试作者"}""")
     }
 
     @Test(expected = HydroException::class)
     fun rejectsDuplicateItemIds() {
         Manifests.parse(
-            """{"package":{"id":"com.a.b"},"apps":[{"id":"main"},{"id":"main"}]}"""
+            """{"package":{"id":"com.a.b"}, "author": "测试作者","apps":[{"id":"main"},{"id":"main"}]}"""
         )
     }
 
     @Test(expected = HydroException::class)
     fun rejectsEmptyItemId() {
-        Manifests.parse("""{"package":{"id":"com.a.b"},"apps":[{"name":"没有 id"}]}""")
+        Manifests.parse("""{"package":{"id":"com.a.b"}, "author": "测试作者","apps":[{"name":"没有 id"}]}""")
     }
 
     @Test(expected = HydroException::class)
@@ -65,7 +65,7 @@ class ManifestTest {
     fun sameIdIsAllowedAcrossSurfaces() {
         // app 与 widget 各自独立命名空间：两边都叫 main 是合法的
         val m = Manifests.parse(
-            """{"package":{"id":"com.a.b"},"apps":[{"id":"main"}],"widgets":[{"id":"main"}]}"""
+            """{"package":{"id":"com.a.b"}, "author": "测试作者","apps":[{"id":"main"}],"widgets":[{"id":"main"}]}"""
         )
         assertTrue(Manifests.hasApp(m, "main"))
         assertTrue(Manifests.hasWidget(m, "main"))

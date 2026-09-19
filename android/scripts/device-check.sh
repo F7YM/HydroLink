@@ -59,7 +59,7 @@ check_service() {
   r="$(get "$BASE/api/version")"; code="${r%%$'\t'*}"
   local file="${r##*$'\t'}"
   if [ "$code" = "200" ] && jq -e '.version' "$file" >/dev/null 2>&1; then
-    pass "版本接口" "$(jq -r '.version + " api_level=" + (.api_level|tostring)' "$file")"
+    pass "版本接口" "$(jq -r '.app + " " + .version' "$file")"
   else
     fail "版本接口" "HTTP $code"
   fi

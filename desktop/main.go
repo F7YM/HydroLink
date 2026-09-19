@@ -73,7 +73,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("HydroLink %s (api_level %d)\n", api.Version, api.APILevel)
+		fmt.Printf("HydroLink %s\n", api.Version)
 		return
 	}
 
@@ -105,7 +105,7 @@ func main() {
 	// persisted to cfg.LastPort — only a manual GUI port change (SaveSettings)
 	// updates the remembered port, so ad-hoc runs never change the default.
 
-	log.Printf("HydroLink desktop server v%s (api_level %d)", api.Version, api.APILevel)
+	log.Printf("HydroLink desktop server v%s", api.Version)
 	ipInfo := api.LocalIPInfo()
 	log.Printf("local IP: %s (iface %s, %s)  |  data dir: %s", ipInfo.IP, ipInfo.Iface, ipInfo.Source, st.Dir())
 

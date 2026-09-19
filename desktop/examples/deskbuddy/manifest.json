@@ -1,6 +1,7 @@
 {
   "id": "com.hydro.deskbuddy",
   "name": "桌搭",
+  "author": "HydroLink",
   "version": "0.9.0",
   "entry": "server.js",
   "apps": [

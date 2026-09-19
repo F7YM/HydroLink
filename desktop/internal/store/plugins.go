@@ -14,12 +14,23 @@ import (
 	"strings"
 )
 
+// HostVersion 是宿主自己的版本（由装配处从 api.Version 注入），用来校验清单里的
+// minHydroLink —— store 不能反过来 import api。
+var HostVersion = "0.0.0"
+
 // PluginManifest mirrors docs/01-manifest.md.
 type PluginManifest struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// Author 必填：插件必须自报作者。注意它**只是展示信息**，没有签名，
+	// 平台无法验证真伪（可信作者要等签名那一层）。
+	Author  string `json:"author"`
 	Version string `json:"version"`
-	Icon    string `json:"icon,omitempty"`
+	// URL 可选：项目地址。
+	URL string `json:"url,omitempty"`
+	// MinHydroLink 可选：要求的最低 HydroLink 版本，宿主版本低于它就不给装。
+	MinHydroLink string `json:"minHydroLink,omitempty"`
+	Icon         string `json:"icon,omitempty"`
 	// Runtime is "js" (default, server.js in a WebWorker) or "wasm"
 	// (plugin.wasm loaded by the WorkerBundle's HydroKit WASM host, ABI v1).
 	Runtime     string       `json:"runtime,omitempty"`
@@ -38,18 +49,21 @@ type PluginItem struct {
 
 // PluginInfo is the list/management entry shown in the desktop HydroPlugin tab.
 type PluginInfo struct {
-	ID          string       `json:"id"`
-	Name        string       `json:"name"`
-	Version     string       `json:"version"`
-	Entry       string       `json:"entry"`
-	Runtime     string       `json:"runtime"`
-	Apps        []PluginItem `json:"apps"`
-	Widgets     []PluginItem `json:"widgets"`
-	Permissions []string     `json:"permissions"`
-	Dir         string       `json:"dir"`
-	Builtin     bool         `json:"builtin"`
-	HasWeb      bool         `json:"hasWeb"`
-	Error       string       `json:"error,omitempty"`
+	ID           string       `json:"id"`
+	Name         string       `json:"name"`
+	Author       string       `json:"author"`
+	Version      string       `json:"version"`
+	URL          string       `json:"url,omitempty"`
+	MinHydroLink string       `json:"minHydroLink,omitempty"`
+	Entry        string       `json:"entry"`
+	Runtime      string       `json:"runtime"`
+	Apps         []PluginItem `json:"apps"`
+	Widgets      []PluginItem `json:"widgets"`
+	Permissions  []string     `json:"permissions"`
+	Dir          string       `json:"dir"`
+	Builtin      bool         `json:"builtin"`
+	HasWeb       bool         `json:"hasWeb"`
+	Error        string       `json:"error,omitempty"`
 }
 
 // CompareVersions orders dotted versions (numeric segments compared as
@@ -194,7 +208,10 @@ func (s *Store) ListPlugins() []PluginInfo {
 			continue
 		}
 		info.Name = m.Name
+		info.Author = m.Author
 		info.Version = m.Version
+		info.URL = m.URL
+		info.MinHydroLink = m.MinHydroLink
 		info.Entry = m.Entry
 		info.Runtime = normalizeRuntime(m.Runtime)
 		info.Apps = orEmpty(m.Apps)
@@ -268,6 +285,12 @@ func (s *Store) ReadPluginPackage(zipPath string) (*PluginManifest, error) {
 	}
 	if len(orEmpty(m.Apps)) == 0 && len(orEmpty(m.Widgets)) == 0 {
 		return nil, fmt.Errorf("插件没有注册任何 App / Widget")
+	}
+	if strings.TrimSpace(m.Author) == "" {
+		return nil, fmt.Errorf("清单缺少 author（作者必填）")
+	}
+	if v := strings.TrimSpace(m.MinHydroLink); v != "" && CompareVersions(HostVersion, v) < 0 {
+		return nil, fmt.Errorf("该插件需要 HydroLink ≥ %s，当前 %s", v, HostVersion)
 	}
 	return &m, nil
 }

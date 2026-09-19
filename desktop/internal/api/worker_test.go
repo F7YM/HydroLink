@@ -19,6 +19,7 @@ import (
 const wkManifest = `{
   "id": "com.t.worker",
   "name": "Worker测试",
+  "author": "测试作者",
   "version": "0.1.0",
   "entry": "server.js",
   "apps": [{"id":"main","name":"主页"}],
@@ -136,6 +137,7 @@ func TestServerMountsWorkerChannel(t *testing.T) {
 const wkMusicManifest = `{
   "id": "com.t.music",
   "name": "媒体测试",
+  "author": "测试作者",
   "version": "0.1.0",
   "entry": "server.js",
   "apps": [{"id":"main","name":"主页"}],

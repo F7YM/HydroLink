@@ -1,10 +1,10 @@
 package hydrokit
 
 import (
-	"runtime"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -24,6 +24,7 @@ func (c *capturePlugin) View(surface, item string, req Request) (*View, error) {
 func TestScreenQueryParsing(t *testing.T) {
 	cp := &capturePlugin{m: Manifest{
 		Package: Package{ID: "com.x.screen"},
+		Author:  "测试作者",
 		Apps:    []Item{{ID: "main"}},
 	}}
 	rt := NewRuntime(nil)
@@ -51,6 +52,7 @@ func TestScreenQueryParsing(t *testing.T) {
 func TestScreenQueryAbsent(t *testing.T) {
 	cp := &capturePlugin{m: Manifest{
 		Package: Package{ID: "com.x.screen2"},
+		Author:  "测试作者",
 		Apps:    []Item{{ID: "main"}},
 	}}
 	rt := NewRuntime(nil)
@@ -118,6 +120,7 @@ func TestMediaSetHelper(t *testing.T) {
 func TestStoreSnapshotFromQueryAndBody(t *testing.T) {
 	plugin := &capturePlugin{m: Manifest{
 		Package: Package{ID: "test.pkg", Version: "1.0.0"},
+		Author:  "测试作者",
 		Apps:    []Item{{ID: "main"}},
 	}}
 	rt := NewRuntime(nil)
@@ -159,6 +162,7 @@ func TestStoreSnapshotFromQueryAndBody(t *testing.T) {
 func TestRequestCarriesHostInfo(t *testing.T) {
 	plugin := &capturePlugin{m: Manifest{
 		Package: Package{ID: "test.pkg", Version: "1.0.0"},
+		Author:  "测试作者",
 		Apps:    []Item{{ID: "main"}},
 	}}
 	rt := NewRuntime(nil)

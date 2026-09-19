@@ -121,7 +121,7 @@ class HydroInterconnectTest {
         val rt = Runtime()
         rt.register(object : Runtime.Plugin {
             override fun manifest() = Manifests.parse(
-                """{"package":{"id":"com.demo.weather","name":"天气","version":"0.2.4"},
+                """{"package":{"id":"com.demo.weather","name":"天气", "author": "测试作者","version":"0.2.4"}, "author": "测试作者",
                     "apps":[{"id":"main","name":"天气"}]}""".trimIndent()
             )
             override fun view(surface: String, item: String, req: Request): View {

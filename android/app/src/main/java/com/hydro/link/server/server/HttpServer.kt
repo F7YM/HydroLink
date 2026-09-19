@@ -126,7 +126,6 @@ class HydroHttpServer(
     private val maxLogs = 100
 
     companion object {
-        private const val API_LEVEL = 6
         private const val VERSION = "1.1.0"
 
         /** logcat tag（`adb logcat -s HydroLink`）。 */
@@ -224,8 +223,7 @@ class HydroHttpServer(
                 (cleanUri == "/api/version" || cleanUri == "/version") && method == Method.GET ->
                     jsonResp(mapOf(
                         "status" to "ok",
-                        "api_level" to API_LEVEL,
-                        "version" to VERSION
+                                                "version" to VERSION
                     ))
 
                 // PID
@@ -425,7 +423,7 @@ class HydroHttpServer(
 
                 // Health check
                 cleanPath == "/api/ping" || cleanPath == "/ping" ->
-                    gson.toJsonTree(mapOf("status" to "ok", "api_level" to API_LEVEL, "version" to VERSION))
+                    gson.toJsonTree(mapOf("status" to "ok", "app" to "hydrolink", "version" to VERSION))
 
                 // System status
                 cleanPath == "/api/status" || cleanPath == "/status" ->

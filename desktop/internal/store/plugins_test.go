@@ -48,6 +48,7 @@ func buildZip(t *testing.T, entries map[string]string, dirs ...string) string {
 const validManifest = `{
   "id": "com.test.plugin",
   "name": "测试插件",
+  "author": "测试作者",
   "version": "0.1.0",
   "apps": [{"id":"main","name":"主页"}],
   "widgets": [{"id":"now","name":"简述","refreshMs":30000}],
@@ -206,6 +207,7 @@ func TestWasmRuntimePackage(t *testing.T) {
 	wasmManifest := `{
   "id": "com.test.wasm",
   "name": "WASM 插件",
+  "author": "测试作者",
   "version": "0.1.0",
   "runtime": "wasm",
   "apps": [{"id":"main","name":"主页"}],
@@ -241,5 +243,59 @@ func TestWasmRuntimePackage(t *testing.T) {
 	missing := buildZip(t, map[string]string{"manifest.json": wasmManifest})
 	if _, err := s.InstallPlugin(missing); err == nil || !strings.Contains(err.Error(), "plugin.wasm") {
 		t.Fatalf("err = %v, want missing entry error", err)
+	}
+}
+
+// ---- 清单新字段：author 必填、url 可选、minHydroLink 卡宿主版本 ----
+
+func TestInstallRequiresAuthor(t *testing.T) {
+	s := testStore(t)
+	noAuthor := strings.Replace(validManifest, `"author": "测试作者",`, "", 1)
+	p := buildZip(t, map[string]string{"manifest.json": noAuthor, "server.js": "x"})
+	if _, err := s.InstallPlugin(p); err == nil || !strings.Contains(err.Error(), "author") {
+		t.Fatalf("缺 author 应当拒绝安装，实际: %v", err)
+	}
+}
+
+func TestInstallRejectsNewerMinHydroLink(t *testing.T) {
+	old := HostVersion
+	HostVersion = "1.1.0"
+	defer func() { HostVersion = old }()
+
+	mk := func(min string) string {
+		return strings.Replace(validManifest, `"version": "0.1.0",`,
+			`"version": "0.1.0", "minHydroLink": "`+min+`",`, 1)
+	}
+	// 要求比宿主新 -> 拒绝
+	s := testStore(t)
+	p := buildZip(t, map[string]string{"manifest.json": mk("1.2.0"), "server.js": "x"})
+	if _, err := s.InstallPlugin(p); err == nil || !strings.Contains(err.Error(), "minHydroLink") &&
+		!strings.Contains(err.Error(), "HydroLink ≥") {
+		t.Fatalf("minHydroLink 高于宿主应当拒绝，实际: %v", err)
+	}
+	// 与宿主相同 / 更低 -> 允许
+	for _, min := range []string{"1.1.0", "1.0.0"} {
+		s := testStore(t)
+		p := buildZip(t, map[string]string{"manifest.json": mk(min), "server.js": "x"})
+		if _, err := s.InstallPlugin(p); err != nil {
+			t.Fatalf("minHydroLink=%s 应当允许安装: %v", min, err)
+		}
+	}
+}
+
+func TestPluginInfoCarriesAuthorAndURL(t *testing.T) {
+	s := testStore(t)
+	m := strings.Replace(validManifest, `"version": "0.1.0",`,
+		`"version": "0.1.0", "url": "https://example.com/p",`, 1)
+	p := buildZip(t, map[string]string{"manifest.json": m, "server.js": "x"})
+	if _, err := s.InstallPlugin(p); err != nil {
+		t.Fatal(err)
+	}
+	list := s.ListPlugins()
+	if len(list) != 1 {
+		t.Fatalf("插件数: %d", len(list))
+	}
+	if list[0].Author != "测试作者" || list[0].URL != "https://example.com/p" {
+		t.Fatalf("作者/项目地址没传出来: %+v", list[0])
 	}
 }

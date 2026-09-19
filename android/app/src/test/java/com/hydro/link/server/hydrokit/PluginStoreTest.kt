@@ -36,11 +36,18 @@ class PluginStoreTest {
         return f
     }
 
+    /** 造一个只含 manifest + server.js 的 .hpk（清单新字段的用例用它）。 */
+    private fun buildPackage(manifest: String): File =
+        makeHpk(tmp.root, "p-${System.nanoTime()}.hpk", mapOf(
+            "manifest.json" to manifest,
+            "server.js" to "module.exports = {}",
+        ))
+
     // 注意：安装包内的 manifest.json 是**扁平**结构（id 在顶层），
     // 与协议里 /api/hydro/list 返回的嵌套 {package:{...}} 不同 —— 见
     // desktop/internal/store/plugins.go 的 PluginManifest。
     private val jsManifest = """
-        {"id":"com.demo.weather","name":"示例天气","version":"0.2.4",
+        {"id":"com.demo.weather","name":"示例天气", "author": "测试作者","version":"0.2.4",
          "apps":[{"id":"main","name":"示例天气"}],
          "widgets":[{"id":"card","name":"天气组件","refreshMs":30000}],
          "permissions":["fetch","storage"],"entry":"server.js"}
@@ -86,7 +93,7 @@ class PluginStoreTest {
     fun installsWasmPlugin() {
         val s = store()
         val wasmManifest = """
-            {"id":"com.hydro.deskbuddy","name":"桌搭","version":"0.7.1",
+            {"id":"com.hydro.deskbuddy","name":"桌搭", "author": "测试作者","version":"0.7.1",
              "apps":[{"id":"main","name":"桌搭"}],"runtime":"wasm","permissions":["music","storage"]}
         """.trimIndent()
         val hpk = makeHpk(tmp.root, "w.hpk", mapOf(
@@ -102,7 +109,7 @@ class PluginStoreTest {
     fun rejectsWasmEntryThatIsNotWasm() {
         val s = store()
         val bad = """
-            {"id":"com.a.b","name":"x","version":"1.0.0",
+            {"id":"com.a.b","name":"x", "author": "测试作者","version":"1.0.0",
              "apps":[{"id":"main"}],"runtime":"wasm","entry":"server.js"}
         """.trimIndent()
         s.install(makeHpk(tmp.root, "w.hpk", mapOf("manifest.json" to bad, "server.js" to "x")))
@@ -123,7 +130,7 @@ class PluginStoreTest {
     @Test(expected = HydroException::class)
     fun rejectsInvalidPackageId() {
         val s = store()
-        val bad = """{"id":"../evil","name":"x","version":"1.0.0","apps":[{"id":"main"}]}"""
+        val bad = """{"id":"../evil","name":"x", "author": "测试作者","version":"1.0.0","apps":[{"id":"main"}]}"""
         s.install(makeHpk(tmp.root, "w.hpk", mapOf("manifest.json" to bad, "server.js" to "x")))
     }
 
@@ -292,4 +299,38 @@ class PluginStoreTest {
         assertEquals(-1, PluginStore.compareVersions("1.0.0-beta", "1.0.0"))
         assertEquals(0, PluginStore.compareVersions(" 1.2.3 ", "1.2.3"))
     }
+
+    // ---- 清单新字段：author 必填、minHydroLink 卡宿主版本 ----
+
+    @Test
+    fun installRequiresAuthor() {
+        val hpk = buildPackage("""{"id":"com.t.noauthor","name":"没作者","version":"0.1.0",
+            "entry":"server.js","apps":[{"id":"main","name":"主页"}]}""")
+        val e = runCatching { store().install(hpk) }.exceptionOrNull()
+        assertNotNull("缺 author 应当拒绝安装", e)
+        assertTrue("报错要说清是 author: ${e?.message}", (e?.message ?: "").contains("author"))
+    }
+
+    @Test
+    fun installRejectsNewerMinHydroLink() {
+        val old = PluginStore.hostVersion
+        PluginStore.hostVersion = "1.1.0"
+        val s = store()
+        try {
+            val tooNew = buildPackage("""{"id":"com.t.newer","name":"要新宿主","author":"A","version":"0.1.0",
+                "minHydroLink":"1.2.0","entry":"server.js","apps":[{"id":"main","name":"主页"}]}""")
+            val e = runCatching { s.install(tooNew) }.exceptionOrNull()
+            assertNotNull("minHydroLink 高于宿主应当拒绝", e)
+            assertTrue("报错要说明版本要求: ${e?.message}", (e?.message ?: "").contains("1.2.0"))
+
+            val ok = buildPackage("""{"id":"com.t.samever","name":"同版本","author":"A","version":"0.1.0",
+                "minHydroLink":"1.1.0","entry":"server.js","apps":[{"id":"main","name":"主页"}]}""")
+            val info = s.install(ok)
+            assertEquals("com.t.samever", info.id)
+            assertEquals("A", info.author)
+        } finally {
+            PluginStore.hostVersion = old
+        }
+    }
+
 }

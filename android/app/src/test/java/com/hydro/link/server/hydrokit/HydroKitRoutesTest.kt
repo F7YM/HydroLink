@@ -34,7 +34,7 @@ class HydroKitRoutesTest {
 
     private val manifest = Manifests.parse(
         """
-        {"package":{"id":"com.demo.weather","name":"示例天气","version":"0.2.4"},
+        {"package":{"id":"com.demo.weather","name":"示例天气", "author": "测试作者","version":"0.2.4"}, "author": "测试作者",
          "apps":[{"id":"main","name":"天气"}],
          "widgets":[{"id":"card","name":"卡片","refreshMs":30000}],
          "permissions":["fetch","storage"]}
@@ -212,7 +212,7 @@ class HydroKitRoutesTest {
         val hpk = File(tmp.root, "w.hpk")
         ZipOutputStream(hpk.outputStream()).use { z ->
             listOf(
-                "manifest.json" to """{"id":"com.demo.weather","name":"天气","version":"1.0.0","apps":[{"id":"main"}]}""",
+                "manifest.json" to """{"id":"com.demo.weather","name":"天气", "author": "测试作者","version":"1.0.0","apps":[{"id":"main"}]}""",
                 "server.js" to "code",
                 "web/index.html" to "<h1>设置</h1>",
                 "web/app.js" to "console.log(1)",
@@ -240,7 +240,7 @@ class HydroKitRoutesTest {
     }
 
     private fun manifests(id: String) = Manifests.parse(
-        """{"package":{"id":"$id","name":"x","version":"1.0.0"},"apps":[{"id":"main"}]}"""
+        """{"package":{"id":"$id","name":"x", "author": "测试作者","version":"1.0.0"}, "author": "测试作者","apps":[{"id":"main"}]}"""
     )
 
     @Test
@@ -277,7 +277,7 @@ class HydroKitRoutesTest {
         val seen = arrayListOf<Request>()
         val rt = Runtime()
         rt.register(object : Runtime.Plugin {
-            override fun manifest() = Manifests.parse("""{"package":{"id":"com.x.host","version":"1.0.0"},"apps":[{"id":"main"}]}""")
+            override fun manifest() = Manifests.parse("""{"package":{"id":"com.x.host","version":"1.0.0"}, "author": "测试作者","apps":[{"id":"main"}]}""")
             override fun view(surface: String, item: String, req: Request): View {
                 seen.add(req)
                 return View(root = Node.text("ok"))
@@ -296,7 +296,7 @@ class HydroKitRoutesTest {
         val rt = Runtime()
         rt.register(object : Runtime.Plugin {
             override fun manifest() = Manifests.parse(
-                """{"package":{"id":"com.x.icon","name":"图标","version":"1.0.0"},
+                """{"package":{"id":"com.x.icon","name":"图标", "author": "测试作者","version":"1.0.0"}, "author": "测试作者",
                     "apps":[{"id":"main","name":"带图标","icon":"assets/icon.png"},
                             {"id":"abs","name":"绝对","icon":"https://example.com/i.png"},
                             {"id":"none","name":"无"}]}""".trimIndent()

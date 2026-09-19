@@ -50,7 +50,7 @@ class H(BaseHTTPRequestHandler):
         if path == "/api/ping":
             return self._json(200, {"status": "ok"})
         if path == "/api/version":
-            return self._json(200, {"status": "ok", "api_level": 6, "version": "1.0.0"})
+            return self._json(200, {"status": "ok", "app": "hydrolink", "version": "1.0.0"})
         if path == "/api/hydro/list":
             return self._json(200, {"plugins": [PLUGIN]})
         if path == "/api/hydro/worker/host":

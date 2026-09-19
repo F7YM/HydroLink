@@ -16,7 +16,7 @@ class WorkerPluginTest {
 
     private val manifest = Manifests.parse(
         """
-        {"package":{"id":"com.demo.weather","name":"天气","version":"1.0.0"},
+        {"package":{"id":"com.demo.weather","name":"天气", "author": "测试作者","version":"1.0.0"}, "author": "测试作者",
          "apps":[{"id":"main","name":"天气"}],"widgets":[{"id":"card","refreshMs":30000}]}
         """.trimIndent()
     )

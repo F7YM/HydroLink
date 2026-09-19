@@ -123,6 +123,7 @@ func TestJSPluginWithFakeCaller(t *testing.T) {
 	})
 	m := &Manifest{
 		Package: Package{ID: "com.t.js", Name: "JS", Version: "0.1.0"},
+		Author:  "测试作者",
 		Apps:    []Item{{ID: "main", Name: "主页"}},
 	}
 	p := NewJSPlugin(m, fake)

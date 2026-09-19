@@ -26,15 +26,21 @@ class HydroKit(
     private val logFn = log
     private val gson = Gson()
 
-    val store: PluginStore = PluginStore(File(context.filesDir, "hydrokit"))
+    val store: PluginStore = PluginStore(File(context.filesDir, "hydrokit")).also {
+        // 插件清单里的 minHydroLink 拿它比对（与桌面 store.HostVersion 同源）
+        PluginStore.hostVersion = APP_VERSION
+    }
     val bridge: WorkerBridge = WorkerBridge(log = { msg -> logFn("info", msg) })
     val runtime: Runtime = Runtime(this)
+
+    /** 宿主版本（= 产品版本），给 minHydroLink 校验用。 */
+    private val APP_VERSION = runCatching { com.hydro.link.server.BuildConfig.VERSION_NAME }.getOrDefault("0.0.0")
 
     /** 宿主平台信息：插件用它按平台分支（os ∈ linux|windows|darwin|android）。 */
     private val hostInfo: MutableMap<String, String> = mutableMapOf(
         "os" to "android",
         "arch" to (android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown"),
-        "app" to (runCatching { com.hydro.link.server.BuildConfig.VERSION_NAME }.getOrDefault("")),
+        "app" to APP_VERSION,
         "sdk" to android.os.Build.VERSION.SDK_INT.toString(),
     )
 

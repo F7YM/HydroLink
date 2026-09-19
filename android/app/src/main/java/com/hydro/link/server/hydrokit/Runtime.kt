@@ -31,6 +31,7 @@ object Manifests {
     @Throws(HydroException::class)
     fun validate(m: Manifest) {
         if (m.pkg.id.isBlank()) throw HydroException("hydrokit: manifest 缺少 package.id")
+        if (m.author.isBlank()) throw HydroException("hydrokit: manifest 缺少 author")
         if (m.apps.isEmpty() && m.widgets.isEmpty()) {
             throw HydroException("hydrokit: manifest 没有注册任何 app 或 widget")
         }

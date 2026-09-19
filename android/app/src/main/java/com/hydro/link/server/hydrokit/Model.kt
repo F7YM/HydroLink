@@ -150,6 +150,12 @@ data class Package(
  */
 data class Manifest(
     @SerializedName("package") val pkg: Package = Package(),
+    /** 作者（必填，仅展示信息，无签名）。 */
+    @SerializedName("author") val author: String = "",
+    /** 可选：项目地址。 */
+    @SerializedName("url") val url: String? = null,
+    /** 可选：要求的最低 HydroLink 版本。 */
+    @SerializedName("minHydroLink") val minHydroLink: String? = null,
     @SerializedName("apps") val apps: List<Item> = emptyList(),
     @SerializedName("widgets") val widgets: List<Item> = emptyList(),
     @SerializedName("permissions") val permissions: List<String> = emptyList(),

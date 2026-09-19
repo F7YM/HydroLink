@@ -22,10 +22,7 @@ import (
 	"hydrolink-desktop/internal/system"
 )
 
-const (
-	// APILevel mirrors the Android server's API_LEVEL.
-	APILevel = 6
-)
+const ()
 
 // Version 是产品版本号。默认值与 desktop/VERSION 保持一致，打包/发布脚本用
 // `-ldflags "-X hydrolink-desktop/internal/api.Version=<版本>"` 注入，保证
@@ -290,7 +287,8 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 
 	case (path == "/api/version" || path == "/version") && r.Method == http.MethodGet:
 		s.writeJSON(w, http.StatusOK, map[string]any{
-			"status": "ok", "api_level": APILevel, "version": Version,
+			// app 是给局域网探测用的指纹（见 probe.go），取代原来的 api_level
+			"status": "ok", "app": "hydrolink", "version": Version,
 		})
 
 	case (path == "/api/pid" || path == "/pid") && r.Method == http.MethodGet:
