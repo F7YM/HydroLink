@@ -102,6 +102,9 @@
   padding-top: 20px;
 }
 .app-card {
+  /* 关键：flex 子项默认 flex-shrink:1，会被压扁去适配可视高度（表现为
+     "写了 150px 却显示 77px、第三行被裁、间距消失"）。不收缩才会溢出并触发滚动。 */
+  flex-shrink: 0;
   width: 420px;
   height: 150px;
   margin-bottom: 16px;
@@ -120,6 +123,7 @@
 }
 .app-info {
   flex-grow: 1;
+  flex-shrink: 0;
   flex-direction: column;
   justify-content: center;
 }
@@ -146,6 +150,7 @@
   margin-left: 8px;
 }
 .form-item {
+  flex-shrink: 0;
   width: 420px;
   height: 96px;
   margin: 0 0 16px 0;

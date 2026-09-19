@@ -112,6 +112,7 @@
   align-items: center;
 }
 .command-item {
+  flex-shrink: 0;   /* 固定高度行别被 flex 压扁（设置页踩过的坑） */
   width: 400px;
   min-height: 80px;
   background-color: #2e323c;

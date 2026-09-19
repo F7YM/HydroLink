@@ -130,6 +130,7 @@
   padding-top: 20px;
 }
 .form-item {
+  flex-shrink: 0;   /* 固定高度行别被 flex 压扁（设置页踩过的坑） */
   width: 390px;
   height: 94px;
   margin: 5px 0;

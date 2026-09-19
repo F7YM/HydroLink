@@ -233,6 +233,7 @@
   padding-bottom: 40px;
 }
 .info-card {
+  flex-shrink: 0;   /* 固定高度行别被 flex 压扁（设置页踩过的坑） */
   width: 400px;
   height: 160px;
   background-color: #2e323c;
@@ -296,6 +297,7 @@
   padding: 0 16px;
 }
 .control-item {
+  flex-shrink: 0;   /* 固定高度行别被 flex 压扁（设置页踩过的坑） */
   flex-direction: column;
   align-items: center;
   justify-content: center;
