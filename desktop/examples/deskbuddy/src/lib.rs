@@ -1,22 +1,29 @@
 // 桌搭 (Desk Buddy) — HydroKit WASM plugin (ABI v1).
 //
-// 正在播放的圆屏界面：模糊封面铺底，顶部时钟，左侧封面，右侧歌名/歌手/歌词。
-// 布局按设计稿（466×466 圆屏）等比换算到实际屏幕，圆屏方屏共用一套结构。
+// 两种版式，由**是否开启 SPlayer 歌词集成**决定（看宿主注入的 ctx.music.lyrics 存不存在）：
 //
-// 歌词来自宿主注入的 ctx.music.lyrics（桌面端接 SPlayer 的 WebSocket，
-// 见 desktop/internal/splayer）；宿主没有这个能力时（例如安卓端）不渲染歌词行。
+//   · 开启：设计稿版式（466×466 圆屏设计稿等比换算到实际屏幕）——顶部时钟、
+//     左侧封面、右侧歌名/歌手/当前歌词，0.5s 一刷跟着播放下走。
+//   · 未开启：原来那套居中版式（大时钟 + 居中歌名/歌手 + 居中封面），3s 一刷。
+//
+// 歌词来自宿主（桌面端接 SPlayer 的 WebSocket，见 desktop/internal/splayer）；
+// 安卓端没有这个能力，所以永远走原版式。
 use serde_json::{json, Value};
 use std::alloc::{alloc, dealloc, Layout};
 
-/// 设计稿画布边长（466×466 圆屏，见设计稿）。
+/// 设计稿画布边长（466×466 圆屏）与其中的关键尺寸。
 const DESIGN: f64 = 466.0;
-/// 设计稿里的关键尺寸。
 const D_COVER: f64 = 135.0; // 封面边长
 const D_COVER_LEFT: f64 = 46.0; // 封面左边距
 const D_RIGHT_PAD: f64 = 42.0; // 文字列右侧安全边距（圆屏弧边）
 const D_GAP: f64 = 18.0; // 封面与文字列间距
 const D_CLOCK_TOP: f64 = 26.0; // 时钟顶部
 const D_RADIUS: f64 = 21.0; // 封面圆角
+
+/// 歌词版式的刷新间隔：歌词要跟着播放下走。
+const LYRICS_REFRESH_MS: i64 = 500;
+/// 原版式的刷新间隔（界面没有随时间变化的内容）。
+const CLASSIC_REFRESH_MS: i64 = 3000;
 
 #[no_mangle]
 pub extern "C" fn hydro_abi_version() -> i32 {
@@ -119,13 +126,18 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
     let has_media = ctx["music"]["hasMedia"].as_bool().unwrap_or(false);
     let art_url = text(&ctx, &["music", "artUrl"]);
     let art_blur = text(&ctx, &["music", "artBlur"]);
-    // 宿主注入的实时歌词（桌面端接 SPlayer；没有就留空，歌词行不渲染）
-    let lyric = text(&ctx, &["music", "lyrics", "line"]);
     let handler = text(&ctx, &["req", "event", "handler"]);
 
-    // 屏幕尺寸：设计稿坐标等比换算（圆屏方屏共用）
+    // 歌词版式只在**插件开了 SPlayer 歌词集成**时启用：那时宿主总会给 ctx.music.lyrics
+    // （哪怕还没连上、这一句为空串）；没开就整个字段都没有 —— 版式跟着它走。
+    let lyrics = &ctx["music"]["lyrics"];
+    let lyrics_on = !lyrics.is_null();
+    let lyric_line = lyrics["line"].as_str().unwrap_or("").to_string();
+
+    // 屏幕尺寸（设计稿等比换算、方屏封面定位、背景图裁切都用它）
     let screen_w = num(&ctx, &["req", "screen", "width"]);
     let screen_h = num(&ctx, &["req", "screen", "height"]);
+    let shape = text(&ctx, &["req", "screen", "shape"]);
     let sw = if screen_w > 0.0 { screen_w } else { DESIGN };
     let sh = if screen_h > 0.0 { screen_h } else { DESIGN };
     let s = sw.min(sh) / DESIGN;
@@ -189,117 +201,189 @@ pub extern "C" fn hydro_view(ctx_ptr: *const u8, ctx_len: usize) -> *mut u8 {
         art_url.clone()
     };
 
-    // ---- 版面（全部按设计稿等比换算）----
-    let cover = (D_COVER * s).round();
-    let cover_left = (D_COVER_LEFT * s).round();
-    let gap = (D_GAP * s).round();
-    let text_left = cover_left + cover + gap;
-    let text_width = (sw - text_left - D_RIGHT_PAD * s).round();
-    // 封面垂直居中于屏幕
-    let content_top = ((sh - cover) / 2.0).round();
-
-    // 封面：有封面就放图（点击暂停/播放），否则给个中性占位
-    let cover_node = if !cover_src.is_empty() {
-        json!({
-            "type": "image",
-            "props": { "src": cover_src },
-            "events": { "tap": "toggle" },
-            "style": {
-                "width": cover,
-                "height": cover,
-                "borderRadius": (D_RADIUS * s).round()
-            }
-        })
-    } else {
-        json!({
-            "type": "text",
-            "props": { "text": "♪" },
-            "style": {
-                "width": cover,
-                "fontSize": (cover * 0.4).round(),
-                "color": "#3a4150",
-                "textAlign": "center",
-                "marginTop": (cover * 0.28).round()
-            }
-        })
-    };
-
-    // 文字列：歌名（恒单行 + 省略号）、歌手、当前歌词
     let title_text = if title.is_empty() { "HydroLink".to_string() } else { title };
-    let mut text_kids = vec![
-        one_line(&title_text, text_width, f(24.0), 700.0, "#FFFFFF"),
-        one_line(
-            if artist.is_empty() && !has_media { "无正在播放的媒体" } else { &artist },
-            text_width,
-            f(17.0),
-            400.0,
-            "rgba(255,255,255,0.4)",
-        ),
-    ];
-    if !lyric.is_empty() {
-        // 歌词最多两行，超出补省略号（设计稿里的一句歌词会自然折成两行）
-        text_kids.push(json!({
-            "type": "text",
-            "props": { "text": lyric },
-            "style": {
-                "width": text_width,
-                "fontSize": f(20.0),
-                "lineHeight": f(25.0),
-                "color": "#FFFFFF",
-                "marginTop": (5.0 * s).round(),
-                "lines": 2,
-                "textOverflow": "ellipsis"
-            }
-        }));
-    }
 
-    let children = json!([
-        {
-            "type": "text",
-            "props": { "text": clock },
-            "style": {
-                "position": "absolute",
-                "top": (D_CLOCK_TOP * s).round(),
-                "left": 0,
-                "right": 0,
-                // 显式给整屏宽：容器里的百分比宽度会随包装层收缩，居中就不再可靠
-                "width": sw.round() as i64,
-                "fontSize": f(21.0),
-                "fontWeight": 700,
-                "color": "#FFFFFF",
-                "textAlign": "center"
-            }
-        },
-        {
-            "type": "row",
-            "style": {
-                "position": "absolute",
-                "top": content_top,
-                "left": cover_left,
-                "width": cover + gap + text_width,
-                "alignItems": "flex-start"
-            },
-            "children": [
-                cover_node,
+    let (root_type, root_style, children, refresh_ms) = if lyrics_on {
+        // ---------- 设计稿版式 ----------
+        // 字号沿用原来那套（设计稿的 21/24/17 在真机上太小）：时钟 36、歌名 32、
+        // 歌手 22；歌词取二者之间的 26，最多三行（字号大了，两行装不下整句）。
+        let cover = (D_COVER * s).round();
+        let cover_left = (D_COVER_LEFT * s).round();
+        let gap = (D_GAP * s).round();
+        let text_left = cover_left + cover + gap;
+        let text_width = (sw - text_left - D_RIGHT_PAD * s).round();
+        // 封面垂直居中于屏幕
+        let top = ((sh - cover) / 2.0).round();
+
+        let cover_node = if !cover_src.is_empty() {
+            json!({
+                "type": "image",
+                "props": { "src": cover_src },
+                "events": { "tap": "toggle" },
+                "style": {
+                    "width": cover,
+                    "height": cover,
+                    "borderRadius": (D_RADIUS * s).round()
+                }
+            })
+        } else {
+            json!({
+                "type": "text",
+                "props": { "text": "♪" },
+                "style": {
+                    "width": cover,
+                    "fontSize": (cover * 0.4).round(),
+                    "color": "#3a4150",
+                    "textAlign": "center",
+                    "marginTop": (cover * 0.28).round()
+                }
+            })
+        };
+
+        // 文字列：歌名（恒单行 + 省略号）、歌手、当前歌词
+        let mut text_kids = vec![
+            one_line(&title_text, text_width, f(32.0), 700.0, "#FFFFFF"),
+            one_line(
+                if artist.is_empty() && !has_media { "无正在播放的媒体" } else { &artist },
+                text_width,
+                f(22.0),
+                400.0,
+                "rgba(255,255,255,0.4)",
+            ),
+        ];
+        if !lyric_line.is_empty() {
+            text_kids.push(json!({
+                "type": "text",
+                "props": { "text": lyric_line },
+                "style": {
+                    "width": text_width,
+                    "fontSize": f(26.0),
+                    "lineHeight": f(32.0),
+                    "color": "#FFFFFF",
+                    "marginTop": (5.0 * s).round(),
+                    "lines": 3,
+                    "textOverflow": "ellipsis"
+                }
+            }));
+        }
+
+        (
+            "column",
+            root_style,
+            json!([
                 {
-                    "type": "column",
+                    "type": "text",
+                    "props": { "text": clock },
                     "style": {
-                        "width": text_width,
-                        "marginLeft": gap,
+                        "position": "absolute",
+                        "top": (D_CLOCK_TOP * s).round(),
+                        "left": 0,
+                        "right": 0,
+                        // 显式给整屏宽：容器里的百分比宽度会随包装层收缩，居中就不再可靠
+                        "width": sw.round() as i64,
+                        "fontSize": f(36.0),
+                        "fontWeight": 700,
+                        "color": "#FFFFFF",
+                        "textAlign": "center"
+                    }
+                },
+                {
+                    "type": "row",
+                    "style": {
+                        "position": "absolute",
+                        "top": top,
+                        "left": cover_left,
+                        "width": cover + gap + text_width,
                         "alignItems": "flex-start"
                     },
-                    "children": text_kids
+                    "children": [
+                        cover_node,
+                        {
+                            "type": "column",
+                            "style": {
+                                "width": text_width,
+                                "marginLeft": gap,
+                                "alignItems": "flex-start"
+                            },
+                            "children": text_kids
+                        }
+                    ]
                 }
-            ]
+            ]),
+            LYRICS_REFRESH_MS,
+        )
+    } else {
+        // ---------- 原版式（没开歌词集成 = 和以前一模一样）----------
+        // 方屏（rect）：封面放大并绝对居中于屏幕正中；圆屏：流式居中
+        let canvas_w = 480.0;
+        let canvas_h = if sw > 0.0 && sh > 0.0 { sh * (480.0 / sw) } else { 480.0 };
+        let is_rect = shape == "rect";
+        let cover_size: f64 = if is_rect { 290.0 } else { 200.0 };
+        let mut cover_style = json!({
+            "width": cover_size, "height": cover_size, "borderRadius": 16
+        });
+        if is_rect {
+            cover_style["position"] = json!("absolute");
+            cover_style["left"] = json!(((canvas_w - cover_size) / 2.0).round());
+            // 略低于屏幕中心，避免压住上方的歌手行
+            cover_style["top"] = json!(((canvas_h - cover_size) / 2.0 + 26.0).round());
+        } else {
+            cover_style["marginTop"] = json!(18);
         }
-    ]);
+        let cover_node = if !cover_src.is_empty() {
+            json!({
+                "type": "image",
+                "props": { "src": cover_src },
+                "events": { "tap": "toggle" },
+                "style": cover_style
+            })
+        } else if has_media {
+            // 有音乐但没有封面：给一个中性占位，别显示"无正在播放的媒体"。
+            json!({
+                "type": "text",
+                "props": { "text": "♪" },
+                "style": { "fontSize": 64, "color": "#3a4150", "textAlign": "center", "width": "100%", "marginTop": 30 }
+            })
+        } else {
+            json!({
+                "type": "text",
+                "props": { "text": "无正在播放的媒体" },
+                "style": { "fontSize": 22, "color": "#8b93a3", "textAlign": "center", "width": "100%", "marginTop": 40 }
+            })
+        };
 
-    // 1s 一刷：歌词要跟着播放下走
+        let mut style = root_style;
+        style["padding"] = json!(16);
+        style["alignItems"] = json!("center"); // 列内子节点水平居中（封面不再靠左）
+        let kids = json!([
+            {
+                "type": "text",
+                "props": { "text": clock },
+                "style": { "fontSize": f(36.0), "fontWeight": 700, "color": "#FFFFFF",
+                           "textAlign": "center", "width": "100%" }
+            },
+            {
+                "type": "text",
+                "props": { "text": title_text },
+                "style": { "fontSize": f(32.0), "fontWeight": 700, "color": "#FFFFFF",
+                           "textAlign": "center", "width": "100%", "marginTop": 10 }
+            },
+            {
+                "type": "text",
+                "props": { "text": artist },
+                "style": { "fontSize": f(22.0), "color": "rgba(255,255,255,0.4)",
+                           "textAlign": "center", "width": "100%", "marginTop": 4 }
+            },
+            cover_node
+        ]);
+        ("scroll", style, kids, CLASSIC_REFRESH_MS)
+    };
+
     let tree = json!({
-        "refreshMs": 1000,
+        "refreshMs": refresh_ms,
         "effects": effects,
         "root": {
-            "type": "column",
+            "type": root_type,
             "style": root_style,
             "children": children
         }
@@ -319,6 +403,15 @@ mod tests {
         let len = unsafe { std::ptr::read_unaligned(ptr as *const u32) } as usize;
         let payload = unsafe { std::slice::from_raw_parts(ptr.add(4), len) };
         serde_json::from_slice(payload).expect("envelope payload is not valid JSON")
+    }
+
+    /// 开了歌词集成的上下文（那时宿主总会带上 ctx.music.lyrics）
+    fn with_lyrics(line: &str) -> String {
+        format!(
+            r#"{{"music":{{"hasMedia":true,"title":"Feel Something","artist":"Jaymes Young",
+                "artUrl":"file:///tmp/c.jpg","lyrics":{{"source":"splayer","line":"{line}","next":"下一句"}}}},
+                "req":{{"screen":{{"shape":"circle","width":466,"height":466}}}}}}"#
+        )
     }
 
     /// 收集树里所有 text 节点的文本
@@ -357,42 +450,56 @@ mod tests {
         walk(&tree["root"], want).unwrap_or_else(|| panic!("text {want} not found in {:?}", texts(tree)))
     }
 
-    /// 版面：466 圆屏上，封面/文字列的位置与设计稿一致，且都在屏内。
+    /// 设计稿版式的内容行（根下唯一的 row 容器）
     fn board(tree: &Value) -> Value {
-        let kids = tree["root"]["children"].as_array().expect("root children");
-        kids.iter().find(|c| c["type"] == "row").expect("content row").clone()
+        tree["root"]["children"]
+            .as_array()
+            .expect("root children")
+            .iter()
+            .find(|c| c["type"] == "row")
+            .expect("content row")
+            .clone()
     }
 
     #[test]
-    fn layout_follows_the_design_on_a_round_screen() {
-        let t = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A","artUrl":"file:///tmp/c.jpg"},
-            "req":{"screen":{"shape":"circle","width":466,"height":466}}}"#);
+    fn lyrics_turn_on_the_design_layout() {
+        let t = view(&with_lyrics("Make me feel something, something"));
+        assert_eq!(t["refreshMs"], 500, "歌词版式 0.5s 一刷");
+        assert_eq!(t["root"]["type"], "column");
         let row = board(&t);
         assert_eq!(row["style"]["left"].as_f64().unwrap(), 46.0, "封面前的安全边距");
         assert_eq!(row["style"]["top"].as_f64().unwrap(), 166.0, "封面垂直居中 (466-135)/2");
         let cover = &row["children"][0];
         assert_eq!(cover["type"], "image");
         assert_eq!(cover["style"]["width"].as_f64().unwrap(), 135.0);
-        assert_eq!(cover["style"]["height"].as_f64().unwrap(), 135.0);
         assert_eq!(cover["style"]["borderRadius"].as_f64().unwrap(), 21.0);
-        // 文字列紧接封面右侧，右边留出圆屏安全边距
         let col = &row["children"][1];
         assert_eq!(col["style"]["marginLeft"].as_f64().unwrap(), 18.0);
         assert_eq!(col["style"]["width"].as_f64().unwrap(), 225.0);
         assert_eq!(row["style"]["width"].as_f64().unwrap(), 378.0); // 46…424
-        // 时钟整行居中
-        let clock = find_text(&t, "00:00");
-        assert_eq!(clock["style"]["textAlign"], "center");
-        assert_eq!(clock["style"]["fontSize"].as_f64().unwrap(), 21.0);
-        assert_eq!(clock["style"]["width"].as_f64().unwrap(), 466.0, "时钟占满整屏宽才能居中");
-        assert_eq!(clock["style"]["top"].as_f64().unwrap(), 26.0);
     }
 
     #[test]
-    fn layout_scales_to_other_screens() {
-        // 方屏 432×514：等比缩放，纵向按实际高度居中，仍在屏内
-        let t = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A","artUrl":"file:///tmp/c.jpg"},
-            "req":{"screen":{"shape":"rect","width":432,"height":514}}}"#);
+    fn design_layout_uses_the_big_typography() {
+        // 真机上设计稿的 21/24/17 太小：字号沿用原来那套
+        let t = view(&with_lyrics("L"));
+        let clock = find_text(&t, "00:00");
+        assert_eq!(clock["style"]["fontSize"].as_f64().unwrap(), 36.0);
+        assert_eq!(clock["style"]["textAlign"], "center");
+        assert_eq!(clock["style"]["width"].as_f64().unwrap(), 466.0, "时钟占满整屏宽才能居中");
+        assert_eq!(find_text(&t, "Feel Something")["style"]["fontSize"].as_f64().unwrap(), 32.0);
+        assert_eq!(find_text(&t, "Jaymes Young")["style"]["fontSize"].as_f64().unwrap(), 22.0);
+        let lyric = find_text(&t, "L");
+        assert_eq!(lyric["style"]["fontSize"].as_f64().unwrap(), 26.0);
+        assert_eq!(lyric["style"]["lineHeight"].as_f64().unwrap(), 32.0);
+        assert_eq!(lyric["style"]["lines"].as_f64().unwrap(), 3.0, "歌词最多三行");
+        assert_eq!(lyric["style"]["textOverflow"], "ellipsis");
+    }
+
+    #[test]
+    fn design_layout_scales_to_other_screens() {
+        let t = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A","artUrl":"file:///tmp/c.jpg",
+            "lyrics":{"line":"L"}},"req":{"screen":{"shape":"rect","width":432,"height":514}}}"#);
         let row = board(&t);
         let left = row["style"]["left"].as_f64().unwrap();
         let width = row["style"]["width"].as_f64().unwrap();
@@ -406,50 +513,60 @@ mod tests {
     fn title_is_single_line_with_ellipsis() {
         let long = "这是一个非常非常长的歌曲名字用来验证省略号是否生效 A Very Long Song Title";
         let t = view(&format!(
-            r#"{{"music":{{"hasMedia":true,"title":"{long}","artist":"A","artUrl":"file:///tmp/c.jpg"}},
-                "req":{{"screen":{{"width":466,"height":466}}}}}}"#
+            r#"{{"music":{{"hasMedia":true,"title":"{long}","artist":"A","artUrl":"file:///tmp/c.jpg",
+                "lyrics":{{"line":"L"}}}},"req":{{"screen":{{"width":466,"height":466}}}}}}"#
         ));
         let title = find_text(&t, long);
-        assert_eq!(title["style"]["lines"].as_f64().unwrap(), 1.0, "标题必须单行");
+        assert_eq!(title["style"]["lines"].as_f64().unwrap(), 1.0, "歌名必须单行");
         assert_eq!(title["style"]["textOverflow"], "ellipsis");
-        // 宽度固定，容器才知道该在哪截断
         assert!(title["style"]["width"].as_f64().unwrap() > 0.0);
         // 歌手行同样单行省略（设计稿里它只有一行）
-        let artist = find_text(&t, "A");
-        assert_eq!(artist["style"]["lines"].as_f64().unwrap(), 1.0);
+        assert_eq!(find_text(&t, "A")["style"]["lines"].as_f64().unwrap(), 1.0);
     }
 
     #[test]
-    fn lyrics_come_from_the_host_context() {
-        let t = view(r#"{"music":{"hasMedia":true,"title":"Feel Something","artist":"Jaymes Young",
-            "artUrl":"file:///tmp/c.jpg","lyrics":{"source":"splayer","line":"Make me feel something, something","next":"下一句"}},
-            "req":{"screen":{"width":466,"height":466}}}"#);
-        let lyric = find_text(&t, "Make me feel something, something");
-        assert_eq!(lyric["style"]["lines"].as_f64().unwrap(), 2.0, "歌词最多两行");
-        assert_eq!(lyric["style"]["textOverflow"], "ellipsis");
-        assert_eq!(lyric["style"]["fontSize"].as_f64().unwrap(), 20.0);
-        assert_eq!(lyric["style"]["lineHeight"].as_f64().unwrap(), 25.0);
-        // 字体缩放同样作用于歌词
-        let big = view(r#"{"music":{"hasMedia":true,"lyrics":{"line":"L"}},"storage":{"fontScale":1.5},
-            "req":{"screen":{"width":466,"height":466}}}"#);
-        assert_eq!(find_text(&big, "L")["style"]["fontSize"].as_f64().unwrap(), 30.0);
+    fn empty_lyric_line_still_keeps_the_design_layout() {
+        // 开了集成但还没连上 / 还没开唱：版式已经是设计稿那套，只是不渲染歌词行
+        let t = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A","artUrl":"file:///tmp/c.jpg",
+            "lyrics":{"source":"splayer","line":""}},"req":{"screen":{"width":466,"height":466}}}"#);
+        assert_eq!(t["refreshMs"], 500);
+        assert_eq!(board(&t)["children"][1]["children"].as_array().unwrap().len(), 2,
+            "只有歌名与歌手");
+        assert_eq!(find_text(&t, "T")["style"]["fontSize"].as_f64().unwrap(), 32.0);
     }
 
     #[test]
-    fn no_lyrics_no_lyric_node() {
-        // 安卓端 / 没开 SPlayer 集成 / 纯音乐：不能出现空的歌词行
+    fn without_the_integration_the_classic_layout_stays() {
+        // 没开歌词集成 = 完全回到以前的版式（连刷新间隔都一样）
         let t = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A","artUrl":"file:///tmp/c.jpg"},
-            "req":{"screen":{"width":466,"height":466}}}"#);
-        let col = &board(&t)["children"][1];
-        assert_eq!(col["children"].as_array().unwrap().len(), 2, "只有歌名与歌手: {col}");
-        let dump = t.to_string();
-        assert!(!dump.contains("lyrics"), "没有歌词时不应引用 lyrics: {dump}");
+            "req":{"screen":{"shape":"circle","width":466,"height":466}}}"#);
+        assert_eq!(t["refreshMs"], 3000);
+        assert_eq!(t["root"]["type"], "scroll");
+        assert_eq!(t["root"]["style"]["alignItems"], "center");
+        assert_eq!(t["root"]["style"]["padding"].as_f64().unwrap(), 16.0);
+        assert!(!t.to_string().contains("\"row\""), "原版式没有内容行容器");
+        let kids = t["root"]["children"].as_array().unwrap();
+        assert_eq!(kids.len(), 4);
+        assert_eq!(kids[0]["style"]["fontSize"].as_f64().unwrap(), 36.0);
+        assert_eq!(kids[1]["style"]["fontSize"].as_f64().unwrap(), 32.0);
+        assert_eq!(kids[2]["style"]["fontSize"].as_f64().unwrap(), 22.0);
+        assert_eq!(kids[3]["style"]["width"].as_f64().unwrap(), 200.0, "圆屏封面 200");
+        assert_eq!(kids[3]["style"]["marginTop"].as_f64().unwrap(), 18.0);
+        assert!(kids[1]["style"]["textOverflow"].is_null(), "原版式不裁歌名");
     }
 
     #[test]
-    fn refreshes_once_per_second() {
-        let t = view(r#"{"music":{"hasMedia":true,"title":"T"}}"#);
-        assert_eq!(t["refreshMs"], 1000, "歌词要跟着播放下走，1s 一刷");
+    fn classic_layout_keeps_the_rect_cover_centring() {
+        let t = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A","artUrl":"file:///tmp/cover.jpg"},
+            "req":{"screen":{"shape":"rect","width":432,"height":514}}}"#);
+        let cover = t["root"]["children"].as_array().unwrap().iter()
+            .find(|c| c["type"] == "image").expect("cover").clone();
+        let style = &cover["style"];
+        assert_eq!(style["position"], "absolute");
+        // canvas: 480 x (514*480/432=571.1)；290 的封面 -> left 95 / top 141 + 26
+        assert_eq!(style["left"].as_f64().unwrap(), 95.0);
+        assert_eq!(style["top"].as_f64().unwrap(), 167.0);
+        assert_eq!(style["width"].as_f64().unwrap(), 290.0);
     }
 
     #[test]
@@ -472,8 +589,9 @@ mod tests {
     fn background_and_cover_are_blurred_screen_sized_art() {
         // 回归：切歌必须换 URL，否则封面/背景会被 WebView 缓存住不刷新
         let mk = |title: &str| view(&format!(
-            r#"{{"music":{{"hasMedia":true,"title":"{title}","artist":"X","artUrl":"file:///tmp/cover.jpg"}},
-                "server":{{"base":"http://h:9000"}},"req":{{"screen":{{"width":466,"height":466}}}}}}"#
+            r#"{{"music":{{"hasMedia":true,"title":"{title}","artist":"X","artUrl":"file:///tmp/cover.jpg",
+                "lyrics":{{"line":"L"}}}},"server":{{"base":"http://h:9000"}},
+                "req":{{"screen":{{"width":466,"height":466}}}}}}"#
         ));
         let a = mk("A");
         let b = mk("B");
@@ -490,7 +608,7 @@ mod tests {
     fn media_without_cover_emits_no_art_nodes() {
         // macOS 的 Apple Music / Windows 上无缩略图的曲目：hasMedia=true 但没有
         // artUrl。此时若仍请求 /api/music/art，服务端返回 400，界面上就是白块。
-        let v = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A"},
+        let v = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A","lyrics":{"line":"L"}},
             "server":{"base":"http://host:9000"},"req":{"screen":{"width":466,"height":466}}}"#);
         let dump = v.to_string();
         assert!(!dump.contains("/api/music/art"), "无封面时不应请求封面接口: {dump}");
@@ -502,26 +620,27 @@ mod tests {
 
     #[test]
     fn font_scale_setting_scales_all_text() {
-        let base = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A","artUrl":"file:///tmp/c.jpg"},"time":{"hour":1,"minute":2}}"#);
-        let big = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A","artUrl":"file:///tmp/c.jpg"},"time":{"hour":1,"minute":2},
-            "storage":{"fontScale":1.5}}"#);
+        let base = view(&with_lyrics("L"));
+        let big = view(r#"{"music":{"hasMedia":true,"title":"Feel Something","artist":"Jaymes Young",
+            "artUrl":"file:///tmp/c.jpg","lyrics":{"line":"L"}},"storage":{"fontScale":1.5},
+            "req":{"screen":{"width":466,"height":466}}}"#);
         let size_of = |t: &Value, txt: &str| -> f64 {
             find_text(t, txt)["style"]["fontSize"].as_f64().unwrap()
         };
-        assert_eq!(size_of(&base, "01:02"), 21.0);
-        assert_eq!(size_of(&big, "01:02"), 32.0);
-        assert_eq!(size_of(&base, "T"), 24.0);
-        assert_eq!(size_of(&big, "T"), 36.0);
-        assert_eq!(size_of(&base, "A"), 17.0);
-        assert_eq!(size_of(&big, "A"), 26.0);
+        assert_eq!(size_of(&base, "00:00"), 36.0);
+        assert_eq!(size_of(&big, "00:00"), 54.0);
+        assert_eq!(size_of(&base, "Feel Something"), 32.0);
+        assert_eq!(size_of(&big, "Feel Something"), 48.0);
+        assert_eq!(size_of(&base, "Jaymes Young"), 22.0);
+        assert_eq!(size_of(&big, "Jaymes Young"), 33.0);
+        assert_eq!(size_of(&base, "L"), 26.0);
+        assert_eq!(size_of(&big, "L"), 39.0);
     }
 
     #[test]
     fn depth_never_exceeds_three_levels() {
         // 容器页只展开 3 层：根(0) → L1 → L2 → L3 叶子。深层容器会被渲染成垃圾文本，
-        // 这里锁死结构（叶子层不允许再出现容器）。
-        let t = view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A","lyrics":{"line":"L"},"artUrl":"file:///tmp/c.jpg"},
-            "req":{"screen":{"width":466,"height":466}},"time":{"hour":1,"minute":2}}"#);
+        // 这里锁死两种版式的结构（叶子层不允许再出现容器）。
         fn leafish(n: &Value) -> bool {
             matches!(n["type"].as_str().unwrap_or(""), "text" | "image" | "icon" | "box"
                 | "badge" | "spinner" | "button" | "switch" | "input" | "progress" | "nav")
@@ -538,7 +657,8 @@ mod tests {
                 }
             }
         }
-        walk(&t["root"], 0);
+        walk(&view(&with_lyrics("L"))["root"], 0);
+        walk(&view(r#"{"music":{"hasMedia":true,"title":"T","artist":"A"},"time":{"hour":1,"minute":2}}"#)["root"], 0);
     }
 
     #[test]

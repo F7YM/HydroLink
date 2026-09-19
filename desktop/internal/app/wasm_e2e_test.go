@@ -245,11 +245,11 @@ func TestDeskBuddyPluginChain(t *testing.T) {
 		t.Fatalf("deskbuddy view never returned 200; marker: %s", mustRead(marker))
 	}
 
+	// 没开歌词集成 -> 原版式（含 3s 刷新、不裁歌名）
 	for _, want := range []string{
-		`"refreshMs":1000`, // 歌词要跟着播放下走
+		`"refreshMs":3000`,
 		`"backgroundColor":"#0b0d12"`,
-		`"textAlign":"center"`,      // 顶部时钟
-		`"textOverflow":"ellipsis"`, // 歌名单行省略号
+		`"textAlign":"center"`,
 		`"fontWeight":700`,
 	} {
 		if !strings.Contains(body, want) {
@@ -268,8 +268,27 @@ func TestDeskBuddyPluginChain(t *testing.T) {
 	}
 	time.Sleep(400 * time.Millisecond)
 	if code, tuned := call("/api/hydro/com.hydro.deskbuddy/app/main/view", ""); code != http.StatusOK ||
-		!strings.Contains(tuned, `"fontSize":32`) {
+		!strings.Contains(tuned, `"fontSize":54`) {
 		t.Fatalf("fontScale not applied (%d):\n%s", code, tuned)
+	}
+	_, _ = call("/api/hydro/worker/store", `{"package":"com.hydro.deskbuddy","op":"clear"}`)
+
+	// 打开 SPlayer 歌词集成（WebUI 写的就是这个键）：版式切到设计稿那套，
+	// 刷新间隔跟着变成 0.5s。这里没有真的 SPlayer，所以只会有一条空歌词
+	// ——插件仍要按新样式渲染。
+	if code, _ := call("/api/hydro/worker/store",
+		`{"package":"com.hydro.deskbuddy","op":"set","key":"splayerLyrics","value":true}`); code != http.StatusOK {
+		t.Fatalf("store set splayerLyrics -> %d", code)
+	}
+	time.Sleep(400 * time.Millisecond)
+	code, lyr := call("/api/hydro/com.hydro.deskbuddy/app/main/view", "")
+	if code != http.StatusOK {
+		t.Fatalf("lyrics view -> %d: %s", code, lyr)
+	}
+	for _, want := range []string{`"refreshMs":500`, `"textOverflow":"ellipsis"`, `"type":"row"`} {
+		if !strings.Contains(lyr, want) {
+			t.Fatalf("歌词版式缺少 %s:\n%s", want, lyr)
+		}
 	}
 	_, _ = call("/api/hydro/worker/store", `{"package":"com.hydro.deskbuddy","op":"clear"}`)
 
@@ -368,12 +387,7 @@ func TestShippedDeskBuddyPackage(t *testing.T) {
 	if body == "" {
 		t.Fatalf("shipped package view never returned 200; marker: %s", mustRead(marker))
 	}
-	for _, want := range []string{
-		`"refreshMs":1000`, // 歌词要跟着播放下走
-		`"backgroundColor":"#0b0d12"`,
-		`"textAlign":"center"`,      // 顶部时钟
-		`"textOverflow":"ellipsis"`, // 歌名单行省略号
-	} {
+	for _, want := range []string{`"refreshMs":3000`, `"backgroundColor":"#0b0d12"`, `"textAlign":"center"`} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("shipped package tree missing %s:\n%s", want, body)
 		}

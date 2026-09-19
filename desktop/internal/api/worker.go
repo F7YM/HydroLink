@@ -527,16 +527,17 @@ func (h *WorkerHandler) musicContext(r *http.Request, pkg string) map[string]any
 	}
 	h.sp.Touch(port)
 	snap := h.sp.Snapshot()
+	// **开了集成就一定给 lyrics**（哪怕还没连上、这一句是空串）：插件据此切换版式，
+	// 空 line 只表示"这一句还没有"，而不是"宿主没这个能力"。
+	m["lyrics"] = map[string]any{
+		"source":     "splayer",
+		"line":       snap.Lyric,
+		"next":       snap.Next,
+		"positionMs": snap.PositionMs,
+		"connected":  snap.Connected,
+	}
 	if !snap.Connected {
 		return m
-	}
-	if snap.Lyric != "" || snap.Next != "" {
-		m["lyrics"] = map[string]any{
-			"source":     "splayer",
-			"line":       snap.Lyric,
-			"next":       snap.Next,
-			"positionMs": snap.PositionMs,
-		}
 	}
 	// SPlayer（Electron）经常不注册系统媒体会话，系统侧就会报"没有媒体"。
 	// 它自己在放歌时用它的曲目信息兜底，但**不**给 artUrl：封面归系统接口管，
