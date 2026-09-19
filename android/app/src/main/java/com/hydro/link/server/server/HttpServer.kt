@@ -752,37 +752,49 @@ class HydroHttpServer(
 
             addLog("执行命令(root): ${cmd.name}", "warning")
             val r = RootShell.exec(cmdStr)
-            val success = r.ok; val output = r.output; val returnCode = r.code
-            if (success) {
-                addLog("命令完成: 返回码 $returnCode", "success")
-                return jsonResp(mapOf(
-                    "status" to "ok",
-                    "returncode" to returnCode,
-                    "output" to output.take(1000)
-                ))
-            } else {
-                addLog("命令失败: $output", "error")
-                return jsonResp(mapOf("status" to "error", "message" to "Command failed: $output"), Response.Status.INTERNAL_ERROR)
+            // 语义：命令**跑起来了**就算成功（带退出码 + 输出），只有压根没法跑
+            // （找不到 su / 等授权超时，code 为 -1）才报错。退出码非 0 的常见原因是
+            // 命令本身没匹配到东西（grep 返回 1 之类），那不是"执行失败"。
+            if (r.code < 0) {
+                addLog("命令无法执行: ${r.output}", "error")
+                return jsonResp(
+                    mapOf("status" to "error", "message" to r.output.take(200)),
+                    Response.Status.INTERNAL_ERROR,
+                )
             }
+            addLog("命令完成: 返回码 ${r.code}｜输出: ${r.output.take(200)}", if (r.code == 0) "success" else "warning")
+            return jsonResp(mapOf(
+                "status" to "ok",
+                "returncode" to r.code,
+                "output" to r.output.take(1000),
+            ))
         }
 
         // Fallback: direct execution (app user privileges)
-        try {
-            addLog("执行命令: ${cmd.name}", "warning")
-            val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", cmdStr))
-            val output = BufferedReader(InputStreamReader(process.inputStream)).readText() +
-                    BufferedReader(InputStreamReader(process.errorStream)).readText()
-            process.waitFor()
+        // 非 root：应用自身权限跑 sh -c。合并 stderr（分两条流顺序读会互相阻塞），
+        // 并给 15s 超时，避免某条命令把服务线程挂住。
+        return try {
+            addLog("执行命令(sh): ${cmd.name}", "warning")
+            val process = ProcessBuilder("sh", "-c", cmdStr)
+                .redirectErrorStream(true)
+                .start()
+            val output = process.inputStream.bufferedReader().readText()
+            val finished = process.waitFor(15, java.util.concurrent.TimeUnit.SECONDS)
+            if (!finished) {
+                process.destroy()
+                addLog("命令超时（15s）", "error")
+                return jsonResp(mapOf("status" to "error", "message" to "执行超时（15s）"), Response.Status.INTERNAL_ERROR)
+            }
             val returnCode = process.exitValue()
-            addLog("命令完成: 返回码 $returnCode", "success")
-            return jsonResp(mapOf(
+            addLog("命令完成: 返回码 $returnCode｜输出: ${output.take(200)}", if (returnCode == 0) "success" else "warning")
+            jsonResp(mapOf(
                 "status" to "ok",
                 "returncode" to returnCode,
-                "output" to output.take(1000)
+                "output" to output.take(1000),
             ))
         } catch (e: Exception) {
-            addLog("命令失败", "error")
-            return jsonResp(mapOf("status" to "error", "message" to "Command failed"), Response.Status.INTERNAL_ERROR)
+            addLog("命令无法执行: ${e.message}", "error")
+            jsonResp(mapOf("status" to "error", "message" to "无法执行: ${e.message}"), Response.Status.INTERNAL_ERROR)
         }
     }
 

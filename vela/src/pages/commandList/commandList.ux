@@ -285,9 +285,12 @@ export default {
       dev.host, dev.port, dev.deviceId, cmd.id
     )
     if (res && res.status === 'ok') {
-      prompt.showToast({ message: '执行成功' })
+      // 跑起来了：返回码非 0 也如实告诉用户（很多命令"没匹配到"就是非 0）
+      const rc = res.returncode
+      if (rc === undefined || rc === 0) prompt.showToast({ message: '执行成功' })
+      else prompt.showToast({ message: '执行完成（返回码 ' + rc + '）' })
     } else {
-      // 把服务端的真实原因带出来（未受信任 / root 不可用 / 命令返回非 0 等），
+      // 把服务端的真实原因带出来（未受信任 / 找不到 su / 超时等），
       // 否则手表上只有一句"执行失败"，手机上也没日志可查
       let why = (res && (res.message || res.error)) || ''
       if (why && why.length > 40) why = why.slice(0, 40) + '…'
