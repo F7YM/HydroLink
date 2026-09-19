@@ -79,7 +79,15 @@
 .hint { color: #888; font-size: 20px; margin-top: 8px; }
 .err { color: #ffb4ab; font-size: 24px; }
 .empty-text { color: #9aa2b1; font-size: 24px; }
-.scroll-area { position: absolute; top: 90px; bottom: 0; left: 0; right: 0; }
+.scroll-area {
+  position: absolute;
+  top: 90px;
+  left: 0;
+  right: 0;
+  /* Vela：**竖向滚动需要设置定高**（官方文档原文），只用 top/bottom 不算定高，滚不动。
+     这里直接给 466(466) - 90(头部) 的高度；矩形屏在各自的 media 块里调整。 */
+  height: 376px;
+}
 .list { width: 100%; flex-direction: column; padding: 10px 20px 30px; }
 .app-left { flex-direction: row; align-items: center; flex: 1; }
 .app-icon {

@@ -91,9 +91,11 @@
 .scroll-area {
   position: absolute;
   top: 90px;
-  bottom: 0;
   left: 0;
   right: 0;
+  /* Vela：**竖向滚动需要设置定高**（官方文档原文），只用 top/bottom 不算定高，滚不动。
+     这里直接给 466(466) - 90(头部) 的高度；矩形屏在各自的 media 块里调整。 */
+  height: 376px;
 }
 .form-list {
   width: 100%;
@@ -240,8 +242,10 @@
   .time-display {
     margin-right: 12px;
   }
-  .form-area {
+  .scroll-area {
+    /* 矩形屏：头部 65px。这里按 432x514 的矩形表算（449 = 514 - 65）；换设备只改这个数 */
     top: 65px;
+    height: 449px;
   }
   .form-list {
     padding-top: 10px;
