@@ -55,11 +55,17 @@
                             android:orientation="horizontal"
                             android:gravity="center_vertical">
 
+                            <ImageView
+                                style="@style/Widget.Hydro.RowIcon"
+                                android:contentDescription=""
+                                android:src="@drawable/ic_card_server" />
+
                             <TextView
                                 android:id="@+id/tvServerStatus"
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
+                                android:layout_marginStart="14dp"
                                 android:text="@string/server_stopped"
                                 android:textAppearance="?attr/textAppearanceHeadlineSmall"
                                 android:textColor="?attr/colorOnSurface" />
@@ -99,12 +105,27 @@
                         android:layout_height="wrap_content"
                         android:orientation="vertical">
 
-                        <TextView
+                        <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="@string/interconnect_status"
-                            android:textAppearance="?attr/textAppearanceTitleMedium"
-                            android:textColor="?attr/colorOnSurface" />
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <ImageView
+                                style="@style/Widget.Hydro.RowIcon"
+                                android:contentDescription=""
+                                android:src="@drawable/ic_card_link" />
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="14dp"
+                                android:text="@string/interconnect_status"
+                                android:textAppearance="?attr/textAppearanceTitleMedium"
+                                android:textColor="?attr/colorOnSurface" />
+
+                        </LinearLayout>
 
                         <TextView
                             android:id="@+id/tvInterconnectStatus"
@@ -136,12 +157,27 @@
                         android:layout_height="wrap_content"
                         android:orientation="vertical">
 
-                        <TextView
+                        <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="无障碍服务"
-                            android:textAppearance="?attr/textAppearanceTitleMedium"
-                            android:textColor="?attr/colorOnSurface" />
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <ImageView
+                                style="@style/Widget.Hydro.RowIcon"
+                                android:contentDescription=""
+                                android:src="@drawable/ic_card_accessibility" />
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="14dp"
+                                android:text="无障碍服务"
+                                android:textAppearance="?attr/textAppearanceTitleMedium"
+                                android:textColor="?attr/colorOnSurface" />
+
+                        </LinearLayout>
 
                         <TextView
                             android:id="@+id/tvAccessibilityStatus"
@@ -173,12 +209,27 @@
                         android:layout_height="wrap_content"
                         android:orientation="vertical">
 
-                        <TextView
+                        <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="通知使用权"
-                            android:textAppearance="?attr/textAppearanceTitleMedium"
-                            android:textColor="?attr/colorOnSurface" />
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <ImageView
+                                style="@style/Widget.Hydro.RowIcon"
+                                android:contentDescription=""
+                                android:src="@drawable/ic_card_bell" />
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="14dp"
+                                android:text="通知使用权"
+                                android:textAppearance="?attr/textAppearanceTitleMedium"
+                                android:textColor="?attr/colorOnSurface" />
+
+                        </LinearLayout>
 
                         <TextView
                             android:id="@+id/tvNotificationStatus"
@@ -211,12 +262,27 @@
                         android:layout_height="wrap_content"
                         android:orientation="vertical">
 
-                        <TextView
+                        <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="通知权限"
-                            android:textAppearance="?attr/textAppearanceTitleMedium"
-                            android:textColor="?attr/colorOnSurface" />
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <ImageView
+                                style="@style/Widget.Hydro.RowIcon"
+                                android:contentDescription=""
+                                android:src="@drawable/ic_card_bell" />
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="14dp"
+                                android:text="通知权限"
+                                android:textAppearance="?attr/textAppearanceTitleMedium"
+                                android:textColor="?attr/colorOnSurface" />
+
+                        </LinearLayout>
 
                         <TextView
                             android:id="@+id/tvPostNotifStatus"
@@ -247,12 +313,27 @@
                         android:layout_height="wrap_content"
                         android:orientation="vertical">
 
-                        <TextView
+                        <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="配对请求"
-                            android:textAppearance="?attr/textAppearanceTitleMedium"
-                            android:textColor="?attr/colorOnSurface" />
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <ImageView
+                                style="@style/Widget.Hydro.RowIcon"
+                                android:contentDescription=""
+                                android:src="@drawable/ic_card_pair" />
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="14dp"
+                                android:text="配对请求"
+                                android:textAppearance="?attr/textAppearanceTitleMedium"
+                                android:textColor="?attr/colorOnSurface" />
+
+                        </LinearLayout>
 
                         <TextView
                             android:id="@+id/tvNoRequests"

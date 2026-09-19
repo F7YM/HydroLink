@@ -179,7 +179,6 @@ object PluginUi {
             append("权限：").append(if (row.permissions.isBlank()) "未申请权限" else row.permissions).append('\n')
             append("worker：").append(if (row.workerOnline) "在线" else "离线（首次请求时自动拉起）")
             if (row.error != null) append('\n').append("清单异常：").append(row.error)
-            if (row.hasWeb) append("\n\n这个插件带设置页面，可点右侧的「界面」打开。")
         }
         MaterialAlertDialogBuilder(activity)
             .setTitle(row.name)

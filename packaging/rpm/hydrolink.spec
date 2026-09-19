@@ -1,4 +1,4 @@
-%{!?hydrolink_version:%global hydrolink_version 1.0.0}
+%{!?hydrolink_version:%global hydrolink_version 1.1.0}
 
 # 二进制包：不生成 debuginfo/debugsource（没有编译步骤，自动生成会因空文件失败）
 %global debug_package %{nil}

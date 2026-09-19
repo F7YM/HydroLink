@@ -127,7 +127,7 @@ class HydroHttpServer(
 
     companion object {
         private const val API_LEVEL = 6
-        private const val VERSION = "1.0.0"
+        private const val VERSION = "1.1.0"
 
         /** logcat tag（`adb logcat -s HydroLink`）。 */
         private const val TAG_LOGCAT = "HydroLink"
