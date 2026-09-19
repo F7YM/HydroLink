@@ -153,7 +153,7 @@ func TestMusicArtEndpointWithoutMedia(t *testing.T) {
 
 func TestWorkerSystemPermission(t *testing.T) {
 	st := workerTestStore(t) // com.t.worker has permissions storage+notify, not system
-	h := NewWorkerHandler(hydrokit.NewWorkerBridge(), st)
+	h := NewWorkerHandler(hydrokit.NewWorkerBridge(), st, nil)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/api/hydro/worker/system",
 		bytes.NewBufferString(`{"package":"com.t.worker","op":"perf"}`)))

@@ -72,6 +72,7 @@ module.exports = {
 ```
 
 - **`progress`（进度条）**：`props.percent`（0-100）、`props.variant`（`horizontal` 默认 / `arc`）；颜色与几何走 `style`：`color`、`layerColor`、`strokeWidth`，弧线另支持 `startAngle`/`totalAngle`/`radius`/`centerX`/`centerY`（对应 Vela `progress` 组件；**角度类数值按度处理**，容器补 `deg`，其余数值补 `px`）
+- **文本换行与省略号**：`text` 支持 `lines`（**数值，不带单位**）与 `textOverflow`（`clip` 默认 / `ellipsis`）——`{"lines":1,"textOverflow":"ellipsis"}` 就是"单行 + 超出显示 …"。**必须给固定 `width`**（容器要知道在哪截断），且 `lines` 设了省略号才生效。想自然换行就不给 `lines`（默认不限行）
 - **绝对定位**：节点 `style.position:"absolute"` + `top/left/right/bottom` 由**容器上提到包装层**执行（叶子在自定义组件内部无定位上下文，包含块尺寸为 0 会被算成 0 尺寸而不渲染）。因此弧线、水印、浮层等可安全使用绝对定位；同时**避免 `left` 与 `right`（或 `top` 与 `bottom`）同时给**，用一组偏移 + 显式宽高最稳
 - **层级限制**：容器只展开 3 层（根 → L1 → L2 → L3 叶子），**L3 必须是叶子**（容器放错层级会被渲染成未知叶子占位）；`text/image/box/badge/spinner/button/switch/input/progress/nav` 是叶子
 - **全屏背景层**：根节点的 `backgroundImage`/`backgroundSize`/`backgroundPosition`/`backgroundColor` 会被容器提升到**整页容器**（铺满全屏，不受圆屏安全区内边距影响）；其余样式仍作用于内容层。示例：`{"type":"scroll","style":{"backgroundImage":"http://host:9000/api/music/art?size=466&blur=26&dim=0.3","backgroundSize":"cover","padding":16}}`

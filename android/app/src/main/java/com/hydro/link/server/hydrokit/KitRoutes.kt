@@ -91,6 +91,7 @@ class KitRoutes(
         if (rest == "poll" || rest == "respond") return bridged
 
         return when (rest) {
+            "platform" -> handlePlatform()
             "asset" -> handleAsset(req)
             "store" -> handleStore(req)
             "context" -> handleContext(req)
@@ -117,6 +118,23 @@ class KitRoutes(
             )
         }
         return null
+    }
+
+    // ---- 宿主平台信息 ----
+
+    /**
+     * `GET /api/hydro/worker/platform`
+     *
+     * 插件 WebUI 用它判断自己跑在什么系统上，从而只显示本平台有意义的能力
+     * （例如 SPlayer 歌词集成只在桌面端有）。与 desktop/internal/api/worker.go
+     * 的 handlePlatform 同构。
+     */
+    fun handlePlatform(): HydroHttpResponse {
+        val info = host()
+        if (info.isEmpty()) {
+            return HydroHttpResponse.json("""{"error":"宿主平台信息不可用"}""", 503)
+        }
+        return HydroHttpResponse.json(gson.toJson(info))
     }
 
     // ---- 资产（worker 拉取入口代码 / wasm / 其它包内文件）----

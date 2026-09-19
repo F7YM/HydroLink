@@ -14,19 +14,26 @@
     label { flex: 0 0 132px; font-size: 13px; color: #bac3ff; }
     input[type=range] { flex: 1; }
     input[type=number] { width: 84px; padding: 6px 8px; border-radius: 8px; border: 1px solid #3a3f4c; background: #121318; color: #fff; }
-    select { padding: 6px 8px; border-radius: 8px; border: 1px solid #3a3f4c; background: #121318; color: #fff; }
-    select option { background: #121318; color: #e8eaf0; }
-    /* 分段按钮：避免原生下拉在深色下不可读 */
-    .seg { display: inline-flex; border: 1px solid #3a3f4c; border-radius: 10px; overflow: hidden; }
-    .seg button {
-      background: transparent; color: #9aa2b1; border: none; border-radius: 0;
-      padding: 7px 14px; font-size: 13px; font-weight: 600; margin: 0; cursor: pointer;
-    }
-    .seg button.active { background: #bac3ff; color: #00237c; }
     button { cursor: pointer; border: none; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 700; background: #bac3ff; color: #00237c; margin-right: 8px; }
     button.ghost { background: transparent; color: #bac3ff; border: 1px solid #3a3f4c; }
     #msg { margin-top: 10px; font-size: 13px; color: #7ddc9a; min-height: 18px; white-space: pre-line; }
     .val { font-size: 12px; color: #9aa2b1; width: 46px; text-align: right; }
+
+    /* SPlayer 开关：原生 checkbox 深色下不可读，自己画一个 */
+    .switch { flex: 0 0 auto; display: inline-flex; align-items: center; cursor: pointer; }
+    .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+    .switch .track {
+      width: 46px; height: 26px; border-radius: 13px; background: #3a3f4c;
+      transition: background .15s; position: relative;
+    }
+    .switch .track::after {
+      content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;
+      border-radius: 50%; background: #9aa2b1; transition: transform .15s, background .15s;
+    }
+    .switch input:checked + .track { background: #bac3ff; }
+    .switch input:checked + .track::after { transform: translateX(20px); background: #00237c; }
+    #splayerState { font-size: 12px; color: #9aa2b1; line-height: 1.6; white-space: pre-line; margin: 0; }
+    #splayerState.on { color: #7ddc9a; }
   </style>
 </head>
 <body>
@@ -41,9 +48,26 @@
     <p id="msg"></p>
   </div>
 
+  <!-- 只在桌面端（Windows/Linux/macOS）显示：安卓端没有本地 SPlayer -->
+  <div class="card" id="splayerCard" hidden>
+    <div class="row">
+      <label>SPlayer 歌词集成</label>
+      <label class="switch"><input type="checkbox" id="splayerLyrics"><span class="track"></span></label>
+    </div>
+    <div class="row">
+      <label>WebSocket 端口</label>
+      <input type="number" id="splayerPort" min="1" max="65535" step="1">
+    </div>
+    <p id="splayerState"></p>
+    <p class="hint" style="margin: 10px 0 0">需要 SPlayer 3.0 及以上版本，并在「设置 → 服务」里打开 WebSocket 服务（默认端口 25885）。开启后桌搭会显示实时歌词。</p>
+  </div>
+
   <script>
     var PKG = 'com.hydro.deskbuddy';
     var DEFAULTS = { fontScale: 1, blur: 26, dim: 30 };
+    // 只有这些系统上才可能有本地 SPlayer
+    var SP_PLATFORMS = ['linux', 'darwin', 'windows'];
+
     function $(id) { return document.getElementById(id); }
     function msg(t) { $('msg').textContent = t; }
     async function store(op, key, value) {
@@ -53,26 +77,11 @@
       });
       return r.json();
     }
-    function segSet(id, value) {
-      var box = $(id);
-      box.querySelectorAll('button').forEach(function (b) {
-        b.classList.toggle('active', b.dataset.v === value);
-      });
-      box.dataset.value = value;
-    }
-    function segBind(id, fallback) {
-      var box = $(id);
-      segSet(id, fallback);
-      box.querySelectorAll('button').forEach(function (b) {
-        b.addEventListener('click', function () { segSet(id, b.dataset.v); });
-      });
-    }
     function bind(id, fmt) {
       var el = $(id);
       el.addEventListener('input', function () { $(id + 'V').textContent = fmt ? fmt(el.value) : el.value; });
     }
     bind('fontScale'); bind('blur'); bind('dim', function (v) { return v + '%'; });
-    bind('dim', function (v) { return v + '%'; });
 
     async function load() {
       for (var k in DEFAULTS) {
@@ -80,7 +89,9 @@
         var v = (d && d.found) ? d.value : DEFAULTS[k];
         if (k === 'dim') v = Math.round(v * 100);
         var el = $(k);
-        if (el) { el.value = v; el.dispatchEvent(new Event('input')); }
+        if (!el) continue;
+        if (el.type === 'checkbox') el.checked = !!v; else el.value = v;
+        el.dispatchEvent(new Event('input'));
       }
     }
     function collect() {
@@ -100,7 +111,84 @@
       await load();
       msg('已恢复默认。');
     });
-    load();
+
+    // ---- SPlayer 歌词集成 ----
+
+    var SP_DEFAULT_PORT = 25885;
+
+    /** 宿主平台：安卓端没有这个能力，整块卡片不显示。 */
+    async function hostOS() {
+      try {
+        var r = await fetch('/api/hydro/worker/platform');
+        if (!r.ok) return '';
+        var d = await r.json();
+        return (d && d.os) || '';
+      } catch (e) { return ''; }
+    }
+
+    function spState(text, on) {
+      var el = $('splayerState');
+      el.textContent = text;
+      el.className = on ? 'on' : '';
+    }
+
+    /** 开关与端口是自己这两个存储键（宿主读它们决定连不连 SPlayer）。 */
+    async function spLoad() {
+      var on = await store('get', 'splayerLyrics');
+      $('splayerLyrics').checked = !!(on && on.found && on.value);
+      var port = await store('get', 'splayerPort');
+      var p = (port && port.found) ? Number(port.value) : SP_DEFAULT_PORT;
+      $('splayerPort').value = (p > 0 && p < 65536) ? p : SP_DEFAULT_PORT;
+    }
+
+    /** 问一次宿主：开关是否生效、有没有连上 SPlayer、现在唱到哪一句。 */
+    async function spStatus() {
+      if ($('splayerCard').hidden) return;
+      if (!$('splayerLyrics').checked) {
+        spState('已关闭。开启后桌搭会显示 SPlayer 的实时歌词。', false);
+        return;
+      }
+      var d;
+      try {
+        var r = await fetch('/api/hydro/worker/splayer', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ package: PKG })
+        });
+        d = await r.json();
+      } catch (e) {
+        spState('无法获取状态（宿主连接中断）', false);
+        return;
+      }
+      if (!d || !d.connected) {
+        spState('未连接。请确认 SPlayer 正在运行，且 WebSocket 服务已在 ' +
+          ((d && d.port) || $('splayerPort').value) + ' 端口开启。', false);
+        return;
+      }
+      var track = d.title ? d.title + (d.artist ? ' — ' + d.artist : '') : '没有正在播放的歌曲';
+      spState('已连接 · ' + track + (d.line ? '\n' + d.line : ''), true);
+    }
+
+    $('splayerLyrics').addEventListener('change', async function () {
+      await store('set', 'splayerLyrics', this.checked);
+      msg(this.checked ? '已开启 SPlayer 歌词集成' : '已关闭 SPlayer 歌词集成');
+      spStatus();
+    });
+    $('splayerPort').addEventListener('change', async function () {
+      var p = Math.max(1, Math.min(65535, Number(this.value) || SP_DEFAULT_PORT));
+      this.value = p;
+      await store('set', 'splayerPort', p);
+      spStatus();
+    });
+
+    (async function init() {
+      await load();
+      if (SP_PLATFORMS.indexOf(await hostOS()) < 0) return;
+      $('splayerCard').hidden = false;
+      await spLoad();
+      spStatus();
+      // 插件视图那边是 1s 刷一次，状态跟着刷才有意义
+      setInterval(spStatus, 1000);
+    })();
   </script>
 </body>
 </html>

@@ -19,9 +19,12 @@ python3 - <<'PY'
 import zipfile, os
 out = '../com.hydro.deskbuddy.hpk'
 files = ['manifest.json', 'plugin.wasm']
-for root, _dirs, names in os.walk('web'):
-    for n in names:
-        files.append(os.path.join(root, n))
+# web/ 是插件 WebUI，assets/ 是清单里声明的图标等资源——两者都要进包，
+# 少一个就会出现"页面打不开"或"图标 404"
+for d in ('web', 'assets'):
+    for root, _dirs, names in os.walk(d):
+        for n in names:
+            files.append(os.path.join(root, n))
 with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
     for f in files:
         z.write(f, f)

@@ -46,11 +46,17 @@ env.hydro_log(ptr, len)               # 可选，调试输出（进桌面端日�
   "host":   { "os": "linux", "arch": "amd64", "app": "1.0.0" },  // 安卓: os="android"，另有 sdk
   "server": { "base": "http://192.168.3.48:9000" },
   "system": { "cpu": 12.5, "memPercent": 43.2, "memUsedMB": 8192, "memTotalMB": 16384 },
-  "music":  { "hasMedia": true, "title": "Feel Something", "artist": "Jaymes Young", "playing": true },
+  "music":  { "hasMedia": true, "title": "Feel Something", "artist": "Jaymes Young", "playing": true,
+              "artUrl": "...", "artBlur": "...",
+              "lyrics": { "source": "splayer", "line": "当前这一句", "next": "下一句", "positionMs": 12500 } },
   "storage": { "key": "value" }
 }
 ```
 （`system` 需权限 `system`；`music` 需 `music`；`storage` 需 `storage`；`req.screen` / `req.store` 始终提供。）
+
+`music` 里的 `artUrl`/`artBlur` 是封面地址，`lyrics` 是**宿主拿到的实时歌词**：目前只有桌面端
+能提供（插件开了 SPlayer 歌词集成后，宿主连 SPlayer 的 WebSocket 并把当前这一句换算好，
+见 §能力一章）。拿不到时整个 `lyrics` 字段缺失，插件按"没有歌词"渲染即可（安卓端永远没有）。
 
 **返回值 JSON**：
 

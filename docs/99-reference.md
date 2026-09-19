@@ -71,6 +71,8 @@ HydroLink 桌面应用（Wails WebView）
 | `POST /api/hydro/worker/respond` | worker 回传结果 `{package,id,result}` |
 | `POST /api/hydro/worker/context` | WASM 插件取 ABI 上下文（权限门控） |
 | `POST /api/hydro/worker/{store,system,notify,music,lock,commands}` | `kit.*` 能力端点（按清单权限门控） |
+| `GET /api/hydro/worker/platform` | 宿主平台 `{os,arch,app}`（安卓另有 `sdk`），插件 WebUI 按 `os` 分支；**注意与 worker 宿主页 `/worker/host?file=` 不是一回事** |
+| `POST /api/hydro/worker/splayer` | SPlayer 歌词集成状态 `{package}` → `{enabled,port,connected,playing,title,artist,line,next}`（需 `music` 权限，桌面端专属） |
 | `GET /api/hydro/worker/asset?package=&path=` | 插件包内文件（防目录逃逸） |
 
 两种宿主都用**隐藏 WebView** 跑插件：页面加载宿主页路由拿到胶水，胶水长轮询取请求、
@@ -87,6 +89,13 @@ HydroLink 桌面应用（Wails WebView）
 
 ## 版本记录
 
+- v0.4.6（2026-09-19）：**SPlayer 实时歌词 + 组件树单行省略**——
+  ① 桌面宿主接 SPlayer 的本地 WebSocket（`ws://127.0.0.1:25885`，`desktop/internal/splayer`），
+  把歌词与播放进度收敛成"当前这一句"，按插件存储里的 `splayerLyrics`/`splayerPort` 开关
+  **按需连接**（20s 没人取就断开），插件在 `ctx.music.lyrics` / `music.lyrics` 里读到；
+  ② 新增 `GET /api/hydro/worker/platform`（两端同构）让插件 WebUI 按宿主 `os` 决定显示哪些能力；
+  ③ 容器（vela `hydro.ux`）的无单位样式修复：`fontWeight`/`lines`/`opacity` 之前被补成 `px`，
+  被 Vela 当非法值整条丢掉（`font-weight:700px`），单行省略号因此一直没生效。
 - v0.4.5（2026-09-18）：**插件可获知宿主平台**——请求新增 `req.host`（`os`/`arch`/`app`，安卓另有 `sdk`）：
   桌面端 `os` 取 `runtime.GOOS`（linux/windows/darwin），安卓端为 `android`；WASM 的 ABI 上下文
   另有一份顶层 `ctx.host`。此前 JS 插件只能嗅探 userAgent，WASM 插件完全拿不到。

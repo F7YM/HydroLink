@@ -130,9 +130,18 @@ const ICON_MAP = {
 // 绝对定位相关样式：在包装层生效（见 buildLeaf 注释）
 const POSITION_KEYS = ['position', 'top', 'left', 'right', 'bottom', 'zIndex']
 
+// 无单位属性必须原样输出：补了 px 会被 Vela 当成非法值整条丢掉，
+// 于是 font-weight:700px、lines:1px、opacity:0.5px 全都静默失效
+const UNITLESS_KEYS = [
+  'lines', 'opacity', 'flexGrow', 'flexShrink', 'flex', 'order',
+  'weight', 'fontWeight'
+]
+
 function cssVal(key, v) {
   if (typeof v === 'number') {
-    return /angle$/i.test(key) ? v + 'deg' : v + 'px'
+    if (/angle$/i.test(key)) return v + 'deg'
+    if (UNITLESS_KEYS.indexOf(key) !== -1) return String(v)
+    return v + 'px'
   }
   return String(v)
 }

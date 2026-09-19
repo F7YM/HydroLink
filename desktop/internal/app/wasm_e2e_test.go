@@ -246,9 +246,10 @@ func TestDeskBuddyPluginChain(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		`"refreshMs":3000`,
+		`"refreshMs":1000`, // 歌词要跟着播放下走
 		`"backgroundColor":"#0b0d12"`,
-		`"textAlign":"center"`,
+		`"textAlign":"center"`,      // 顶部时钟
+		`"textOverflow":"ellipsis"`, // 歌名单行省略号
 		`"fontWeight":700`,
 	} {
 		if !strings.Contains(body, want) {
@@ -260,14 +261,14 @@ func TestDeskBuddyPluginChain(t *testing.T) {
 		t.Fatalf("side bars/progress must be gone:\n%s", body)
 	}
 
-	// fontScale setting (WebUI) scales every text node: 36 -> 54
+	// fontScale setting (WebUI) scales every text node: 时钟 21 -> 32
 	if code, _ := call("/api/hydro/worker/store",
 		`{"package":"com.hydro.deskbuddy","op":"set","key":"fontScale","value":1.5}`); code != http.StatusOK {
 		t.Fatalf("store set fontScale -> %d", code)
 	}
 	time.Sleep(400 * time.Millisecond)
 	if code, tuned := call("/api/hydro/com.hydro.deskbuddy/app/main/view", ""); code != http.StatusOK ||
-		!strings.Contains(tuned, `"fontSize":54`) {
+		!strings.Contains(tuned, `"fontSize":32`) {
 		t.Fatalf("fontScale not applied (%d):\n%s", code, tuned)
 	}
 	_, _ = call("/api/hydro/worker/store", `{"package":"com.hydro.deskbuddy","op":"clear"}`)
@@ -367,7 +368,12 @@ func TestShippedDeskBuddyPackage(t *testing.T) {
 	if body == "" {
 		t.Fatalf("shipped package view never returned 200; marker: %s", mustRead(marker))
 	}
-	for _, want := range []string{`"refreshMs":3000`, `"backgroundColor":"#0b0d12"`, `"textAlign":"center"`} {
+	for _, want := range []string{
+		`"refreshMs":1000`, // 歌词要跟着播放下走
+		`"backgroundColor":"#0b0d12"`,
+		`"textAlign":"center"`,      // 顶部时钟
+		`"textOverflow":"ellipsis"`, // 歌名单行省略号
+	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("shipped package tree missing %s:\n%s", want, body)
 		}

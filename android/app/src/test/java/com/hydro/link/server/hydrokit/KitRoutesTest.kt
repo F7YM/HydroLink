@@ -99,6 +99,26 @@ class KitRoutesTest {
         assertTrue(resp.body.contains("plugin 不存在"))
     }
 
+    // ---- 宿主平台信息 ----
+
+    @Test
+    fun platformEndpointReportsTheHostOS() {
+        // 默认夹具没注入宿主信息：明确报错，而不是回一个空对象让插件去猜
+        val bare = fixture(emptyList())
+        assertEquals(503, bare.routes.handle(HydroHttpRequest("GET", "/api/hydro/worker/platform"))!!.status)
+
+        val routes = KitRoutes(
+            bare.store, WorkerBridge(), FakeCaps(), {},
+            { mapOf("os" to "android", "arch" to "arm64-v8a", "app" to "1.1.0") },
+        )
+        val resp = routes.handle(HydroHttpRequest("GET", "/api/hydro/worker/platform"))!!
+        assertEquals(200, resp.status)
+        val obj = json(resp.body)
+        assertEquals("android", obj["os"].asString)
+        assertEquals("arm64-v8a", obj["arch"].asString)
+        assertEquals("1.1.0", obj["app"].asString)
+    }
+
     // ---- 能力端点成功分支 ----
 
     @Test
@@ -199,7 +219,7 @@ class KitRoutesTest {
         assertEquals("application/wasm", wasm.contentType)
         assertNotNull("wasm 必须以字节返回（不能被文本编码破坏）", wasm.bytes)
         assertEquals(8, wasm.bytes!!.size)
-        // wasm magic： asm
+        // wasm magic：\0asm
         assertEquals(0x00, wasm.bytes!![0].toInt())
         assertEquals("asm", String(wasm.bytes!!, 1, 3, Charsets.US_ASCII))
     }
