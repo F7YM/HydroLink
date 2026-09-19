@@ -51,7 +51,7 @@
         <!-- Quick Control Card -->
         <div class="control-card">
           <div
-            class="control-item pressable {{ pressedKey === 'lock' ? 'is-down press-down' : '' }} {{ releasedKey === 'lock' ? 'press-up' : '' }}"
+            class="control-item pressable {{ pressedKey === 'lock' ? 'is-down' : '' }}"
             ontouchstart="pressDown('lock')"
             ontouchend="pressRelease('lock')"
             ontouchcancel="pressCancel('lock')"
@@ -64,7 +64,7 @@
           </div>
 
           <div
-            class="control-item pressable {{ pressedKey === 'command' ? 'is-down press-down' : '' }} {{ releasedKey === 'command' ? 'press-up' : '' }}"
+            class="control-item pressable {{ pressedKey === 'command' ? 'is-down' : '' }}"
             ontouchstart="pressDown('command')"
             ontouchend="pressRelease('command')"
             ontouchcancel="pressCancel('command')"
@@ -77,7 +77,7 @@
           </div>
 
           <div
-            class="control-item pressable {{ pressedKey === 'perf' ? 'is-down press-down' : '' }} {{ releasedKey === 'perf' ? 'press-up' : '' }}"
+            class="control-item pressable {{ pressedKey === 'perf' ? 'is-down' : '' }}"
             ontouchstart="pressDown('perf')"
             ontouchend="pressRelease('perf')"
             ontouchcancel="pressCancel('perf')"
@@ -90,7 +90,7 @@
           </div>
 
           <div
-            class="control-item pressable {{ pressedKey === 'hydro' ? 'is-down press-down' : '' }} {{ releasedKey === 'hydro' ? 'press-up' : '' }}"
+            class="control-item pressable {{ pressedKey === 'hydro' ? 'is-down' : '' }}"
             ontouchstart="pressDown('hydro')"
             ontouchend="pressRelease('hydro')"
             ontouchcancel="pressCancel('hydro')"
