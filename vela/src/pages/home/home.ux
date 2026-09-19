@@ -197,9 +197,6 @@
   border-radius: 32px;
   justify-content: center;
   align-items: center;
-  /* 极淡的圆形底：让"更多"可发现，也保证这块区域一定可点（透明 div 的
-     命中测试在某些运行时上会偷懒）。嫌多余就删掉这一行。 */
-  background-color: rgba(255, 255, 255, 0.08);
 }
 .device-more-icon {
   width: 32px;
