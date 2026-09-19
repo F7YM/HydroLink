@@ -146,6 +146,12 @@ export default {
   onInit() {
     this.updateTime()
     this._timeInterval = setInterval(() => this.updateTime(), 60000)
+    // 先用缓存渲染（切页面回来不闪加载中），再静默刷新
+    const cached = deviceService.peekCache('pluginlist', this.host || this.deviceId)
+    if (cached) {
+      this.plugins = cached
+      this.loading = false
+    }
     this.load()
   },
 
@@ -159,9 +165,10 @@ export default {
   },
 
   async load() {
-    this.loading = true
     this.errorText = ''
     this.emptyText = ''
+    // 有缓存就不显示加载态
+    this.loading = !this.plugins || this.plugins.length === 0
     const data = await deviceService.hydro(this.host, this.port, '/api/hydro/list', 'GET')
     this.loading = false
     if (!data || !data.plugins) {
@@ -169,6 +176,7 @@ export default {
       return
     }
     this.plugins = data.plugins.filter((p) => p.apps && p.apps.length > 0)
+    deviceService.putCache('pluginlist', this.host || this.deviceId, this.plugins)
     if (this.plugins.length === 0) {
       this.emptyText = '暂无 HydroApps'
     }

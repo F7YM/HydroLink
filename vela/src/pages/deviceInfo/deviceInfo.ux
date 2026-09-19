@@ -926,7 +926,17 @@ export default {
   },
 
   async fetchStatus() {
-    this.loading = true
+    // 有缓存就先把上次的系统信息画出来，不再每次切回来都闪"加载中"
+    const cached = deviceService.peekCache('sysinfo', this.deviceId)
+    if (cached) {
+      this.osVersion = cached.version || '未知系统'
+      this.hasBattery = cached.hasBattery
+      this.batteryPercent = cached.batteryPercent
+      this.batteryIcon = getBatteryIcon(cached.batteryPercent, cached.batteryCharging)
+      this.loading = false
+    } else {
+      this.loading = true
+    }
     const dev = this.device
     if (!dev || !dev.host) {
       this.loading = false
@@ -935,6 +945,7 @@ export default {
     const sysInfo = await deviceService.getServerSystemInfo(
       dev.host, dev.port, dev.deviceId
     )
+    deviceService.putCache('sysinfo', this.deviceId, sysInfo)
     this.osVersion = sysInfo.version || '未知系统'
     this.hasBattery = sysInfo.hasBattery
     this.batteryPercent = sysInfo.batteryPercent

@@ -514,9 +514,16 @@ export default {
   async onShow() {
     this.updateTime()
     await this.loadDevice()
+    // 先用缓存渲染上次的性能数据（切回来不闪加载中），随后静默刷新
+    const cached = deviceService.peekCache('perf', this.deviceId)
+    if (cached) {
+      this.applyPerf(cached)
+      this.loading = false
+    }
     await this.fetchPerf()
     this.startRefresh()
   },
+
 
   onHide() {
     this.stopRefresh()
@@ -540,6 +547,30 @@ export default {
     }
   },
 
+  /** 把一份性能数据写进视图状态（缓存命中与接口返回共用）。 */
+  applyPerf(perf) {
+    const cpu = Math.round(perf.cpu || 0)
+    const memPct = Math.round(perf.mem_percent || 0)
+    this.cpuPercent = cpu
+    this.cpuDisplay = String(cpu)
+    this.memPercent = memPct
+    this.memDisplay = String(memPct)
+
+    if (perf.mem_used != null && perf.mem_total != null) {
+      this.memUsedDisplay = this.formatMem(perf.mem_used)
+      this.memTotalDisplay = this.formatMem(perf.mem_total)
+      const avail = perf.mem_total - perf.mem_used
+      this.memAvailDisplay = this.formatMem(avail > 0 ? avail : 0)
+    }
+
+    if (perf.temp != null && perf.temp !== 0) {
+      this.hasTemp = true
+      this.tempDisplay = Math.round(perf.temp) + '°C'
+    } else {
+      this.hasTemp = false
+    }
+  },
+
   async fetchPerf() {
     const dev = this._device
     if (!dev || !dev.host) {
@@ -552,27 +583,8 @@ export default {
       )
       if (perf && perf.status === 'ok') {
         this.errorCount = 0
-        const cpu = Math.round(perf.cpu || 0)
-        const memPct = Math.round(perf.mem_percent || 0)
-        this.cpuPercent = cpu
-        this.cpuDisplay = String(cpu)
-        this.memPercent = memPct
-        this.memDisplay = String(memPct)
-
-        if (perf.mem_used != null && perf.mem_total != null) {
-          this.memUsedDisplay = this.formatMem(perf.mem_used)
-          this.memTotalDisplay = this.formatMem(perf.mem_total)
-          const avail = perf.mem_total - perf.mem_used
-          this.memAvailDisplay = this.formatMem(avail > 0 ? avail : 0)
-        }
-
-        if (perf.temp != null && perf.temp !== 0) {
-          this.hasTemp = true
-          this.tempDisplay = Math.round(perf.temp) + '°C'
-        } else {
-          this.hasTemp = false
-        }
-
+        deviceService.putCache('perf', this.deviceId, perf)
+        this.applyPerf(perf)
         this.loading = false
       } else {
         this.handleFetchError()

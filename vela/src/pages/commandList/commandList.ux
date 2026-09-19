@@ -245,6 +245,12 @@ export default {
 
   async onShow() {
     this.updateTime()
+    // 切回本页时先用缓存把列表画出来（不再闪"加载中"），随后静默刷新
+    const cached = deviceService.peekCache('commands', this.deviceId)
+    if (cached) {
+      this.commands = cached
+      this.loading = false
+    }
     await this.loadCommands()
   },
 
@@ -254,7 +260,8 @@ export default {
   },
 
   async loadCommands() {
-    this.loading = true
+    // 已有内容时不再显示加载态（后台静默刷新）
+    this.loading = this.commands.length === 0
     let dev = await deviceService.getDevice(this.deviceId)
     if (!dev && this.host) {
       dev = {

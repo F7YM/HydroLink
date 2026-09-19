@@ -64,6 +64,28 @@ function getBaseUrl(host, port) {
  * Interconnect devices use 'localhost' as the host since
  * communication goes through the interconnect channel, not HTTP.
  */
+/**
+ * 页面级数据缓存：手表页面每次切走都会被销毁、切回来重建，如果每次都等接口回来
+ * 才渲染，就会出现"切一下页面就闪一次加载中"。页面可以先**同步**读缓存把内容画出来，
+ * 再在后台静默刷新（见各页 onShow）。
+ *
+ * key 用 类型 + 设备标识；只活在内存里，进程重启即失效（数据本身不敏感、丢了无妨）。
+ */
+const _pageCache = {}
+
+function cacheKey(kind, id) {
+  return kind + ':' + (id || 'default')
+}
+
+function putCache(kind, id, value) {
+  _pageCache[cacheKey(kind, id)] = value
+}
+
+function peekCache(kind, id) {
+  const v = _pageCache[cacheKey(kind, id)]
+  return v === undefined ? null : v
+}
+
 function isInterconnect(host) {
   return host === 'localhost' || host === '127.0.0.1'
 }
@@ -159,6 +181,10 @@ function getWatchName() {
 }
 
 export default {
+  // 页面缓存：切页面回来时先渲染，避免每次都闪"加载中"
+  peekCache,
+  putCache,
+
   /** Returns true if the given host uses interconnect transport. */
   isInterconnectDevice(host) {
     return isInterconnect(host)
@@ -407,7 +433,9 @@ export default {
     try {
       const res = await apiRequest(host, port, '/api/commands', 'GET', null, { 'X-Device-ID': deviceId })
       if (res.code === 200 && res.data && res.data.status === 'ok') {
-        return res.data.commands || []
+        const list = res.data.commands || []
+        putCache('commands', deviceId, list)
+        return list
       }
     } catch (e) {
       console.error('[deviceService] getCommands failed', e)
