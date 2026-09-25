@@ -88,7 +88,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var switchRoot: MaterialSwitch
     private lateinit var tvRootStatus: TextView
     private lateinit var switchBoot: MaterialSwitch
-    private lateinit var btnPlugins: View
     private var settingsSwitchSyncing = false
 
     // Guards the server switch against programmatic sync (refreshData)
@@ -231,7 +230,6 @@ class MainActivity : AppCompatActivity() {
         switchRoot = findViewById(R.id.switchRoot)
         tvRootStatus = findViewById(R.id.tvRootStatus)
         switchBoot = findViewById(R.id.switchBoot)
-        btnPlugins = findViewById(R.id.btnPlugins)
 
         val versionName = packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0.0"
         tvAppName.text = "HydroLink $versionName"
@@ -383,9 +381,6 @@ class MainActivity : AppCompatActivity() {
             ).show()
         }
 
-        btnPlugins.setOnClickListener {
-            startActivity(com.hydro.link.server.ui.PluginsActivity.intent(this))
-        }
     }
 
     private fun refreshData() {
@@ -551,7 +546,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val rows = PluginUi.rows(srv)
-        pluginAdapter.submit(rows, if (rows.isEmpty()) "还没有插件——点「安装 .hpk」添加" else null)
+        pluginAdapter.submit(rows, null)
         tvPluginSummary.text = if (rows.isEmpty()) "已安装 0 个插件" else "已安装 ${rows.size} 个插件"
     }
 

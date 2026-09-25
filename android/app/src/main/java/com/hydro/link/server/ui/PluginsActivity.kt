@@ -62,7 +62,7 @@ class PluginsActivity : AppCompatActivity() {
             return
         }
         val rows = PluginUi.rows(srv)
-        adapter.submit(rows, if (rows.isEmpty()) "还没有插件——点「安装 .hpk」添加" else null)
+        adapter.submit(rows, null)
     }
 
     private fun confirmUninstall(id: String, name: String) {

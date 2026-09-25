@@ -27,20 +27,22 @@ class HydroKit(
     private val gson = Gson()
 
     val store: PluginStore = PluginStore(File(context.filesDir, "hydrokit")).also {
-        // 插件清单里的 minHydroLink 拿它比对（与桌面 store.HostVersion 同源）
-        PluginStore.hostVersion = APP_VERSION
+        // 插件清单里的 minHydroLink 拿它比对（与桌面 store.HostVersion 同源）。
+        // 这里必须走函数：Kotlin 属性按声明顺序初始化，写成属性时 APP_VERSION 声明在
+        // store 之后，构造第 31 行读到 null → setHostVersion 非空参数 NPE（插件 Tab 一点就崩）
+        PluginStore.hostVersion = appVersion()
     }
     val bridge: WorkerBridge = WorkerBridge(log = { msg -> logFn("info", msg) })
     val runtime: Runtime = Runtime(this)
 
     /** 宿主版本（= 产品版本），给 minHydroLink 校验用。 */
-    private val APP_VERSION = runCatching { com.hydro.link.server.BuildConfig.VERSION_NAME }.getOrDefault("0.0.0")
+    private fun appVersion() = runCatching { com.hydro.link.server.BuildConfig.VERSION_NAME }.getOrDefault("0.0.0")
 
     /** 宿主平台信息：插件用它按平台分支（os ∈ linux|windows|darwin|android）。 */
     private val hostInfo: MutableMap<String, String> = mutableMapOf(
         "os" to "android",
         "arch" to (android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown"),
-        "app" to APP_VERSION,
+        "app" to appVersion(),
         "sdk" to android.os.Build.VERSION.SDK_INT.toString(),
     )
 
