@@ -60,6 +60,13 @@
         <item name="android:tint">?attr/colorOnSurfaceVariant</item>
     </style>
 
+    <!-- 主色填充的图标按钮（插件 Tab「安装」这类强调操作） -->
+    <style name="Widget.Hydro.IconButton.Filled" parent="Widget.Hydro.IconButton">
+        <item name="android:background">@drawable/bg_install_icon</item>
+        <item name="android:foreground">?attr/selectableItemBackgroundBorderless</item>
+        <item name="android:tint">?attr/colorOnPrimary</item>
+    </style>
+
     <!-- 行里的图标容器（圆角方块 + 主色容器底） -->
     <style name="Widget.Hydro.RowIcon" parent="">
         <item name="android:layout_width">44dp</item>

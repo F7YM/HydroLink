@@ -45,7 +45,7 @@
         android:paddingHorizontal="16dp"
         android:paddingBottom="8dp"
         android:text="HydroKit 插件平台：与桌面端同一套 .hpk（JS / WASM）"
-        android:textSize="12sp"
+        android:textAppearance="?attr/textAppearanceBodySmall"
         android:textColor="?attr/colorOnSurfaceVariant" />
 
     <androidx.recyclerview.widget.RecyclerView

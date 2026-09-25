@@ -44,21 +44,13 @@
 
     <ImageButton
         android:id="@+id/pluginOpen"
-        android:layout_width="44dp"
-        android:layout_height="44dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
+        style="@style/Widget.Hydro.IconButton"
         android:contentDescription="打开插件界面"
-        android:padding="10dp"
-        android:src="@drawable/ic_plugin_ui"
-        app:tint="?attr/colorOnSurfaceVariant" />
+        android:src="@drawable/ic_plugin_ui" />
 
     <ImageButton
         android:id="@+id/pluginUninstall"
-        android:layout_width="44dp"
-        android:layout_height="44dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
+        style="@style/Widget.Hydro.IconButton"
         android:contentDescription="卸载插件"
-        android:padding="10dp"
-        android:src="@drawable/ic_plugin_delete"
-        app:tint="?attr/colorOnSurfaceVariant" />
+        android:src="@drawable/ic_plugin_delete" />
 </LinearLayout>
