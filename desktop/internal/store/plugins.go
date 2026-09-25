@@ -18,7 +18,7 @@ import (
 // minHydroLink —— store 不能反过来 import api。
 var HostVersion = "0.0.0"
 
-// PluginManifest mirrors docs/01-manifest.md.
+// PluginManifest mirrors the manifest reference in the HydroKit docs (GitBook).
 type PluginManifest struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
@@ -171,7 +171,14 @@ var pluginIDRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{1,120}$`)
 // NewIn creates a new Store rooted at an explicit directory (tests, embedded
 // runtimes). Callers are responsible for directory creation.
 func NewIn(dir string) *Store {
-	return &Store{dir: dir}
+	return &Store{
+		dir:          dir,
+		trustedFile:  filepath.Join(dir, "trusted_devices.json"),
+		commandsFile: filepath.Join(dir, "commands.json"),
+		configFile:   filepath.Join(dir, "config.json"),
+		rejectedFile: filepath.Join(dir, "rejected_devices.json"),
+		pendingFile:  filepath.Join(dir, "pending_pair.json"),
+	}
 }
 
 // PluginsDir returns the directory where plugin packages are installed
@@ -238,7 +245,7 @@ func orEmpty[T any](s []T) []T {
 
 // ReadPluginPackage validates an .hpk/.zip package and returns its manifest
 // WITHOUT installing (used by the install-confirmation UI). The layout
-// follows docs/01-manifest.md: manifest.json + server.js at the package
+// follows the manifest reference in the HydroKit docs: manifest.json + server.js at the package
 // root (a single wrapping top-level directory is tolerated and stripped).
 func (s *Store) ReadPluginPackage(zipPath string) (*PluginManifest, error) {
 	if zipPath == "" {

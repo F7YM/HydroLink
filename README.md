@@ -14,8 +14,9 @@
 | `desktop/` | 桌面端（Go + Wails v2）：HTTP 服务端 + 图形界面 + 插件运行时 |
 | `vela/` | 手表端（Vela 快应用）：HydroApps 启动器 + 插件容器 + 桌搭组件 |
 | `android/` | 安卓端（Kotlin）：HTTP 服务端 + 互联通道（XMS Wearable）+ 完整 HydroKit |
-| `docs/` | [HydroPlugin 开发文档](docs/README.md)：给插件作者看的清单/视图/存储/能力/WASM/调试/打包/协议参考 |
-| `packaging/` | 打包：Linux 的 deb/rpm、Windows 的安装程序（Inno Setup） |
+| `packaging/` | 打包：Linux 的 deb/rpm/Arch、Windows 的安装程序（Inno Setup） |
+
+插件开发文档在 GitBook 文档站：清单 / 视图 / 存储 / 能力 / 运行时 / WebUI / 调试 / 打包 / 协议参考。
 
 ## 构建
 
@@ -35,7 +36,7 @@ Windows / macOS 见 `desktop/PLATFORMS.md`（含各自构建命令与已知限�
 ## 打包
 
 ```bash
-bash packaging/build-linux-packages.sh          # dist/*.deb 与 dist/*.rpm
+bash packaging/build-linux-packages.sh          # dist/ 下的 deb / rpm / Arch 包
 ```
 
 Windows 安装程序（Inno Setup）见 `packaging/windows/README.md`。

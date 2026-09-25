@@ -91,8 +91,8 @@ class AndroidKitCapabilities(
         return try {
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             // Android 13+ 起发通知需要 POST_NOTIFICATIONS 运行时授权；没授权时
-            // nm.notify() 不抛异常但通知不会出现，插件会误以为成功（"静默失败"）。
-            // 这里如实返回 false，插件拿到 {"status":"error"} 可自行降级。
+            // nm.notify() 不抛异常但通知不会出现。这里如实返回 false，路由层统一
+            // 回 500 {"error":"通知失败"}（与桌面一致），插件可据此降级。
             if (!nm.areNotificationsEnabled()) return false
             val channelId = "hydrokit_plugin"
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

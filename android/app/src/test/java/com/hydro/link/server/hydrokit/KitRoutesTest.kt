@@ -26,11 +26,15 @@ class KitRoutesTest {
         var lastMusicAction: String? = null
         var locked = false
         var ranIndex = -1
+        // 可切换的失败开关：验证统一后的失败回包（500 {"error":…}）
+        var notifyResult = true
+        var musicActionResult = true
+        var lockResult = true
         override fun perf() = mapOf<String, Any?>("cpu" to 12.5, "memPercent" to 63.2, "memUsedMB" to 4096, "memTotalMB" to 8192)
         override fun music() = mapOf<String, Any?>("hasMedia" to true, "title" to "歌", "artist" to "手", "playing" to true, "artUrl" to "file:///tmp/a.jpg")
-        override fun musicAction(action: String): Boolean { lastMusicAction = action; return true }
-        override fun notify(title: String, text: String): Boolean { lastNotify = title to text; return true }
-        override fun lock(): Boolean { locked = true; return true }
+        override fun musicAction(action: String): Boolean { lastMusicAction = action; return musicActionResult }
+        override fun notify(title: String, text: String): Boolean { lastNotify = title to text; return notifyResult }
+        override fun lock(): Boolean { if (lockResult) locked = true; return lockResult }
         override fun commandList() = listOf<Map<String, Any?>>(mapOf("id" to 0, "name" to "hello", "command" to "echo hi"))
         override fun runCommand(index: Int): Map<String, Any?> { ranIndex = index; return mapOf("success" to true, "exitCode" to 0, "output" to "hi") }
         override fun serverBase() = "http://192.168.1.5:9000"
@@ -124,23 +128,70 @@ class KitRoutesTest {
     @Test
     fun capabilitiesWorkWhenPermitted() {
         val f = fixture(listOf("storage", "notify", "music", "lock", "commands", "system"))
-        assertEquals(200, f.routes.handle(post("/api/hydro/worker/notify", """{"package":"com.demo.weather","title":"标题","text":"正文"}"""))!!.status)
+        val notifyResp = f.routes.handle(post("/api/hydro/worker/notify", """{"package":"com.demo.weather","title":"标题","text":"正文"}"""))!!
+        assertEquals(200, notifyResp.status)
+        assertTrue(json(notifyResp.body).get("ok").asBoolean)
         assertEquals("标题" to "正文", f.caps.lastNotify)
 
-        f.routes.handle(post("/api/hydro/worker/music", """{"package":"com.demo.weather","action":"next"}"""))
+        val musicResp = f.routes.handle(post("/api/hydro/worker/music", """{"package":"com.demo.weather","action":"next"}"""))!!
         assertEquals("next", f.caps.lastMusicAction)
+        val musicBody = json(musicResp.body)
+        assertTrue(musicBody.get("ok").asBoolean)
+        assertEquals("next", musicBody.get("action").asString)
 
-        assertTrue(json(f.routes.handle(post("/api/hydro/worker/lock", """{"package":"com.demo.weather"}"""))!!.body).get("status").asString == "ok")
+        assertTrue(json(f.routes.handle(post("/api/hydro/worker/lock", """{"package":"com.demo.weather"}"""))!!.body).get("ok").asBoolean)
         assertTrue(f.caps.locked)
 
         val list = json(f.routes.handle(post("/api/hydro/worker/commands", """{"package":"com.demo.weather","op":"list"}"""))!!.body)
         assertEquals(1, list.getAsJsonArray("commands").size())
 
-        f.routes.handle(post("/api/hydro/worker/commands", """{"package":"com.demo.weather","op":"run","index":2}"""))
-        assertEquals(2, f.caps.ranIndex)
+        val runResp = f.routes.handle(post("/api/hydro/worker/commands", """{"package":"com.demo.weather","op":"run","index":0}"""))!!
+        assertEquals(200, runResp.status)
+        assertEquals(0, f.caps.ranIndex)
+        val runBody = json(runResp.body)
+        assertEquals(0, runBody.get("returncode").asInt)
+        assertTrue(runBody.has("output"))
+        // 序号越界：400（统一后在路由层就挡住，不再落到能力层）
+        assertEquals(400, f.routes.handle(post("/api/hydro/worker/commands", """{"package":"com.demo.weather","op":"run","index":2}"""))!!.status)
 
         val perf = json(f.routes.handle(post("/api/hydro/worker/system", """{"package":"com.demo.weather","op":"perf"}"""))!!.body)
         assertEquals(12.5, perf.get("cpu").asDouble, 0.01)
+
+        // system op=music：与桌面一致，返回媒体信息而不是 400
+        val media = json(f.routes.handle(post("/api/hydro/worker/system", """{"package":"com.demo.weather","op":"music"}"""))!!.body)
+        assertTrue(media.get("hasMedia").asBoolean)
+        assertEquals("歌", media.get("title").asString)
+    }
+
+    // ---- 统一后的失败回包（非 2xx + {"error":…}，与桌面一致）----
+
+    @Test
+    fun capabilityFailuresAreServerError() {
+        val f = fixture(listOf("notify", "music", "lock"))
+
+        f.caps.notifyResult = false
+        val notify = f.routes.handle(post("/api/hydro/worker/notify", """{"package":"com.demo.weather","title":"t","text":"x"}"""))!!
+        assertEquals(500, notify.status)
+        assertTrue(notify.body.contains("通知失败"))
+
+        f.caps.musicActionResult = false
+        val music = f.routes.handle(post("/api/hydro/worker/music", """{"package":"com.demo.weather","action":"play"}"""))!!
+        assertEquals(500, music.status)
+        assertTrue(music.body.contains("没有活动的媒体会话"))
+
+        f.caps.lockResult = false
+        val lock = f.routes.handle(post("/api/hydro/worker/lock", """{"package":"com.demo.weather"}"""))!!
+        assertEquals(500, lock.status)
+        assertTrue(lock.body.contains("锁屏失败"))
+    }
+
+    @Test
+    fun musicRejectsUnknownAction() {
+        val f = fixture(listOf("music"))
+        val resp = f.routes.handle(post("/api/hydro/worker/music", """{"package":"com.demo.weather","action":"nonsense"}"""))!!
+        assertEquals(400, resp.status)
+        assertTrue(resp.body.contains("无效动作"))
+        assertEquals(null, f.caps.lastMusicAction)
     }
 
     // ---- kit.storage ----
@@ -157,6 +208,8 @@ class KitRoutesTest {
 
         val missing = json(f.routes.handle(post("/api/hydro/worker/store", """{"package":"$pkg","op":"get","key":"nope"}"""))!!.body)
         assertTrue(!missing.get("found").asBoolean)
+        // 与桌面一致：未命中也回 value:null
+        assertTrue(missing.has("value") && missing.get("value").isJsonNull)
 
         f.routes.handle(post("/api/hydro/worker/store", """{"package":"$pkg","op":"remove","key":"city"}"""))
         assertTrue(!json(f.routes.handle(post("/api/hydro/worker/store", """{"package":"$pkg","op":"get","key":"city"}"""))!!.body).get("found").asBoolean)

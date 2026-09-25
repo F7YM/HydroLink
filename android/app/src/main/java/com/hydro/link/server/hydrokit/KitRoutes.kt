@@ -205,7 +205,8 @@ class KitRoutes(
                 val (found, value) = store.storeGet(pkg, key)
                 HydroHttpResponse.json(
                     if (found) gson.toJson(mapOf("found" to true, "value" to value))
-                    else """{"found":false}"""
+                    // 与桌面一致：未命中也回 value:null
+                    else """{"found":false,"value":null}"""
                 )
             }
             "set" -> {
@@ -268,6 +269,8 @@ class KitRoutes(
         requirePermission(pkg, PERM_SYSTEM)?.let { return it }
         return when (body.str("op")) {
             "perf" -> HydroHttpResponse.json(gson.toJson(caps.perf()))
+            // 与桌面一致：system op=music 返回媒体信息（hasMedia/title/artist/playing/artUrl）
+            "music" -> HydroHttpResponse.json(gson.toJson(caps.music()))
             else -> HydroHttpResponse.json("""{"error":"未知操作: ${body.str("op")}"}""", 400)
         }
     }
@@ -277,8 +280,11 @@ class KitRoutes(
         val body = parseJsonBody(req) ?: return HydroHttpResponse.json("""{"error":"invalid body"}""", 400)
         val pkg = body.str("package")
         requirePermission(pkg, PERM_NOTIFY)?.let { return it }
-        val ok = caps.notify(body.str("title"), body.str("text"))
-        return HydroHttpResponse.json(gson.toJson(mapOf("status" to if (ok) "ok" else "error")))
+        // 回包形状与桌面统一：成功 200 {"ok":true}，失败 500 {"error":"通知失败"}
+        if (!caps.notify(body.str("title"), body.str("text"))) {
+            return HydroHttpResponse.json("""{"error":"通知失败"}""", 500)
+        }
+        return HydroHttpResponse.json("""{"ok":true}""")
     }
 
     fun handleMusic(req: HydroHttpRequest): HydroHttpResponse {
@@ -289,8 +295,14 @@ class KitRoutes(
         // kit.music.now()：读当前媒体（与桌面 ctx.music 同构）
         if (body.str("op") == "now") return HydroHttpResponse.json(gson.toJson(caps.music()))
         val action = body.str("action")
-        val ok = caps.musicAction(action)
-        return HydroHttpResponse.json(gson.toJson(mapOf("status" to if (ok) "ok" else "error", "action" to action)))
+        // 动作白名单与桌面一致：play/pause/playpause/next/previous
+        if (action !in setOf("play", "pause", "playpause", "next", "previous")) {
+            return HydroHttpResponse.json("""{"error":"无效动作: $action"}""", 400)
+        }
+        if (!caps.musicAction(action)) {
+            return HydroHttpResponse.json("""{"error":"没有活动的媒体会话"}""", 500)
+        }
+        return HydroHttpResponse.json(gson.toJson(mapOf("ok" to true, "action" to action)))
     }
 
     fun handleLock(req: HydroHttpRequest): HydroHttpResponse {
@@ -298,8 +310,11 @@ class KitRoutes(
         val body = parseJsonBody(req) ?: return HydroHttpResponse.json("""{"error":"invalid body"}""", 400)
         val pkg = body.str("package")
         requirePermission(pkg, PERM_LOCK)?.let { return it }
-        val ok = caps.lock()
-        return HydroHttpResponse.json(gson.toJson(mapOf("status" to if (ok) "ok" else "error")))
+        // 与桌面统一：成功 200 {"ok":true}，失败 500 {"error":"锁屏失败"}
+        if (!caps.lock()) {
+            return HydroHttpResponse.json("""{"error":"锁屏失败"}""", 500)
+        }
+        return HydroHttpResponse.json("""{"ok":true}""")
     }
 
     fun handleCommands(req: HydroHttpRequest): HydroHttpResponse {
@@ -311,7 +326,21 @@ class KitRoutes(
             "list" -> HydroHttpResponse.json(gson.toJson(mapOf("commands" to caps.commandList())))
             "run" -> {
                 val index = body.get("index")?.let { if (it.isJsonPrimitive) it.asInt else -1 } ?: -1
-                HydroHttpResponse.json(gson.toJson(caps.runCommand(index)))
+                val size = caps.commandList().size
+                if (index < 0 || index >= size) {
+                    return HydroHttpResponse.json("""{"error":"无效命令序号"}""", 400)
+                }
+                val r = caps.runCommand(index)
+                val code = (r["exitCode"] as? Number)?.toInt() ?: -1
+                val output = (r["output"] as? String) ?: ""
+                // 语义（与桌面统一）：非 0 退出码是命令自己的执行结果，按 200 +
+                // returncode 回包；ExitCode == -1 才是宿主级失败（能力不可用/读取失败）。
+                if (code == -1) {
+                    return HydroHttpResponse.json(
+                        gson.toJson(mapOf("error" to "命令执行失败", "output" to output)), 500,
+                    )
+                }
+                HydroHttpResponse.json(gson.toJson(mapOf("returncode" to code, "output" to output)))
             }
             else -> HydroHttpResponse.json("""{"error":"未知操作: ${body.str("op")}"}""", 400)
         }

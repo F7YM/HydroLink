@@ -2,7 +2,7 @@
 
 > 目标：**给安卓端加上完整 HydroKit** —— 安卓 App 与桌面端同为 WebView 宿主，
 > 跑同一套插件包（`.hpk`）、同一套 HTTP 协议、同一份 `server.js` / `plugin.wasm`。
-> 协议权威描述见 [插件协议参考](../docs/99-reference.md)；桌面参考实现见
+> 协议权威描述见 GitBook 文档站的《协议参考》；桌面参考实现见
 > `desktop/internal/hydrokit/` 与 `desktop/internal/api/{worker,media}.go`。
 
 ## 架构决策
@@ -215,8 +215,8 @@ assets/hydrokit/{worker.html,worker.js}   与桌面同协议的宿主胶水
 ## 后续轮次的切入点
 
 - **M9 文档与回归**（剩下的主要工作）：
-  1. `docs/README.md` 补"平台差异"一节：桌面 vs 安卓（宿主实现、性能/能力差异、
-     通知/锁屏/命令在安卓上的前置条件）。
+  1. 平台差异已写在 GitBook 文档站《平台差异》页（宿主实现、性能/能力差异、
+     通知/锁屏/命令在安卓上的前置条件）——两端行为再变时记得同步该页。
   2. 跨端回归：同一 `.hpk` 在两端都能装、能出树（桌面已有 Go e2e；安卓已有
      Node 跑真胶水的 e2e），把两者的期望字段对齐写进文档。
   3. 安卓侧权限的实际表现写清楚：`notify` 需 POST_NOTIFICATIONS（已声明，App

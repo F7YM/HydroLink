@@ -19,7 +19,7 @@ import (
 //
 //	GET  /poll                         worker long-polls for requests
 //	POST /respond                      worker posts results
-//	POST /store                        kit.storage (server scope; watch scope pending)
+//	POST /store                        kit.storage (server scope; watch scope -> 400, handled by the container glue)
 //	POST /notify | /music | /lock | /commands   capability APIs (permission-gated)
 //	GET  /platform                     宿主平台（插件 WebUI 按 os 分支，无权限门控）
 //	GET  /asset                        plugin's own packaged files (loadWasm/images)
@@ -105,7 +105,9 @@ func (h *WorkerHandler) handleStore(w http.ResponseWriter, r *http.Request) {
 		body.Scope = "server"
 	}
 	if body.Scope != "server" {
-		writeWorkerError(w, http.StatusNotImplemented, "watch 端存储将在容器协议里程碑接入，当前仅支持 scope=server")
+		// watch 作用域不经过宿主：由 worker 胶水写本地快照、随响应回传给容器落盘。
+		// 与安卓端一致（400），插件侧 kit.storage 的 scope:"watch" 由胶水本地处理。
+		writeWorkerError(w, http.StatusBadRequest, "watch 作用域由容器处理")
 		return
 	}
 	kv, err := h.st.LoadPluginKV(body.Package)
@@ -157,7 +159,12 @@ func (h *WorkerHandler) handleNotify(w http.ResponseWriter, r *http.Request) {
 	if !h.requirePermission(w, body.Package, "notify") {
 		return
 	}
-	_ = system.Notify(body.Title, body.Text)
+	if err := system.Notify(body.Title, body.Text); err != nil {
+		// 与安卓端统一：通知失败（无通知守护进程 / 未授权）回 500 {"error":…}，
+		// 不再静默报成功。
+		writeWorkerError(w, http.StatusInternalServerError, "通知失败")
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
@@ -189,7 +196,8 @@ func (h *WorkerHandler) handleMusic(w http.ResponseWriter, r *http.Request) {
 		writeWorkerError(w, http.StatusInternalServerError, "没有活动的媒体会话")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	// 回包形状与安卓端统一：ok + 回显本次 action。
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "action": body.Action})
 }
 
 func (h *WorkerHandler) handleLock(w http.ResponseWriter, r *http.Request) {
@@ -237,8 +245,12 @@ func (h *WorkerHandler) handleCommands(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		res := system.RunCommand(commands[body.Index].Command)
-		if !res.Success {
-			writeWorkerError(w, http.StatusInternalServerError, "命令失败: "+res.Output)
+		// 语义（两端统一）：非 0 退出码是命令自己的执行结果，按 200 + returncode
+		// 回包；ExitCode == -1 才是宿主级失败（无法执行 / 60s 超时 / 被信号终止）。
+		if res.ExitCode == -1 {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{
+				"error": "命令执行失败", "output": res.Output,
+			})
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"returncode": res.ExitCode, "output": res.Output})
@@ -253,7 +265,7 @@ func (h *WorkerHandler) handleCommands(w http.ResponseWriter, r *http.Request) {
 // 插件页面据此决定显示哪些只在桌面端有意义的能力（例如 SPlayer 歌词集成）。
 //
 // 注意路径不能叫 /worker/host：那个地址被 worker 宿主页占用了
-// （见 android/.../HostPageRoutes.kt 与 docs/06-webui.md）。
+// （见 android/.../HostPageRoutes.kt 与 HydroKit 文档站的 WebUI 页）。
 func (h *WorkerHandler) handlePlatform(w http.ResponseWriter) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"os":   runtime.GOOS,
