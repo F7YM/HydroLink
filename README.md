@@ -61,5 +61,3 @@ cd android
 ```bash
 bash android/scripts/device-check.sh
 ```
-
-架构、里程碑与真机验证清单见 `android/NOTES.md`。
