@@ -13,7 +13,6 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -34,6 +33,7 @@ import com.hydro.link.server.ui.DeviceAdapter
 import com.hydro.link.server.ui.PairRequestAdapter
 import com.hydro.link.server.util.DataManager
 import com.hydro.link.server.util.NetworkUtil
+import com.hydro.link.server.util.RootShell
 
 class MainActivity : AppCompatActivity() {
 
@@ -42,7 +42,6 @@ class MainActivity : AppCompatActivity() {
     private val port = 9000
 
     // Views
-    private lateinit var toolbar: MaterialToolbar
     private lateinit var bottomNav: BottomNavigationView
     private lateinit var tabStatus: ScrollView
     private lateinit var tabDevices: LinearLayout
@@ -82,6 +81,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tabPlugins: LinearLayout
     private lateinit var tvPluginSummary: TextView
     private lateinit var rvPlugins: RecyclerView
+
+    // Settings views（原 SettingsActivity 并入「设置」Tab）
+    private lateinit var tabSettings: ScrollView
+    private lateinit var tvAppName: TextView
+    private lateinit var switchRoot: MaterialSwitch
+    private lateinit var tvRootStatus: TextView
+    private lateinit var switchBoot: MaterialSwitch
+    private lateinit var btnPlugins: View
+    private var settingsSwitchSyncing = false
 
     // Guards the server switch against programmatic sync (refreshData)
     private var syncingServerSwitch = false
@@ -162,7 +170,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initViews() {
-        toolbar = findViewById(R.id.toolbar)
         bottomNav = findViewById(R.id.bottomNav)
         tabStatus = findViewById(R.id.tabStatus)
         tabDevices = findViewById(R.id.tabDevices)
@@ -217,6 +224,21 @@ class MainActivity : AppCompatActivity() {
         // Set IP
         val ip = NetworkUtil.getLocalIpAddress(this)
         tvIpAddress.text = "IP: $ip"
+
+        // 设置 Tab：视图与初值（监听器到 setupListeners 才挂，这里赋值不会触发）
+        tabSettings = findViewById(R.id.tabSettings)
+        tvAppName = findViewById(R.id.tvAppName)
+        switchRoot = findViewById(R.id.switchRoot)
+        tvRootStatus = findViewById(R.id.tvRootStatus)
+        switchBoot = findViewById(R.id.switchBoot)
+        btnPlugins = findViewById(R.id.btnPlugins)
+
+        val versionName = packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0.0"
+        tvAppName.text = "HydroLink $versionName"
+
+        val cfg = dataManager.loadConfig()
+        switchRoot.isChecked = cfg.useRoot
+        switchBoot.isChecked = cfg.bootStart
     }
 
     private fun setupBottomNav() {
@@ -243,6 +265,12 @@ class MainActivity : AppCompatActivity() {
                     refreshPlugins()
                     true
                 }
+                R.id.nav_settings -> {
+                    showTab(tabSettings)
+                    fabAddCommand.hide()
+                    updateRootStatus() // 首次进入先探一次 root
+                    true
+                }
                 else -> false
             }
         }
@@ -253,20 +281,10 @@ class MainActivity : AppCompatActivity() {
         tabDevices.visibility = if (view == tabDevices) View.VISIBLE else View.GONE
         tabCommands.visibility = if (view == tabCommands) View.VISIBLE else View.GONE
         tabPlugins.visibility = if (view == tabPlugins) View.VISIBLE else View.GONE
+        tabSettings.visibility = if (view == tabSettings) View.VISIBLE else View.GONE
     }
 
     private fun setupListeners() {
-        // Toolbar menu
-        toolbar.setOnMenuItemClickListener { item ->
-            when (item.itemId) {
-                R.id.action_settings -> {
-                    startActivity(Intent(this, SettingsActivity::class.java))
-                    true
-                }
-                else -> false
-            }
-        }
-
         switchServer.setOnCheckedChangeListener { _, isChecked ->
             if (syncingServerSwitch) return@setOnCheckedChangeListener
             if (isChecked) {
@@ -308,6 +326,66 @@ class MainActivity : AppCompatActivity() {
             pluginInstallLauncher.launch(PluginUi.pickerIntent())
         }
         findViewById<View>(R.id.btnRefreshPluginsTab).setOnClickListener { refreshPlugins() }
+
+        // 设置 Tab：root 执行（开启前警告；root 不可用时由 updateRootStatus 拨回）
+        switchRoot.setOnCheckedChangeListener { switch, isChecked ->
+            if (settingsSwitchSyncing) return@setOnCheckedChangeListener
+            if (isChecked) {
+                MaterialAlertDialogBuilder(this)
+                    .setTitle("使用 root 执行快速命令？")
+                    .setMessage(
+                        "使用 root 权限执行快速命令有安全风险，请自行检查命令。\n\n" +
+                            "开启后 quick command 与插件请求的命令都会以 root 身份运行，请只安装可信插件。"
+                    )
+                    .setNegativeButton("取消") { _, _ ->
+                        settingsSwitchSyncing = true
+                        switch.isChecked = false
+                        settingsSwitchSyncing = false
+                    }
+                    .setPositiveButton("仍然开启") { _, _ ->
+                        Thread {
+                            val ok = RootShell.isAvailable()
+                            handler.post {
+                                val cfg = dataManager.loadConfig()
+                                cfg.useRoot = ok
+                                dataManager.saveConfig(cfg)
+                                settingsSwitchSyncing = true
+                                switch.isChecked = ok
+                                settingsSwitchSyncing = false
+                                if (ok) {
+                                    Snackbar.make(switch, "已开启：命令将以 root 执行", Snackbar.LENGTH_SHORT).show()
+                                } else {
+                                    Snackbar.make(switch, "root 不可用", Snackbar.LENGTH_LONG).show()
+                                }
+                                updateRootStatus()
+                            }
+                        }.start()
+                    }
+                    .show()
+            } else {
+                val cfg = dataManager.loadConfig()
+                cfg.useRoot = false
+                dataManager.saveConfig(cfg)
+                updateRootStatus()
+            }
+        }
+
+        // 设置 Tab：开机自启（默认关；打开后重启由 BootReceiver 拉起服务）
+        switchBoot.setOnCheckedChangeListener { switch, isChecked ->
+            if (settingsSwitchSyncing) return@setOnCheckedChangeListener
+            val cfg = dataManager.loadConfig()
+            cfg.bootStart = isChecked
+            dataManager.saveConfig(cfg)
+            Snackbar.make(
+                switch,
+                if (isChecked) "已开启：重启后自动启动服务" else "已关闭：重启后需手动打开 App",
+                Snackbar.LENGTH_SHORT
+            ).show()
+        }
+
+        btnPlugins.setOnClickListener {
+            startActivity(com.hydro.link.server.ui.PluginsActivity.intent(this))
+        }
     }
 
     private fun refreshData() {
@@ -391,6 +469,9 @@ class MainActivity : AppCompatActivity() {
         // 插件 Tab（只在可见时刷新：要读插件目录，每 2 秒一次没必要）
         if (::tabPlugins.isInitialized && tabPlugins.visibility == View.VISIBLE) refreshPlugins()
 
+        // 设置 Tab（root 探测起进程，只在可见时刷）
+        if (::tabSettings.isInitialized && tabSettings.visibility == View.VISIBLE) updateRootStatus()
+
         // Commands
         val commands = dataManager.loadCommands()
         if (commands.isEmpty()) {
@@ -437,6 +518,28 @@ class MainActivity : AppCompatActivity() {
         if (!node.permissionGranted) {
             tvInterconnectDetail.text = "${node.displayName} · 等待授权..."
         }
+    }
+
+    /**
+     * root 探测要起进程，放后台线程；root 不可用时把开关拨回去并落盘。
+     * 由设置 Tab 的 refreshData 分支与开关回调调用。
+     */
+    private fun updateRootStatus() {
+        Thread {
+            val ok = RootShell.isAvailable()
+            handler.post {
+                if (!::tvRootStatus.isInitialized) return@post
+                tvRootStatus.text = if (ok) "root 已就绪" else "root 不可用"
+                val cfg = dataManager.loadConfig()
+                if (!ok && cfg.useRoot) {
+                    cfg.useRoot = false
+                    dataManager.saveConfig(cfg)
+                    settingsSwitchSyncing = true
+                    switchRoot.isChecked = false
+                    settingsSwitchSyncing = false
+                }
+            }
+        }.start()
     }
 
     /** 刷新插件列表与摘要（worker 在线状态来自 bridge，能直接看出插件跑没跑起来）。 */

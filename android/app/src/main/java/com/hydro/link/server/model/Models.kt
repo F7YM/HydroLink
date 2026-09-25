@@ -46,5 +46,6 @@ data class AppConfig(
     @SerializedName("encryption_key") var encryptionKey: String = "",
     @SerializedName("last_port") var lastPort: Int = 9000,
     @SerializedName("accept_all") var acceptAll: Boolean = false,
-    @SerializedName("use_root") var useRoot: Boolean = false
+    @SerializedName("use_root") var useRoot: Boolean = false,
+    @SerializedName("boot_start") var bootStart: Boolean = false
 )

@@ -53,7 +53,7 @@ Apache-2.0，见 [LICENSE](LICENSE)。
 ```bash
 cd android
 ./gradlew :app:assembleDebug        # 产物 app/build/outputs/apk/debug/app-debug.apk
-./gradlew :app:testDebugUnitTest    # 132 个 JVM 单测（含真产物 e2e）
+./gradlew :app:testDebugUnitTest    # 145 个 JVM 单测（含真产物 e2e）
 ```
 
 真机自检（手机插着 USB）：
