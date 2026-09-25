@@ -7,10 +7,14 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.platform.ComposeView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.bottomnavigation.BottomNavigationView
@@ -27,6 +31,7 @@ import com.hydro.link.server.model.TrustedDevice
 import com.hydro.link.server.service.LockAccessibilityService
 import com.hydro.link.server.service.ServerService
 import com.hydro.link.server.ui.CommandAdapter
+import com.hydro.link.server.ui.GlassTabHost
 import com.hydro.link.server.ui.PluginAdapter
 import com.hydro.link.server.ui.PluginUi
 import com.hydro.link.server.ui.DeviceAdapter
@@ -88,7 +93,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var switchRoot: MaterialSwitch
     private lateinit var tvRootStatus: TextView
     private lateinit var switchBoot: MaterialSwitch
+    private lateinit var switchLiquidGlass: MaterialSwitch
     private var settingsSwitchSyncing = false
+
+    // Liquid Glass 底栏（compose 承载，见 GlassTabHost）：页面进组合，状态归这里管
+    private lateinit var composeHost: ComposeView
+    private lateinit var contentFrame: FrameLayout
+    private var page: View? = null               // 解出的 activity_main_body（进 AndroidView 的页面主体）
+    private var fabBaseMarginBottom = 0
+    private val glassOn = mutableStateOf(false)
+    private val navHeightPx = mutableStateOf(0)
+    private val selectedIndex = mutableStateOf(0) // 当前 Tab 下标：玻璃胶囊与真实底栏共用
 
     // Guards the server switch against programmatic sync (refreshData)
     private var syncingServerSwitch = false
@@ -155,11 +170,21 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 页面主体先解出来（不挂树）：内容要进 Compose 的 AndroidView，壳
+        // （activity_main）里只有 composeHost + 浮层 bottomNav —— Liquid Glass 的
+        // layerBackdrop 要求内容与玻璃条在同一个组合里
+        val body = layoutInflater.inflate(R.layout.activity_main_body, null)
+        body.layoutParams = ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT,
+        )
+        page = body
         setContentView(R.layout.activity_main)
 
         initViews()
         setupBottomNav()
         setupListeners()
+        setupGlassHost()
         // Auto-start the server service by default when entering the app.
         if (ServerService.instance == null) {
             ServerService.start(this, port)
@@ -168,12 +193,25 @@ class MainActivity : AppCompatActivity() {
         refreshData()
     }
 
+    /**
+     * 页面主体挂在 Compose 的 AndroidView 里，decor 视树下未必可达——先查 page；
+     * 壳里的 bottomNav / composeHost 由 super 找到。
+     */
+    override fun <T : View> findViewById(id: Int): T {
+        val inPage = page?.findViewById<T>(id)
+        if (inPage != null) return inPage
+        return super.findViewById(id)
+    }
+
     private fun initViews() {
         bottomNav = findViewById(R.id.bottomNav)
+        composeHost = findViewById(R.id.composeHost)
+        contentFrame = findViewById(R.id.contentFrame)
         tabStatus = findViewById(R.id.tabStatus)
         tabDevices = findViewById(R.id.tabDevices)
         tabCommands = findViewById(R.id.tabCommands)
         fabAddCommand = findViewById(R.id.fabAddCommand)
+        fabBaseMarginBottom = (fabAddCommand.layoutParams as FrameLayout.LayoutParams).bottomMargin
 
         tvServerStatus = findViewById(R.id.tvServerStatus)
         switchServer = findViewById(R.id.switchServer)
@@ -230,6 +268,7 @@ class MainActivity : AppCompatActivity() {
         switchRoot = findViewById(R.id.switchRoot)
         tvRootStatus = findViewById(R.id.tvRootStatus)
         switchBoot = findViewById(R.id.switchBoot)
+        switchLiquidGlass = findViewById(R.id.switchLiquidGlass)
 
         val versionName = packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0.0"
         tvAppName.text = "HydroLink $versionName"
@@ -237,11 +276,13 @@ class MainActivity : AppCompatActivity() {
         val cfg = dataManager.loadConfig()
         switchRoot.isChecked = cfg.useRoot
         switchBoot.isChecked = cfg.bootStart
+        switchLiquidGlass.isChecked = cfg.liquidGlass
+        glassOn.value = cfg.liquidGlass
     }
 
     private fun setupBottomNav() {
         bottomNav.setOnItemSelectedListener { item ->
-            when (item.itemId) {
+            val handled = when (item.itemId) {
                 R.id.nav_status -> {
                     showTab(tabStatus)
                     fabAddCommand.hide()
@@ -271,8 +312,13 @@ class MainActivity : AppCompatActivity() {
                 }
                 else -> false
             }
+            if (handled) selectedIndex.value = tabIndexOf(item.itemId)
+            handled
         }
     }
+
+    private fun tabIndexOf(itemId: Int): Int =
+        (0 until bottomNav.menu.size()).firstOrNull { bottomNav.menu.getItem(it).itemId == itemId } ?: 0
 
     private fun showTab(view: View) {
         tabStatus.visibility = if (view == tabStatus) View.VISIBLE else View.GONE
@@ -381,6 +427,61 @@ class MainActivity : AppCompatActivity() {
             ).show()
         }
 
+        // 设置 Tab：Liquid Glass 效果（默认关；FAQ 有 RenderThread 崩溃案例，必须可关）
+        switchLiquidGlass.setOnCheckedChangeListener { _, isChecked ->
+            if (settingsSwitchSyncing) return@setOnCheckedChangeListener
+            val cfg = dataManager.loadConfig()
+            cfg.liquidGlass = isChecked
+            dataManager.saveConfig(cfg)
+            applyGlassMode(isChecked)
+        }
+
+    }
+
+    /**
+     * Liquid Glass 承载层：页面进 Compose 组合；底栏量到真实高度后喂给玻璃条，
+     * 并按配置应用初始状态（背景/内边距/FAB）。
+     */
+    private fun setupGlassHost() {
+        val menu = bottomNav.menu
+        val icons = (0 until menu.size()).map { menu.getItem(it).icon!! }
+        val labels = (0 until menu.size()).map { menu.getItem(it).title!! }
+        composeHost.setContent {
+            GlassTabHost(
+                glassOn = glassOn.value,
+                page = page ?: return@setContent,
+                selectedIndex = { selectedIndex.value },
+                onTabSelected = { index -> bottomNav.selectedItemId = menu.getItem(index).itemId },
+                tabIcons = icons,
+                tabLabels = labels,
+            )
+        }
+        bottomNav.addOnLayoutChangeListener { v, _, _, _, _, _, _, _, _ ->
+            val h = v.height
+            if (h > 0 && h != navHeightPx.value) {
+                navHeightPx.value = h
+                applyGlassMode(glassOn.value)
+            }
+        }
+    }
+
+    /**
+     * 玻璃开：真实底栏藏起来，胶囊玻璃条（LiquidBottomTabs，Compose）接管切换，
+     * 内容流到胶囊下参与折射、FAB 抬到胶囊顶；玻璃关：底栏现身、contentFrame
+     * 让出栏高（等价老布局的排布）。
+     */
+    private fun applyGlassMode(on: Boolean) {
+        val fabParams = fabAddCommand.layoutParams as FrameLayout.LayoutParams
+        bottomNav.visibility = if (on) View.GONE else View.VISIBLE
+        if (on) {
+            contentFrame.setPadding(0, 0, 0, 0)
+            fabParams.bottomMargin = fabBaseMarginBottom + navHeightPx.value
+        } else {
+            contentFrame.setPadding(0, 0, 0, navHeightPx.value)
+            fabParams.bottomMargin = fabBaseMarginBottom
+        }
+        fabAddCommand.layoutParams = fabParams
+        glassOn.value = on
     }
 
     private fun refreshData() {

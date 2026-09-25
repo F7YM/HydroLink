@@ -1,10 +1,13 @@
 apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.android'
+apply plugin: 'org.jetbrains.kotlin.plugin.compose'   // Compose 编译器随 Kotlin 发行（Liquid Glass Tab）
 // apply plugin: 'com.chaquo.python'  // Temporarily disabled - network issue downloading bootstrap
 
 android {
     namespace 'com.hydro.link.server'
-    compileSdk 35
+    // backdrop(liquid glass) 的 AAR 要求 minCompileSdk=37；AGP 8.7.3 最高建议 35，
+    // 超出部分由 gradle.properties 的 android.suppressUnsupportedCompileSdk=37 压掉
+    compileSdk 37
 
     defaultConfig {
         applicationId "com.hydro.link"
@@ -41,6 +44,7 @@ android {
         jvmTarget = '17'
     }
     buildFeatures {
+        compose true
         viewBinding true
         buildConfig true
         aidl true
@@ -73,6 +77,12 @@ dependencies {
     implementation 'org.nanohttpd:nanohttpd:2.3.1'
     implementation 'com.google.code.gson:gson:2.10.1'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+    // 底部 Tab 栏 Liquid Glass 效果（Kyant0/AndroidLiquidGlass，Maven Central）。
+    // backdrop 对 compose 只声明了 runtime scope——自己代码要用 Compose 必须显式带上
+    implementation 'io.github.kyant0:backdrop:2.0.1'
+    implementation 'io.github.kyant0:shapes-android:1.2.1'
+    implementation 'org.jetbrains.compose.foundation:foundation-android:1.12.0'
+    implementation 'org.jetbrains.compose.ui:ui-android:1.12.0'
     // XMS Wearable SDK for interconnect (included as AAR in libs/)
 
     // HydroKit 的协议/运行时/存储等纯逻辑放在 JVM 单测里跑（不依赖 Android API）

@@ -47,5 +47,6 @@ data class AppConfig(
     @SerializedName("last_port") var lastPort: Int = 9000,
     @SerializedName("accept_all") var acceptAll: Boolean = false,
     @SerializedName("use_root") var useRoot: Boolean = false,
-    @SerializedName("boot_start") var bootStart: Boolean = false
+    @SerializedName("boot_start") var bootStart: Boolean = false,
+    @SerializedName("liquid_glass") var liquidGlass: Boolean = false // Liquid Glass 底栏（默认关）
 )
