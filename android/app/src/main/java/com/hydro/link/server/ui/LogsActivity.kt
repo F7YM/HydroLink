@@ -61,8 +61,8 @@ class LogsActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        applySystemBars()
         val miuix = DataManager.get(this).loadConfig().miuix
+        SystemBars.apply(this, miuix)
         setContent {
             val content: @Composable () -> Unit = {
                 LogsBody(miuix = miuix, onBack = { finish() })
@@ -72,18 +72,6 @@ class LogsActivity : AppCompatActivity() {
             } else {
                 HydroMaterialTheme { content() }
             }
-        }
-    }
-
-    private fun applySystemBars() {
-        val night = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
-            Configuration.UI_MODE_NIGHT_YES
-        val color = if (night) 0xFF000000.toInt() else 0xFFF7F7F7.toInt()
-        window.statusBarColor = color
-        window.navigationBarColor = color
-        WindowInsetsControllerCompat(window, window.decorView).apply {
-            isAppearanceLightStatusBars = !night
-            isAppearanceLightNavigationBars = !night
         }
     }
 }

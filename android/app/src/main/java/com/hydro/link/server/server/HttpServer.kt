@@ -11,6 +11,7 @@ import com.hydro.link.server.service.LockAccessibilityService
 import com.hydro.link.server.service.MusicController
 import com.hydro.link.server.util.DataManager
 import com.hydro.link.server.util.NetworkUtil
+import com.hydro.link.server.util.Authorizer
 import com.hydro.link.server.util.RootShell
 import fi.iki.elonen.NanoHTTPD
 import java.io.BufferedReader
@@ -103,23 +104,11 @@ class HydroHttpServer(
     /** 供 UI 读取真实监听端口（可能由系统随机分配）。 */
     val currentPort: Int get() = activePort
 
-    /** 供 kit 能力端点执行命令：与 /api/commands/{id}/run 同一套逻辑（root / Shell）。 */
+    /** 供 kit 能力端点执行命令：与 /api/commands/{id}/run 同一套逻辑（授权器：无/Root/Shizuku）。 */
     private fun runCommandForPlugins(command: String): Triple<Boolean, String, Int> {
-        val config = dataManager.loadConfig()
-        if (config.useRoot) {
-            if (!RootShell.isAvailable()) return Triple(false, "root 不可用", -1)
-            val r = RootShell.exec(command)
-            return Triple(r.ok, r.output, r.code)
-        }
-        return try {
-            val process = java.lang.ProcessBuilder("sh", "-c", command)
-                .redirectErrorStream(true).start()
-            val out = process.inputStream.bufferedReader().readText()
-            val code = process.waitFor()
-            Triple(code == 0, out, code)
-        } catch (e: Exception) {
-            Triple(false, "命令执行失败: ${e.message}", -1)
-        }
+        val kind = Authorizer.kindOf(dataManager.loadConfig().authorizer)
+        val r = Authorizer.exec(command, kind)
+        return Triple(r.ok, r.output, r.code)
     }
     private val musicController = MusicController(context)
     private val logBuffer = Collections.synchronizedList(mutableListOf<LogEntry>())
@@ -728,35 +717,16 @@ class HydroHttpServer(
         if (cmdStr.isEmpty()) {
             return 400 to mapOf("status" to "error", "message" to "Empty command")
         }
-        addLog("收到执行请求: #$cmdId ${cmd.name}（root=${dataManager.loadConfig().useRoot}）", "info")
-
-        if (dataManager.loadConfig().useRoot) {
-            addLog("执行命令(root): ${cmd.name}", "warning")
-            val r = RootShell.exec(cmdStr)
-            if (r.code < 0) {
-                addLog("命令无法执行: ${r.output}", "error")
-                return 500 to mapOf("status" to "error", "message" to r.output.take(200))
-            }
-            addLog("命令完成: 返回码 ${r.code}｜输出: ${r.output.take(200)}", if (r.code == 0) "success" else "warning")
-            return 200 to mapOf("status" to "ok", "returncode" to r.code, "output" to r.output.take(1000))
+        val kind = Authorizer.kindOf(dataManager.loadConfig().authorizer)
+        addLog("收到执行请求: #$cmdId ${cmd.name}（授权器=${kind.label}）", "info")
+        addLog("执行命令(${kind.label}): ${cmd.name}", if (kind == Authorizer.Kind.NONE) "info" else "warning")
+        val r = Authorizer.exec(cmdStr, kind)
+        if (r.code < 0) {
+            addLog("命令无法执行: ${r.output}", "error")
+            return 500 to mapOf("status" to "error", "message" to r.output.take(200))
         }
-
-        return try {
-            addLog("执行命令(sh): ${cmd.name}", "warning")
-            val process = ProcessBuilder("sh", "-c", cmdStr).redirectErrorStream(true).start()
-            val output = process.inputStream.bufferedReader().readText()
-            if (!process.waitFor(15, java.util.concurrent.TimeUnit.SECONDS)) {
-                process.destroy()
-                addLog("命令超时（15s）", "error")
-                return 500 to mapOf("status" to "error", "message" to "执行超时（15s）")
-            }
-            val rc = process.exitValue()
-            addLog("命令完成: 返回码 $rc｜输出: ${output.take(200)}", if (rc == 0) "success" else "warning")
-            200 to mapOf("status" to "ok", "returncode" to rc, "output" to output.take(1000))
-        } catch (e: Exception) {
-            addLog("命令无法执行: ${e.message}", "error")
-            500 to mapOf("status" to "error", "message" to "无法执行: ${e.message}")
-        }
+        addLog("命令完成: 返回码 ${r.code}｜输出: ${r.output.take(200)}", if (r.code == 0) "success" else "warning")
+        return 200 to mapOf("status" to "ok", "returncode" to r.code, "output" to r.output.take(1000))
     }
 
     private fun handleGetCommands(): Response =

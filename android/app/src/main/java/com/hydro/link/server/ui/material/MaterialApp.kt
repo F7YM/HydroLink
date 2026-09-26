@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
@@ -36,6 +37,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.hydro.link.server.R
+import com.hydro.link.server.ui.material.MdDropdownWidget
 import com.hydro.link.server.ui.material.md3BlurBar
 import com.hydro.link.server.ui.miuix.MiuixActions
 import top.yukonga.miuix.kmp.blur.layerBackdrop
@@ -340,12 +342,41 @@ private fun SettingsTab(padding: PaddingValues, model: MiuixModel, actions: Miui
                 contentPadding = PaddingValues(bottom = 8.dp),
             ) {
                 item {
-                    MdSwitchWidget(
-                        title = "使用 root 执行",
-                        description = model.rootStatus,
-                        checked = model.useRoot,
-                        onCheckedChange = actions.onToggleRoot,
+                    MdDropdownWidget(
+                        title = "授权器",
+                        description = model.authorizerStatus,
+                        options = listOf(
+                            "无" to "以应用自身权限执行",
+                            "Root" to "su 执行",
+                            "Shizuku" to "Shizuku 用户服务执行",
+                        ),
+                        selectedIndex = when (model.authorizer) {
+                            "root" -> 1
+                            "shizuku" -> 2
+                            else -> 0
+                        },
+                        onSelect = { index ->
+                            actions.onSetAuthorizer(
+                                when (index) {
+                                    1 -> "root"
+                                    2 -> "shizuku"
+                                    else -> "none"
+                                }
+                            )
+                        },
                     )
+                }
+                if (model.authorizer == "shizuku" && model.authorizerNeedsGrant) {
+                    item {
+                        MdBaseWidget(
+                            title = "Shizuku 授权",
+                            description = model.authorizerStatus,
+                            onClick = actions.onAuthorizeShizuku,
+                            trailing = {
+                                Button(onClick = actions.onAuthorizeShizuku) { Text("去授权") }
+                            },
+                        )
+                    }
                 }
                 item {
                     MdSwitchWidget(

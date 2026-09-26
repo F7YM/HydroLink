@@ -119,7 +119,15 @@ fun MiuixApp(
     // 5 个 Tab 用 NavHost 管（真实返回栈 + 转场）；权限管理 / 运行日志是独立
     // Activity，走系统返回栈（返回键直接 finish 回主页）。
     val navController = rememberNavController()
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = backStackEntry?.destination?.route
     val scrollBehavior = MiuixScrollBehavior()
+
+    // 系统返回键让 NavHost 弹栈后，把底栏选中态同步回来（否则页面回到首页、Tab 还停在原处）
+    LaunchedEffect(currentRoute) {
+        val idx = TAB_ROUTES.indexOf(currentRoute)
+        if (idx >= 0 && idx != selectedIndex()) onTabSelected(idx)
+    }
 
     // 外部 Tab 状态（XML 底栏 / 玻璃胶囊）变化 → 导航到对应 Tab（launchSingleTop，
     // 不会往栈里堆重复页面）
@@ -725,11 +733,38 @@ private fun SettingsTab(padding: PaddingValues, model: MiuixModel, actions: Miui
         item { SmallTitle("服务") }
         item {
             Card(modifier = Modifier.sectionCard()) {
-                SwitchRow(
-                    title = "使用 root 执行",
-                    summary = model.rootStatus,
-                    checked = model.useRoot,
-                    onCheckedChange = actions.onToggleRoot,
+                // 授权器（无 / Root / Shizuku，默认无）——InstallerX 同款下拉
+                WindowSpinnerPreference(
+                    title = "授权器",
+                    items = listOf(
+                        DropdownItem(text = "无", summary = "以应用自身权限执行"),
+                        DropdownItem(text = "Root", summary = "su 执行"),
+                        DropdownItem(text = "Shizuku", summary = "Shizuku 用户服务执行"),
+                    ),
+                    selectedIndex = when (model.authorizer) {
+                        "root" -> 1
+                        "shizuku" -> 2
+                        else -> 0
+                    },
+                    onSelectedIndexChange = { index ->
+                        actions.onSetAuthorizer(
+                            when (index) {
+                                1 -> "root"
+                                2 -> "shizuku"
+                                else -> "none"
+                            }
+                        )
+                    },
+                )
+                BasicComponent(
+                    title = "授权状态",
+                    summary = model.authorizerStatus,
+                    onClick = actions.onRefreshAuthorizerStatus,
+                    endActions = {
+                        if (model.authorizer == "shizuku" && model.authorizerNeedsGrant) {
+                            LinkTextButton(text = "去授权", onClick = actions.onAuthorizeShizuku)
+                        }
+                    },
                 )
                 SwitchRow(
                     title = "开机后自动启动服务",

@@ -16,6 +16,8 @@ class HydroLinkApp : Application() {
         super.onCreate()
         // Initialize data manager
         DataManager.get(this)
+        // 授权器（Shizuku 需要 Application Context 判断是否安装）
+        com.hydro.link.server.util.Authorizer.init(this)
         // Create notification channel
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(

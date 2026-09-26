@@ -44,7 +44,12 @@ class MiuixModel {
     // 设置 Tab
     var appName by mutableStateOf("")
     var rootStatus by mutableStateOf("")
-    var useRoot by mutableStateOf(false)
+    /** 命令授权器：none / root / shizuku。 */
+    var authorizer by mutableStateOf("none")
+    /** 授权器状态行文本。 */
+    var authorizerStatus by mutableStateOf("")
+    /** 授权器选了 Shizuku 但还没授权（决定是否显示「去授权」）。 */
+    var authorizerNeedsGrant by mutableStateOf(false)
     var bootStart by mutableStateOf(false)
     var liquidGlass by mutableStateOf(false)
     var miuix by mutableStateOf(false)
@@ -85,7 +90,12 @@ class MiuixActions(
     val onPluginOpenWebUi: (PluginRow) -> Unit,
     val onPluginUninstall: (PluginRow) -> Unit,
     val onPluginDetails: (PluginRow) -> Unit,
-    val onToggleRoot: (Boolean) -> Unit,
+    /** 设置授权器：none / root / shizuku。 */
+    val onSetAuthorizer: (String) -> Unit,
+    /** Shizuku 去授权（请求权限 + 绑定用户服务）。 */
+    val onAuthorizeShizuku: () -> Unit,
+    /** 仅刷新授权状态（不请求权限）。 */
+    val onRefreshAuthorizerStatus: () -> Unit,
     val onToggleBoot: (Boolean) -> Unit,
     val onToggleGlass: (Boolean) -> Unit,
     val onToggleMiuix: (Boolean) -> Unit,

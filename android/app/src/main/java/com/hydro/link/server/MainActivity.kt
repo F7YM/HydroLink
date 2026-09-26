@@ -44,7 +44,7 @@ import com.hydro.link.server.ui.miuix.MiuixModel
 import com.hydro.link.server.ui.miuix.Tone
 import com.hydro.link.server.util.DataManager
 import com.hydro.link.server.util.NetworkUtil
-import com.hydro.link.server.util.RootShell
+import com.hydro.link.server.util.Authorizer
 
 class MainActivity : AppCompatActivity() {
 
@@ -177,25 +177,14 @@ class MainActivity : AppCompatActivity() {
         onPluginOpenWebUi = { PluginUi.openWebUi(this, it.id, it.name) },
         onPluginUninstall = { confirmUninstallPlugin(it.id, it.name) },
         onPluginDetails = { PluginUi.showDetails(this, it) },
-        onToggleRoot = { forceSwitch(switchRoot, it); refreshData() },
+        onSetAuthorizer = { id -> setAuthorizer(id) },
+        onAuthorizeShizuku = { requestShizukuAuthorization() },
+        onRefreshAuthorizerStatus = { updateAuthorizerStatus() },
         onToggleBoot = { forceSwitch(switchBoot, it); refreshData() },
         onToggleGlass = { forceSwitch(switchLiquidGlass, it); refreshData() },
         onToggleMiuix = { setMiuix(it) },
-        onRootConfirmDismiss = {
-            miuixModel.rootConfirm = false
-            // 取消时把 XML 开关拨回关：它已被 performClick 拨成开，不回退的话
-            // 下次点「使用 root 执行」时 forceSwitch 发现已是开、不再触发确认框
-            if (::switchRoot.isInitialized) {
-                settingsSwitchSyncing = true
-                switchRoot.isChecked = false
-                settingsSwitchSyncing = false
-            }
-            refreshData()
-        },
-        onRootConfirmAccept = {
-            miuixModel.rootConfirm = false
-            enableRootWithProbe()
-        },
+        onRootConfirmDismiss = { miuixModel.rootConfirm = false },
+        onRootConfirmAccept = { miuixModel.rootConfirm = false },
     )
 
     private val refreshRunnable = object : Runnable {
@@ -344,7 +333,7 @@ class MainActivity : AppCompatActivity() {
         miuixModel.appName = tvAppName.text.toString()
 
         val cfg = dataManager.loadConfig()
-        switchRoot.isChecked = cfg.useRoot
+        switchRoot.isChecked = cfg.authorizer == "root"
         switchBoot.isChecked = cfg.bootStart
         switchLiquidGlass.isChecked = cfg.liquidGlass
         glassOn.value = cfg.liquidGlass
@@ -380,7 +369,7 @@ class MainActivity : AppCompatActivity() {
                 R.id.nav_settings -> {
                     showTab(tabSettings)
                     fabAddCommand.hide()
-                    updateRootStatus() // 首次进入先探一次 root
+                    updateAuthorizerStatus() // 首次进入先探一次 root
                     true
                 }
                 else -> false
@@ -429,35 +418,9 @@ class MainActivity : AppCompatActivity() {
         }
         findViewById<View>(R.id.btnRefreshPluginsTab).setOnClickListener { refreshPlugins() }
 
-        // 设置 Tab：root 执行（开启前警告；root 不可用时由 updateRootStatus 拨回）
-        switchRoot.setOnCheckedChangeListener { switch, isChecked ->
-            if (settingsSwitchSyncing) return@setOnCheckedChangeListener
-            if (isChecked) {
-                if (miuixOn.value) {
-                    // miuix 模式：确认框换成 WindowDialog（状态在模型里，MiuixApp 渲染）
-                    miuixModel.rootConfirm = true
-                } else {
-                    MaterialAlertDialogBuilder(this)
-                        .setTitle("使用 root 执行快速命令？")
-                        .setMessage(
-                            "使用 root 权限执行快速命令有安全风险，请自行检查命令。\n\n" +
-                                "开启后 quick command 与插件请求的命令都会以 root 身份运行，请只安装可信插件。"
-                        )
-                        .setNegativeButton("取消") { _, _ ->
-                            settingsSwitchSyncing = true
-                            switch.isChecked = false
-                            settingsSwitchSyncing = false
-                        }
-                        .setPositiveButton("仍然开启") { _, _ -> enableRootWithProbe() }
-                        .show()
-                }
-            } else {
-                val cfg = dataManager.loadConfig()
-                cfg.useRoot = false
-                dataManager.saveConfig(cfg)
-                updateRootStatus()
-            }
-        }
+        // 设置 Tab：授权器（无 / Root / Shizuku，默认无；Compose 界面里的下拉会调 setAuthorizer）
+        // XML 里的 root 开关不再作为入口，只保留为旧配置的兼容状态显示
+        switchRoot.setOnCheckedChangeListener { _, _ -> }
 
         // 设置 Tab：开机自启（默认关；打开后重启由 BootReceiver 拉起服务）
         switchBoot.setOnCheckedChangeListener { _, isChecked ->
@@ -541,19 +504,7 @@ class MainActivity : AppCompatActivity() {
      * 图标明暗同时切换（暗色页面用浅色图标）。非 edge-to-edge，靠 window 颜色对齐。
      */
     private fun applyStatusBarMode() {
-        val night = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
-            Configuration.UI_MODE_NIGHT_YES
-        val color = when {
-            miuixOn.value && !night -> 0xFFF7F7F7.toInt()
-            miuixOn.value -> 0xFF000000.toInt()
-            else -> ContextCompat.getColor(this, R.color.md_theme_surfaceContainer)
-        }
-        window.statusBarColor = color
-        window.navigationBarColor = color
-        WindowInsetsControllerCompat(window, window.decorView).apply {
-            isAppearanceLightStatusBars = !night
-            isAppearanceLightNavigationBars = !night
-        }
+        com.hydro.link.server.ui.SystemBars.apply(this, miuixOn.value)
     }
 
     /** MD3 页面里实际滚动的容器：安全区的「页面下固定空白」垫在它们尾部。 */
@@ -734,7 +685,7 @@ class MainActivity : AppCompatActivity() {
         if (::tabPlugins.isInitialized && tabPlugins.visibility == View.VISIBLE) refreshPlugins()
 
         // 设置 Tab（root 探测起进程，只在可见时刷）
-        if (::tabSettings.isInitialized && tabSettings.visibility == View.VISIBLE) updateRootStatus()
+        if (::tabSettings.isInitialized && tabSettings.visibility == View.VISIBLE) updateAuthorizerStatus()
 
         // Commands
         val commands = dataManager.loadCommands()
@@ -763,7 +714,7 @@ class MainActivity : AppCompatActivity() {
         m.commands = commands
         m.serverVersion = BuildConfig.VERSION_NAME
         val cfg = dataManager.loadConfig()
-        m.useRoot = cfg.useRoot
+        m.authorizer = cfg.authorizer
         m.bootStart = cfg.bootStart
         m.liquidGlass = cfg.liquidGlass
         m.miuix = cfg.miuix
@@ -823,27 +774,46 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * root 探测要起进程，放后台线程；root 不可用时把开关拨回去并落盘。
-     * 由设置 Tab 的 refreshData 分支与开关回调调用。
+     * 授权器状态探测（Root 探测要起进程 / Shizuku 要查绑定，放后台线程）。
+     * 由设置 Tab 的 refreshData 分支与切换授权器时调用。
      */
-    private fun updateRootStatus() {
+    private fun updateAuthorizerStatus() {
+        val kind = Authorizer.kindOf(dataManager.loadConfig().authorizer)
         Thread {
-            val ok = RootShell.isAvailable()
+            val status = Authorizer.statusText(kind)
+            val needsGrant = kind == Authorizer.Kind.SHIZUKU &&
+                Authorizer.shizukuAlive() && !Authorizer.shizukuGranted()
             handler.post {
-                if (!::tvRootStatus.isInitialized) return@post
-                tvRootStatus.text = if (ok) "root 已就绪" else "root 不可用"
-                miuixModel.rootStatus = tvRootStatus.text.toString()
-                val cfg = dataManager.loadConfig()
-                if (!ok && cfg.useRoot) {
-                    cfg.useRoot = false
-                    dataManager.saveConfig(cfg)
-                    settingsSwitchSyncing = true
-                    switchRoot.isChecked = false
-                    settingsSwitchSyncing = false
-                }
-                miuixModel.useRoot = cfg.useRoot
+                if (::tvRootStatus.isInitialized) tvRootStatus.text = status
+                miuixModel.rootStatus = status
+                miuixModel.authorizerStatus = status
+                miuixModel.authorizerNeedsGrant = needsGrant
             }
         }.start()
+    }
+
+    /** 切换授权器：落盘（兼容旧的 use_root 字段）并刷新状态。 */
+    private fun setAuthorizer(id: String) {
+        val kind = Authorizer.kindOf(id)
+        val cfg = dataManager.loadConfig()
+        cfg.authorizer = kind.id
+        cfg.useRoot = kind == Authorizer.Kind.ROOT
+        dataManager.saveConfig(cfg)
+        if (::switchRoot.isInitialized) {
+            settingsSwitchSyncing = true
+            switchRoot.isChecked = kind == Authorizer.Kind.ROOT
+            settingsSwitchSyncing = false
+        }
+        refreshData()
+        updateAuthorizerStatus()
+        if (kind == Authorizer.Kind.SHIZUKU) requestShizukuAuthorization()
+    }
+
+    /** Shizuku 去授权：请求权限 + 绑定用户服务，随后刷新状态。 */
+    private fun requestShizukuAuthorization() {
+        Authorizer.probe(Authorizer.Kind.SHIZUKU, this)
+        updateAuthorizerStatus()
+        handler.postDelayed({ updateAuthorizerStatus() }, 1200)
     }
 
     /** 刷新插件列表与摘要（worker 在线状态来自 bridge，能直接看出插件跑没跑起来）。 */
@@ -870,22 +840,6 @@ class MainActivity : AppCompatActivity() {
             notifyUser(tabPlugins, message)
             refreshPlugins()
         }
-    }
-
-    /** root 开启确认后的探测（MD3 弹窗与 miuix WindowDialog 共用）。 */
-    private fun enableRootWithProbe() {
-        Thread {
-            val ok = RootShell.isAvailable()
-            handler.post {
-                val cfg = dataManager.loadConfig()
-                cfg.useRoot = ok
-                dataManager.saveConfig(cfg)
-                settingsSwitchSyncing = true
-                switchRoot.isChecked = ok
-                settingsSwitchSyncing = false
-                updateRootStatus()
-            }
-        }.start()
     }
 
     private fun deleteDevice(device: TrustedDevice) {
