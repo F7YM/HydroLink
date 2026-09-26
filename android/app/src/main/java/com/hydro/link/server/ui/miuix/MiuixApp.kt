@@ -23,10 +23,13 @@ import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -229,6 +232,7 @@ fun MiuixApp(
     // 对话框（WindowDialog 是窗口级弹窗，不需要 Scaffold 包裹）
     CmdEditDialog(model, actions)
     RootConfirmDialog(model, actions)
+    PluginConfirmDialog(model)
 }
 
 private const val ROUTE_STATUS = "home"
@@ -394,12 +398,11 @@ private fun StatCard(
             horizontalAlignment = Alignment.Start,
         ) {
             Text(
+                // 手表名可能很长：自动换行（多行完整显示，不截断）
                 text = title,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Medium,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = value,
@@ -587,6 +590,32 @@ private fun DevicesTab(padding: PaddingValues, model: MiuixModel, actions: Miuix
         contentPadding = listPadding(padding),
         overscrollEffect = null,
     ) {
+        // 配对请求（弹窗被划掉时的兜底入口：允许 / 拒绝都在这）
+        if (model.pairs.isNotEmpty()) {
+            item { SmallTitle("配对请求") }
+            item {
+                Card(modifier = Modifier.sectionCard()) {
+                    model.pairs.forEach { pair ->
+                        ListRow(
+                            title = pair.deviceName.ifBlank { pair.deviceId.take(16) },
+                            summary = "请求配对 · ${pair.deviceId.take(16)}...",
+                            actions = {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    RowActionButton(
+                                        icon = R.drawable.ic_check,
+                                        contentDescription = "允许",
+                                    ) { actions.onAcceptPair(pair) }
+                                    RowActionButton(
+                                        icon = R.drawable.ic_close,
+                                        contentDescription = "拒绝",
+                                    ) { actions.onRejectPair(pair) }
+                                }
+                            },
+                        )
+                    }
+                }
+            }
+        }
         item { SmallTitle("已配对设备") }
         if (model.devices.isEmpty()) {
             item { EmptyHint(stringResource(R.string.no_devices)) }
@@ -693,17 +722,21 @@ private fun PluginsTab(padding: PaddingValues, model: MiuixModel, actions: Miuix
                     model.plugins.forEach { row ->
                         BasicComponent(
                             title = row.name,
-                            summary = row.pkgLine,
+                            // 副标题只留版本号：作者/包名/运行时等在详情弹窗里看
+                            summary = if (row.version.isBlank()) null else "v${row.version}",
                             onClick = { actions.onPluginDetails(row) },
                             endActions = {
-                                RowActionButton(
-                                    icon = R.drawable.ic_plugin_ui,
-                                    contentDescription = "界面",
-                                ) { actions.onPluginOpenWebUi(row) }
-                                RowActionButton(
-                                    icon = R.drawable.ic_plugin_delete,
-                                    contentDescription = "卸载",
-                                ) { actions.onPluginUninstall(row) }
+                                // 两个动作钮之间要留 8dp 间距（命令行是这么排的，这里漏了）
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    RowActionButton(
+                                        icon = R.drawable.ic_plugin_ui,
+                                        contentDescription = "界面",
+                                    ) { actions.onPluginOpenWebUi(row) }
+                                    RowActionButton(
+                                        icon = R.drawable.ic_plugin_delete,
+                                        contentDescription = "卸载",
+                                    ) { actions.onPluginUninstall(row) }
+                                }
                             },
                         )
                     }
@@ -854,12 +887,17 @@ private fun EmptyHint(text: String) {
 /** 新建 / 编辑命令（WindowDialog + miuix TextField，替代 MD3 的 XML 弹窗）。 */
 @Composable
 private fun CmdEditDialog(model: MiuixModel, actions: MiuixActions) {
-    val dialog = model.cmdDialog ?: return
+    // 退出动画：取消时不能立刻把 state 置空拆掉组合（那样没有退场动画）——
+    // 保留最后一份内容，让 WindowDialog 按 show=false 播完退场（同 RootConfirmDialog）
+    val current = model.cmdDialog
+    var last by remember { mutableStateOf<CmdEdit?>(null) }
+    if (current != null) last = current
+    val dialog = current ?: last ?: return
     var name by remember(dialog) { mutableStateOf(dialog.name) }
     var command by remember(dialog) { mutableStateOf(dialog.command) }
 
     WindowDialog(
-        show = true,
+        show = current != null,
         onDismissRequest = { model.cmdDialog = null },
         title = if (dialog.editIndex == null) "新建快捷命令" else "编辑快捷命令",
         content = {
@@ -922,6 +960,63 @@ private fun RootConfirmDialog(model: MiuixModel, actions: MiuixActions) {
                         modifier = Modifier.weight(1f),
                         text = "仍然开启",
                         onClick = actions.onRootConfirmAccept,
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                    )
+                }
+            }
+        },
+    )
+}
+
+/**
+ * 插件的安装确认 / 卸载确认 / 卡片详情（WindowDialog）。
+ *
+ * 同一份文案由 [com.hydro.link.server.ui.PluginUi] 维护，MD3 引擎走
+ * MaterialAlertDialogBuilder、miuix 引擎经 PluginUi 的钩子投到这里——两个引擎
+ * 都不能出现对方风格的弹窗。消息可能很长（安装确认要列权限），给它限高可滚动。
+ */
+@Composable
+private fun PluginConfirmDialog(model: MiuixModel) {
+    // 退出动画同 CmdEditDialog：置空 state 不拆组合，让 WindowDialog 按 show=false 退场
+    val current = model.pluginDialog
+    var last by remember { mutableStateOf<ConfirmDialog?>(null) }
+    if (current != null) last = current
+    val dialog = current ?: last ?: return
+    WindowDialog(
+        show = current != null,
+        onDismissRequest = { model.pluginDialog = null },
+        title = dialog.title,
+        content = {
+            Column {
+                Text(
+                    text = dialog.message,
+                    color = MiuixTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .heightIn(max = 320.dp)
+                        .verticalScroll(rememberScrollState()),
+                )
+                Spacer(Modifier.height(24.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val negative = dialog.negative
+                    if (negative != null) {
+                        TextButton(
+                            modifier = Modifier.weight(1f),
+                            text = negative,
+                            onClick = {
+                                val reject = dialog.onNegative
+                                model.pluginDialog = null
+                                reject?.invoke()
+                            },
+                        )
+                    }
+                    TextButton(
+                        modifier = Modifier.weight(1f),
+                        text = dialog.positive,
+                        onClick = {
+                            val confirm = dialog.onConfirm
+                            model.pluginDialog = null
+                            confirm?.invoke()
+                        },
                         colors = ButtonDefaults.textButtonColorsPrimary(),
                     )
                 }

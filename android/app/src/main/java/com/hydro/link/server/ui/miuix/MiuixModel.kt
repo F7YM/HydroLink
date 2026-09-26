@@ -60,7 +60,27 @@ class MiuixModel {
     // 提示一律走系统 Toast——Snackbar 会被底部 Tab 栏挡住）
     var cmdDialog by mutableStateOf<CmdEdit?>(null)
     var rootConfirm by mutableStateOf(false)
+    /**
+     * 插件相关的确认/详情弹窗（安装确认、卸载确认、卡片详情）——由 [com.hydro.link.server.ui.
+     * PluginUi] 的 miuix 引擎钩子投递进来，用 WindowDialog 渲染，替代 MD3 的
+     * MaterialAlertDialogBuilder（否则 miuix 界面里会冒出 MD 风格弹窗）。
+     */
+    var pluginDialog by mutableStateOf<ConfirmDialog?>(null)
 }
+
+/**
+ * 通用确认弹窗内容，字段与 MaterialAlertDialogBuilder 的 title / message /
+ * 正负按钮一一对应（negative 为 null = 只有一个「知道了」按钮）。
+ */
+data class ConfirmDialog(
+    val title: String,
+    val message: String,
+    val positive: String,
+    val negative: String? = null,
+    val onConfirm: (() -> Unit)? = null,
+    /** 点否定钮（如配对的「拒绝」）；单纯关窗/返回键不触发。 */
+    val onNegative: (() -> Unit)? = null,
+)
 
 /** 状态文案的语义色（成功/警告沿用应用自己的语义色，miuix 色板没有 success）。 */
 enum class Tone { Outline, Warning, Success, Error }

@@ -66,6 +66,17 @@ class DataManager private constructor(private val context: Context) {
         }
     }
 
+    /**
+     * 忘掉一次拒绝。拒绝**不是永久的**：设备下次再发起配对就重新弹窗问用户，
+     * 不该被历史一次「拒绝」永久挡在门外（与桌面端 server.go 的 RemoveRejected 同策略）。
+     */
+    fun removeRejected(deviceId: String) {
+        val list: MutableList<String> = loadJson(rejectedDevicesFile) { mutableListOf() }
+        if (list.remove(deviceId)) {
+            saveJson(rejectedDevicesFile, list)
+        }
+    }
+
     // ---- Pending Pairs ----
     fun loadPendingPairs(): MutableList<PairRequest> {
         return loadJson(pendingPairFile) { mutableListOf() }

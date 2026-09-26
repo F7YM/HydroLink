@@ -34,6 +34,7 @@ import com.hydro.link.server.model.TrustedDevice
 import com.hydro.link.server.service.LockAccessibilityService
 import com.hydro.link.server.service.ServerService
 import com.hydro.link.server.ui.CommandAdapter
+import com.hydro.link.server.ui.EngineDialog
 import com.hydro.link.server.ui.GlassTabHost
 import com.hydro.link.server.ui.PluginAdapter
 import com.hydro.link.server.ui.PluginUi
@@ -187,6 +188,39 @@ class MainActivity : AppCompatActivity() {
         onRootConfirmAccept = { miuixModel.rootConfirm = false },
     )
 
+    /**
+     * 插件确认/详情弹窗的 miuix 出口：miuix 引擎下把请求投给 MiuixModel（由
+     * MiuixApp 的 WindowDialog 渲染），MD3 引擎返回 false —— PluginUi 收到 false
+     * 才继续用 MaterialAlertDialogBuilder。两个引擎各画各的弹窗，不能串味。
+     */
+    private val pluginDialogHook:
+        (
+            title: String,
+            message: String,
+            positive: String,
+            negative: String?,
+            onConfirm: (() -> Unit)?,
+            onNegative: (() -> Unit)?,
+        ) -> Boolean =
+        { title, message, positive, negative, onConfirm, onNegative ->
+            if (miuixOn.value) {
+                miuixModel.pluginDialog = com.hydro.link.server.ui.miuix.ConfirmDialog(
+                    title = title,
+                    message = message,
+                    positive = positive,
+                    negative = negative,
+                    onConfirm = onConfirm,
+                    onNegative = onNegative,
+                )
+                true
+            } else {
+                false
+            }
+        }
+
+    /** 本会话已经弹过配对授权框的设备 id（弹窗要每 2 秒的刷新里只弹一次）。 */
+    private val promptedPairs = mutableSetOf<String>()
+
     private val refreshRunnable = object : Runnable {
         override fun run() {
             refreshData()
@@ -236,6 +270,8 @@ class MainActivity : AppCompatActivity() {
         setupBottomNav()
         setupListeners()
         setupGlassHost()
+        // 插件弹窗按引擎分流：miuix → MiuixModel（WindowDialog），MD3 → 默认 Material 弹窗
+        EngineDialog.window = pluginDialogHook
         // Auto-start the server service by default when entering the app.
         if (ServerService.instance == null) {
             ServerService.start(this, port)
@@ -661,6 +697,27 @@ class MainActivity : AppCompatActivity() {
 
         // Pair requests
         val pairs = dataManager.loadPendingPairs()
+        // 请求没了（已处理）就把 id 放开，设备重新发起时还能再弹
+        promptedPairs.retainAll(pairs.map { it.deviceId }.toSet())
+        // 新到的配对请求弹授权框：MD3 走 Material、miuix 走 WindowDialog（钩子分流）。
+        // 同时列表里也留着——弹窗被返回键划掉还能在设备页处理。没 resumed 时不弹
+        // （窗口没焦点会 BadToken），下一轮刷新会补上。
+        if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+            pairs.forEach { pair ->
+                if (promptedPairs.add(pair.deviceId)) {
+                    EngineDialog.confirm(
+                        this,
+                        "配对请求",
+                        "「${pair.deviceName.ifBlank { pair.deviceId.take(8) }}」请求与本机配对。\n" +
+                            "允许后该设备才能访问本机服务与插件。",
+                        "允许",
+                        "拒绝",
+                        onConfirm = { respondPair(pair, "accept") },
+                        onNegative = { respondPair(pair, "reject") },
+                    )
+                }
+            }
+        }
         if (pairs.isEmpty()) {
             tvNoRequests.visibility = View.VISIBLE
             rvPairRequests.visibility = View.GONE
@@ -751,10 +808,10 @@ class MainActivity : AppCompatActivity() {
         if (status.watchNodes.isEmpty()) {
             tvInterconnectStatus.text = getString(R.string.interconnect_no_watch)
             tvInterconnectStatus.setTextColor(getColor(R.color.md_theme_outline))
-            tvInterconnectDetail.text = "等待手表连接..."
+            tvInterconnectDetail.text = "未连接手表"
             m.interconnectText = getString(R.string.interconnect_no_watch)
             m.interconnectTone = Tone.Outline
-            m.interconnectDetail = "等待手表连接..."
+            m.interconnectDetail = "未连接手表"
             return
         }
 
@@ -768,7 +825,7 @@ class MainActivity : AppCompatActivity() {
         // 已连接就只显示设备名（不再堆"已授权/监听中"这类实现细节）
         tvInterconnectDetail.text = node.displayName
         if (!node.permissionGranted) {
-            tvInterconnectDetail.text = "${node.displayName} · 等待授权..."
+            tvInterconnectDetail.text = "${node.displayName}（未授权）"
         }
         m.interconnectDetail = tvInterconnectDetail.text.toString()
     }
@@ -873,16 +930,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun deleteCommand(index: Int) {
-        // 二次确认，别再直接删（也去掉「已删除」toast）
-        MaterialAlertDialogBuilder(this)
-            .setTitle("删除快速命令")
-            .setMessage("确定删除这条快速命令？")
-            .setNegativeButton(R.string.cancel, null)
-            .setPositiveButton(R.string.delete) { _, _ ->
-                dataManager.removeCommand(index)
-                refreshData()
-            }
-            .show()
+        // 二次确认，别再直接删（也去掉「已删除」toast）；弹窗按引擎画，miuix 下不是 MD 框
+        EngineDialog.confirm(
+            this,
+            "删除快速命令",
+            "确定删除这条快速命令？",
+            getString(R.string.delete),
+            getString(R.string.cancel),
+        ) {
+            dataManager.removeCommand(index)
+            refreshData()
+        }
     }
 
     /**
@@ -942,6 +1000,13 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         handler.removeCallbacks(refreshRunnable)
+    }
+
+    override fun onDestroy() {
+        // 弹窗钩子指向本实例的 miuixModel，销毁时摘掉，免得别的入口往一个
+        // 已经不存在的模型里投弹窗（点了没反应）
+        if (EngineDialog.window === pluginDialogHook) EngineDialog.window = null
+        super.onDestroy()
     }
 
     /**

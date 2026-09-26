@@ -346,6 +346,31 @@ private fun HomeTab(
 @Composable
 private fun DevicesTab(padding: PaddingValues, model: MiuixModel, actions: MiuixActions) {
     MdPage(padding) {
+        // 配对请求（弹窗被划掉时的兜底入口：允许 / 拒绝都在这）
+        if (model.pairs.isNotEmpty()) {
+            item {
+                MdSegmentedColumn(title = "配对请求") {
+                    model.pairs.forEach { pair ->
+                        item {
+                            MdBaseWidget(
+                                title = pair.deviceName.ifBlank { pair.deviceId.take(16) },
+                                description = "请求配对 · ${pair.deviceId.take(16)}...",
+                                trailing = {
+                                    Row {
+                                        MdRowIconButton(R.drawable.ic_check, "允许") {
+                                            actions.onAcceptPair(pair)
+                                        }
+                                        MdRowIconButton(R.drawable.ic_close, "拒绝") {
+                                            actions.onRejectPair(pair)
+                                        }
+                                    }
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+        }
         item {
             MdSegmentedColumn(title = "已配对设备") {
                 if (model.devices.isEmpty()) {
@@ -427,23 +452,18 @@ private fun PluginsTab(padding: PaddingValues, model: MiuixModel, actions: Miuix
                     item {
                         MdBaseWidget(
                             title = plugin.name,
-                            description = buildString {
-                                append(plugin.author)
-                                append(" · ")
-                                append(plugin.version)
-                                append(" · ")
-                                append(plugin.runtime)
-                                if (plugin.workerOnline) append(" · 在线")
-                            },
+                            // 与 miuix 同一格式：副标题只留版本号，其余进详情
+                            description = if (plugin.version.isBlank()) null
+                            else "v${plugin.version}",
+                            // 点卡片看详情（与 miuix 一致）；原先是个复用了刷新图标的
+                            // 「详情」按钮，图标与上面的刷新撞脸、看不出是干嘛的
+                            onClick = { actions.onPluginDetails(plugin) },
                             trailing = {
                                 Row {
                                     if (plugin.hasWeb) {
                                         MdRowIconButton(R.drawable.ic_plugin_ui, "打开界面") {
                                             actions.onPluginOpenWebUi(plugin)
                                         }
-                                    }
-                                    MdRowIconButton(R.drawable.ic_plugin_refresh, "详情") {
-                                        actions.onPluginDetails(plugin)
                                     }
                                     MdRowIconButton(R.drawable.ic_plugin_delete, "卸载") {
                                         actions.onPluginUninstall(plugin)

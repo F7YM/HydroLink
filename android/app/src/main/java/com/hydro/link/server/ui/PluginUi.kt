@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.hydro.link.server.R
 import com.hydro.link.server.hydrokit.Manifest
 import com.hydro.link.server.server.HydroHttpServer
@@ -139,12 +138,14 @@ object PluginUi {
             append('\n')
             append("插件代码以本应用同等权限运行，可访问本机服务与数据目录，请只安装可信来源的插件。")
         }
-        MaterialAlertDialogBuilder(activity)
-            .setTitle("安装 ${m.pkg.name.ifBlank { m.pkg.id }}")
-            .setMessage(msg)
-            .setNegativeButton("取消", null)
-            .setPositiveButton("安装") { _, _ -> onConfirm() }
-            .show()
+        EngineDialog.confirm(
+            activity,
+            "安装 ${m.pkg.name.ifBlank { m.pkg.id }}",
+            msg,
+            "安装",
+            "取消",
+            onConfirm,
+        )
     }
 
     /** 卸载插件（服务端存储保留，与桌面一致）。回调在主线程，参数是提示语。 */
@@ -167,12 +168,13 @@ object PluginUi {
 
     /** 卸载二次确认。 */
     fun confirmUninstall(activity: Activity, id: String, name: String, onResult: (String) -> Unit) {
-        MaterialAlertDialogBuilder(activity)
-            .setTitle("卸载 $name")
-            .setMessage("确定卸载「$name」吗？\n插件的服务端存储会保留，重装后设置还在。")
-            .setNegativeButton("取消", null)
-            .setPositiveButton("卸载") { _, _ -> uninstall(activity, id, name, onResult) }
-            .show()
+        EngineDialog.confirm(
+            activity,
+            "卸载 $name",
+            "确定卸载「$name」吗？\n插件的服务端存储会保留，重装后设置还在。",
+            "卸载",
+            "取消",
+        ) { uninstall(activity, id, name, onResult) }
     }
 
     /** 点插件卡片时的详情弹窗：列表里放不下的信息都在这。 */
@@ -187,11 +189,7 @@ object PluginUi {
             append("worker：").append(if (row.workerOnline) "在线" else "离线（首次请求时自动拉起）")
             if (row.error != null) append('\n').append("清单异常：").append(row.error)
         }
-        MaterialAlertDialogBuilder(activity)
-            .setTitle(row.name)
-            .setMessage(msg)
-            .setPositiveButton("知道了", null)
-            .show()
+        EngineDialog.confirm(activity, row.name, msg, "知道了", null, null)
     }
 
     /** 打开插件 WebUI（同源 WebView，插件无需为安卓写第二套页面）。 */

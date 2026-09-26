@@ -506,10 +506,9 @@ class HydroHttpServer(
             return jsonResp(mapOf("status" to "error", "message" to "Invalid device_id"), Response.Status.BAD_REQUEST)
         }
 
-        // Check if rejected
-        if (dataManager.isRejected(deviceId)) {
-            return jsonResp(mapOf("status" to "rejected", "message" to "Device was rejected"))
-        }
+        // 拒绝不是永久的：新的配对请求先把历史拒绝清掉，重新弹窗问用户
+        // （与桌面端 handlePairRequest 的 RemoveRejected 同一策略）
+        dataManager.removeRejected(deviceId)
 
         // Check if already trusted
         if (dataManager.isTrusted(deviceId)) {
