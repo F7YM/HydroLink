@@ -95,12 +95,17 @@ dependencies {
     // MD3 界面引擎（Compose Material3，和 InstallerX 同一套组件：ListItem/Switch/
     // SegmentedColumn/LargeFlexibleTopAppBar）
     implementation 'org.jetbrains.compose.material3:material3:1.12.0-alpha03'
+    // 动态配色：Expressive 2025 规格 + Tonal Spot 调色板（InstallerX 同款 materialkolor）
+    implementation 'com.materialkolor:material-kolor:5.0.1'
 
     // miuix（MIUI/HyperOS 风格 Compose 组件库，Apache-2.0）：设置里的开关控制启用；
     // 刻意不加 miuix-blur —— 它要 minSdk 33，本项目 minSdk 24
     implementation 'top.yukonga.miuix.kmp:miuix-ui-android:0.9.4'
     // WindowSpinnerPreference（UI 引擎下拉，InstallerX 同款设置组件）
     implementation 'top.yukonga.miuix.kmp:miuix-preference-android:0.9.4'
+    // 悬浮底栏的玻璃/模糊（Apache-2.0 的 miuix blur；AAR 声明 minSdk 33，
+    // 用 manifest 的 overrideLibrary 兜住，运行时只在 API 33+ 启用，低版本退化为纯色胶囊）
+    implementation 'top.yukonga.miuix.kmp:miuix-blur-android:0.9.4'
     // XMS Wearable SDK for interconnect (included as AAR in libs/)
 
     // HydroKit 的协议/运行时/存储等纯逻辑放在 JVM 单测里跑（不依赖 Android API）

@@ -62,6 +62,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.hydro.link.server.R
+import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.BasicComponentColors
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -113,6 +114,7 @@ fun MiuixApp(
     tabLabels: List<CharSequence>,
     capsuleOn: Boolean,
     onTabSelected: (Int) -> Unit,
+    backdrop: top.yukonga.miuix.kmp.blur.LayerBackdrop?,
 ) {
     // 5 个 Tab 用 NavHost 管（真实返回栈 + 转场）；权限管理 / 运行日志是独立
     // Activity，走系统返回栈（返回键直接 finish 回主页）。
@@ -142,7 +144,8 @@ fun MiuixApp(
             )
         },
         bottomBar = {
-            // 玻璃胶囊在时由 GlassTabHost 渲染悬浮胶囊；否则用 miuix 底栏（InstallerX 同款）
+            // 悬浮胶囊由 GlassTabHost 覆盖渲染（要用整页背景层折射，不能画在采集层里）；
+            // 只有不开悬浮时才用引擎自己的底栏
             if (!capsuleOn) {
                 MiuixNavBar(tabLabels, selectedIndex, onTabSelected)
             }
@@ -183,7 +186,13 @@ fun MiuixApp(
         // 滚动行为接给各 Tab 的 LazyColumn（pageScroll() 读这个 Local）：列表滚动时
         // 顶栏大标题折叠。Tab 之间用淡入淡出转场。
         CompositionLocalProvider(LocalMiuixNestedScroll provides scrollBehavior.nestedScrollConnection) {
-            NavHost(
+            // 背景层只包内容（不含底栏），底栏才能拿它做模糊而不自引用
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
+            ) {
+                NavHost(
                 navController = navController,
                 startDestination = ROUTE_STATUS,
                 modifier = Modifier.fillMaxSize(),
@@ -204,6 +213,7 @@ fun MiuixApp(
                 composable(ROUTE_COMMANDS) { CommandsTab(padding, model, actions) }
                 composable(ROUTE_PLUGINS) { PluginsTab(padding, model, actions) }
                 composable(ROUTE_SETTINGS) { SettingsTab(padding, model, actions) }
+                }
             }
         }
     }

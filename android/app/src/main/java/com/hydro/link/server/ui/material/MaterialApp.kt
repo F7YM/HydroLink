@@ -22,17 +22,27 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ShortNavigationBar
+import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.hydro.link.server.R
+import com.hydro.link.server.ui.material.md3BlurBar
 import com.hydro.link.server.ui.miuix.MiuixActions
+import top.yukonga.miuix.kmp.blur.layerBackdrop
 import com.hydro.link.server.ui.miuix.MiuixModel
+
+/** 悬浮底栏时页面尾部额外留白（内容流到胶囊下面，末端可滚上来）。 */
+private val LocalMdExtraBottom = androidx.compose.runtime.compositionLocalOf { 0.dp }
 
 private val TAB_ICONS = listOf(
     R.drawable.ic_nav_status,
@@ -56,14 +66,17 @@ fun MaterialApp(
     tabLabels: List<CharSequence>,
     floatingBar: Boolean,
     onTabSelected: (Int) -> Unit,
+    backdrop: top.yukonga.miuix.kmp.blur.LayerBackdrop?,
 ) {
     HydroMaterialTheme {
         val index = selectedIndex().coerceIn(0, 4)
         val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
         Scaffold(
+            modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
             topBar = {
                 LargeFlexibleTopAppBar(
+                    modifier = Modifier.md3BlurBar(backdrop),
                     title = {
                         Text(
                             text = tabLabels.getOrNull(index)?.toString() ?: "HydroLink",
@@ -71,17 +84,20 @@ fun MaterialApp(
                         )
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        scrolledContainerColor = MaterialTheme.colorScheme.surface,
+                        containerColor = if (backdrop != null) Color.Transparent
+                        else MaterialTheme.colorScheme.surfaceContainer,
+                        scrolledContainerColor = if (backdrop != null) Color.Transparent
+                        else MaterialTheme.colorScheme.surfaceContainer,
                     ),
                     scrollBehavior = scrollBehavior,
                 )
             },
             bottomBar = {
+                // 悬浮胶囊由 GlassTabHost 覆盖渲染；只有不开悬浮时才用 ShortNavigationBar
                 if (!floatingBar) {
-                    NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                    ShortNavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
                         tabLabels.forEachIndexed { i, label ->
-                            NavigationBarItem(
+                            ShortNavigationBarItem(
                                 selected = index == i,
                                 onClick = { onTabSelected(i) },
                                 icon = {
@@ -104,17 +120,19 @@ fun MaterialApp(
                 }
             },
         ) { padding ->
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .nestedScroll(scrollBehavior.nestedScrollConnection)
-            ) {
-                when (index) {
-                    0 -> HomeTab(padding, model, actions, onTabSelected)
-                    1 -> DevicesTab(padding, model, actions)
-                    2 -> CommandsTab(padding, model, actions)
-                    3 -> PluginsTab(padding, model, actions)
-                    else -> SettingsTab(padding, model, actions)
+            CompositionLocalProvider(LocalMdExtraBottom provides if (floatingBar) 96.dp else 0.dp) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
+                ) {
+                    when (index) {
+                        0 -> HomeTab(padding, model, actions, onTabSelected)
+                        1 -> DevicesTab(padding, model, actions)
+                        2 -> CommandsTab(padding, model, actions)
+                        3 -> PluginsTab(padding, model, actions)
+                        else -> SettingsTab(padding, model, actions)
+                    }
                 }
             }
         }
@@ -124,13 +142,14 @@ fun MaterialApp(
 /** 页面列表：左右 16dp、顶/底接 Scaffold 让位再补 16dp（InstallerX 同间距）。 */
 @Composable
 private fun MdPage(padding: PaddingValues, content: LazyListScope.() -> Unit) {
+    val extraBottom = LocalMdExtraBottom.current
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = 16.dp,
             end = 16.dp,
             top = padding.calculateTopPadding() + 16.dp,
-            bottom = padding.calculateBottomPadding() + 16.dp,
+            bottom = padding.calculateBottomPadding() + 16.dp + extraBottom,
         ),
         content = content,
     )
@@ -259,7 +278,7 @@ private fun PluginsTab(padding: PaddingValues, model: MiuixModel, actions: Miuix
                 item {
                     MdBaseWidget(
                         title = model.pluginSummary,
-                        description = model.pluginMessage ?: "worker 在线状态实时显示",
+                        description = model.pluginMessage,
                         trailing = {
                             Row {
                                 MdRowIconButton(R.drawable.ic_plugin_refresh, "刷新") {
@@ -311,6 +330,35 @@ private fun PluginsTab(padding: PaddingValues, model: MiuixModel, actions: Miuix
 private fun SettingsTab(padding: PaddingValues, model: MiuixModel, actions: MiuixActions) {
     MdPage(padding) {
         item {
+            MdSegmentedColumn(title = "关于", contentPadding = PaddingValues(bottom = 8.dp)) {
+                item { MdBaseWidget(title = model.appName, description = "By Float11") }
+            }
+        }
+        item {
+            MdSegmentedColumn(
+                title = "服务",
+                contentPadding = PaddingValues(bottom = 8.dp),
+            ) {
+                item {
+                    MdSwitchWidget(
+                        title = "使用 root 执行",
+                        description = model.rootStatus,
+                        checked = model.useRoot,
+                        onCheckedChange = actions.onToggleRoot,
+                    )
+                }
+                item {
+                    MdSwitchWidget(
+                        title = "开机后自动启动服务",
+                        description = "重启手机后自动启动服务",
+                        checked = model.bootStart,
+                        onCheckedChange = actions.onToggleBoot,
+                    )
+                }
+            }
+        }
+        // 与 miuix 设置排序统一：主题风格放最下
+        item {
             MdSegmentedColumn(
                 title = "主题风格",
                 contentPadding = PaddingValues(bottom = 8.dp),
@@ -337,34 +385,6 @@ private fun SettingsTab(padding: PaddingValues, model: MiuixModel, actions: Miui
                         onCheckedChange = actions.onToggleGlass,
                     )
                 }
-            }
-        }
-        item {
-            MdSegmentedColumn(
-                title = "服务",
-                contentPadding = PaddingValues(bottom = 8.dp),
-            ) {
-                item {
-                    MdSwitchWidget(
-                        title = "使用 root 执行",
-                        description = model.rootStatus,
-                        checked = model.useRoot,
-                        onCheckedChange = actions.onToggleRoot,
-                    )
-                }
-                item {
-                    MdSwitchWidget(
-                        title = "开机后自动启动服务",
-                        description = "重启手机后自动启动服务",
-                        checked = model.bootStart,
-                        onCheckedChange = actions.onToggleBoot,
-                    )
-                }
-            }
-        }
-        item {
-            MdSegmentedColumn(title = "关于") {
-                item { MdBaseWidget(title = model.appName, description = "By Float11") }
             }
         }
     }
