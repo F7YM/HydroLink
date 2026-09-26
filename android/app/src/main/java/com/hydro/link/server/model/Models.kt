@@ -48,5 +48,6 @@ data class AppConfig(
     @SerializedName("accept_all") var acceptAll: Boolean = false,
     @SerializedName("use_root") var useRoot: Boolean = false,
     @SerializedName("boot_start") var bootStart: Boolean = false,
-    @SerializedName("liquid_glass") var liquidGlass: Boolean = false // Liquid Glass 底栏（默认关）
+    @SerializedName("liquid_glass") var liquidGlass: Boolean = false, // Liquid Glass 底栏（默认关）
+    @SerializedName("miuix") var miuix: Boolean = false // miuix 风格底栏（默认关）
 )

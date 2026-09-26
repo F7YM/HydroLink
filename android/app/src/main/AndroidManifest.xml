@@ -76,6 +76,20 @@
             android:theme="@style/Theme.HydroLinkServer" />
 
         <activity
+            android:name=".ui.PermissionsActivity"
+            android:exported="false"
+            android:label="权限管理"
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/Theme.HydroLinkServer" />
+
+        <activity
+            android:name=".ui.LogsActivity"
+            android:exported="false"
+            android:label="运行日志"
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/Theme.HydroLinkServer" />
+
+        <activity
             android:name=".ui.PluginWebUiActivity"
             android:exported="false"
             android:label="插件界面"
