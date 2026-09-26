@@ -340,7 +340,8 @@ internal fun LiquidFloatingBar(
     val combinedBackdrop = backdrop?.let { rememberCombinedBackdrop(it, tabsBackdrop) }
 
     val navBarBottomPadding = WindowInsets.navigationBars.only(WindowInsetsSides.Bottom).asPaddingValues().calculateBottomPadding()
-    val bottomPaddingValue = if (navBarBottomPadding != 0.dp) 8.dp + navBarBottomPadding else 36.dp
+    // 与 InstallerX FloatingBottomBar 一致：12dp + 导航栏 inset（旧的 36dp 兜底会把胶囊顶得偏高）
+    val bottomPaddingValue = 12.dp + navBarBottomPadding
 
     val tabsContent: @Composable RowScope.() -> Unit = {
         val tabScale = LocalIosTabScale.current

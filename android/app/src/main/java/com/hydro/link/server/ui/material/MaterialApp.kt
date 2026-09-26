@@ -1,7 +1,15 @@
 package com.hydro.link.server.ui.material
 
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,7 +21,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButton
@@ -22,26 +33,37 @@ import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ShortNavigationBar
 import androidx.compose.material3.ShortNavigationBarItem
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.hydro.link.server.R
-import com.hydro.link.server.ui.material.MdDropdownWidget
 import com.hydro.link.server.ui.material.md3BlurBar
 import com.hydro.link.server.ui.miuix.MiuixActions
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import com.hydro.link.server.ui.miuix.MiuixModel
+import com.hydro.link.server.ui.miuix.Tone
 
 /** 悬浮底栏时页面尾部额外留白（内容流到胶囊下面，末端可滚上来）。 */
 private val LocalMdExtraBottom = androidx.compose.runtime.compositionLocalOf { 0.dp }
@@ -71,6 +93,12 @@ fun MaterialApp(
     backdrop: top.yukonga.miuix.kmp.blur.LayerBackdrop?,
 ) {
     HydroMaterialTheme {
+        // 授权器二级页：系统返回先关页面（不退出设置 Tab、更不回桌面）
+        androidx.activity.compose.BackHandler(enabled = model.authorizerPage) {
+            model.authorizerPage = false
+        }
+        // 新建/编辑命令弹窗（此前 MD3 侧只设了 model.cmdDialog 却没人渲染 → FAB 点了没反应）
+        MdCmdEditDialog(model, actions)
         val index = selectedIndex().coerceIn(0, 4)
         val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
         Scaffold(
@@ -80,10 +108,38 @@ fun MaterialApp(
                 LargeFlexibleTopAppBar(
                     modifier = Modifier.md3BlurBar(backdrop),
                     title = {
-                        Text(
-                            text = tabLabels.getOrNull(index)?.toString() ?: "HydroLink",
-                            modifier = Modifier.padding(start = 12.dp),
-                        )
+                        androidx.compose.animation.AnimatedContent(
+                            targetState = model.authorizerPage,
+                            transitionSpec = {
+                                if (targetState) {
+                                    slideInHorizontally { it / 3 } + fadeIn() togetherWith
+                                        slideOutHorizontally { -it / 3 } + fadeOut()
+                                } else {
+                                    slideInHorizontally { -it / 3 } + fadeIn() togetherWith
+                                        slideOutHorizontally { it / 3 } + fadeOut()
+                                }
+                            },
+                            label = "topBarTitle",
+                        ) { page ->
+                            Text(
+                                text = if (page) {
+                                    "授权器"
+                                } else {
+                                    tabLabels.getOrNull(index)?.toString() ?: "HydroLink"
+                                },
+                                modifier = Modifier.padding(start = 12.dp),
+                            )
+                        }
+                    },
+                    // 授权器二级页：顶栏给返回箭头（底栏此时整页隐藏）
+                    navigationIcon = {
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = model.authorizerPage,
+                            enter = fadeIn(),
+                            exit = fadeOut(),
+                        ) {
+                            ExpressiveBackButton(onClick = { model.authorizerPage = false })
+                        }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = if (backdrop != null) Color.Transparent
@@ -95,45 +151,78 @@ fun MaterialApp(
                 )
             },
             bottomBar = {
-                // 悬浮胶囊由 GlassTabHost 覆盖渲染；只有不开悬浮时才用 ShortNavigationBar
+                // 悬浮胶囊由 GlassTabHost 覆盖渲染；只有不开悬浮时才用 ShortNavigationBar。
+                // 授权器二级页整页覆盖，底栏一起收起
                 if (!floatingBar) {
-                    ShortNavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
-                        tabLabels.forEachIndexed { i, label ->
-                            ShortNavigationBarItem(
-                                selected = index == i,
-                                onClick = { onTabSelected(i) },
-                                icon = {
-                                    Icon(
-                                        painter = painterResource(TAB_ICONS[i.coerceIn(TAB_ICONS.indices)]),
-                                        contentDescription = null,
-                                    )
-                                },
-                                label = { Text(label.toString()) },
-                            )
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = !model.authorizerPage,
+                        enter = fadeIn(),
+                        exit = fadeOut(),
+                    ) {
+                        ShortNavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+                            tabLabels.forEachIndexed { i, label ->
+                                ShortNavigationBarItem(
+                                    selected = index == i,
+                                    onClick = { onTabSelected(i) },
+                                    icon = {
+                                        Icon(
+                                            painter = painterResource(TAB_ICONS[i.coerceIn(TAB_ICONS.indices)]),
+                                            contentDescription = null,
+                                        )
+                                    },
+                                    label = { Text(label.toString()) },
+                                )
+                            }
                         }
                     }
                 }
             },
             floatingActionButton = {
-                if (index == 2) {
-                    FloatingActionButton(onClick = actions.onAddCommand) {
+                if (index == 2 && !model.authorizerPage) {
+                    FloatingActionButton(
+                        // 悬浮胶囊压在底部，FAB 要抬到胶囊上方（同 miuix 的 96dp）
+                        modifier = Modifier.padding(
+                            end = 16.dp,
+                            bottom = if (floatingBar) 96.dp else 0.dp,
+                        ),
+                        onClick = actions.onAddCommand,
+                    ) {
                         Icon(painterResource(R.drawable.ic_add), contentDescription = "新建命令")
                     }
                 }
             },
         ) { padding ->
-            CompositionLocalProvider(LocalMdExtraBottom provides if (floatingBar) 96.dp else 0.dp) {
+            CompositionLocalProvider(
+                LocalMdExtraBottom provides
+                    if (floatingBar && !model.authorizerPage) 96.dp else 0.dp,
+            ) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .then(if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier)
                 ) {
+                    // 设置列表一直保持组合（子页返回时不丢滚动位置）
                     when (index) {
                         0 -> HomeTab(padding, model, actions, onTabSelected)
                         1 -> DevicesTab(padding, model, actions)
                         2 -> CommandsTab(padding, model, actions)
                         3 -> PluginsTab(padding, model, actions)
                         else -> SettingsTab(padding, model, actions)
+                    }
+                    // 授权器二级页：整页覆盖、从右滑入
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = model.authorizerPage,
+                        modifier = Modifier.fillMaxSize(),
+                        enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+                        exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.surfaceContainer),
+                        ) {
+                            AuthorizerPage(padding, model, actions)
+                        }
                     }
                 }
             }
@@ -179,6 +268,47 @@ private fun HomeTab(
                 description = ipPort,
                 onClick = actions.onOpenLogs,
             )
+        }
+        item { Spacer(Modifier.height(12.dp)) }
+        // 互联（手表连接）：状态 + 设备名，点按刷新（与 miuix 状态页信息一致）
+        item {
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth().clickable(onClick = actions.onRefresh),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceBright,
+                ),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_card_link),
+                        contentDescription = null,
+                        tint = mdToneColor(model.interconnectTone),
+                    )
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            text = model.interconnectText,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = mdToneColor(model.interconnectTone),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = model.interconnectDetail,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
         }
         item { Spacer(Modifier.height(12.dp)) }
         item {
@@ -342,41 +472,18 @@ private fun SettingsTab(padding: PaddingValues, model: MiuixModel, actions: Miui
                 contentPadding = PaddingValues(bottom = 8.dp),
             ) {
                 item {
-                    MdDropdownWidget(
+                    MdBaseWidget(
                         title = "授权器",
                         description = model.authorizerStatus,
-                        options = listOf(
-                            "无" to "以应用自身权限执行",
-                            "Root" to "su 执行",
-                            "Shizuku" to "Shizuku 用户服务执行",
-                        ),
-                        selectedIndex = when (model.authorizer) {
-                            "root" -> 1
-                            "shizuku" -> 2
-                            else -> 0
-                        },
-                        onSelect = { index ->
-                            actions.onSetAuthorizer(
-                                when (index) {
-                                    1 -> "root"
-                                    2 -> "shizuku"
-                                    else -> "none"
-                                }
+                        onClick = { model.authorizerPage = true },
+                        trailing = {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_chevron_right),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         },
                     )
-                }
-                if (model.authorizer == "shizuku" && model.authorizerNeedsGrant) {
-                    item {
-                        MdBaseWidget(
-                            title = "Shizuku 授权",
-                            description = model.authorizerStatus,
-                            onClick = actions.onAuthorizeShizuku,
-                            trailing = {
-                                Button(onClick = actions.onAuthorizeShizuku) { Text("去授权") }
-                            },
-                        )
-                    }
                 }
                 item {
                     MdSwitchWidget(
@@ -419,4 +526,107 @@ private fun SettingsTab(padding: PaddingValues, model: MiuixModel, actions: Miui
             }
         }
     }
+}
+
+/**
+ * 授权器二级页（从设置「授权器」行进入，整页覆盖、底栏收起）：
+ * 单选用同「主题风格」的 [MdRadioWidget]，下面是状态行（未授权 Shizuku 才出「去授权」）。
+ */
+@Composable
+private fun AuthorizerPage(padding: PaddingValues, model: MiuixModel, actions: MiuixActions) {
+    MdPage(padding) {
+        item {
+            MdSegmentedColumn(title = "授权器", contentPadding = PaddingValues(bottom = 8.dp)) {
+                item {
+                    MdRadioWidget(
+                        title = "无",
+                        description = "以应用自身权限执行",
+                        selected = model.authorizer == "none",
+                    ) { actions.onSetAuthorizer("none") }
+                }
+                item {
+                    MdRadioWidget(
+                        title = "Root",
+                        description = "su 执行",
+                        selected = model.authorizer == "root",
+                    ) { actions.onSetAuthorizer("root") }
+                }
+                item {
+                    MdRadioWidget(
+                        title = "Shizuku",
+                        description = "Shizuku 用户服务执行",
+                        selected = model.authorizer == "shizuku",
+                    ) { actions.onSetAuthorizer("shizuku") }
+                }
+            }
+        }
+        item {
+            MdSegmentedColumn(title = "状态", contentPadding = PaddingValues(bottom = 8.dp)) {
+                item {
+                    val grantButton: (@Composable () -> Unit)? =
+                        if (model.authorizer == "shizuku" && model.authorizerNeedsGrant) {
+                            {
+                                Button(onClick = actions.onAuthorizeShizuku) { Text("去授权") }
+                            }
+                        } else {
+                            null
+                        }
+                    MdBaseWidget(
+                        title = "授权状态",
+                        description = model.authorizerStatus,
+                        onClick = actions.onRefreshAuthorizerStatus,
+                        trailing = grantButton,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** MD3 用的语义色（与 miuix 侧 toneColor 同一套资源色，保证两引擎观感一致）。 */
+@Composable
+private fun mdToneColor(tone: Tone): Color = when (tone) {
+    Tone.Success -> Color(ContextCompat.getColor(LocalContext.current, R.color.md_theme_success))
+    Tone.Warning -> Color(ContextCompat.getColor(LocalContext.current, R.color.md_theme_warning))
+    Tone.Error -> Color(ContextCompat.getColor(LocalContext.current, R.color.md_theme_error))
+    Tone.Outline -> MaterialTheme.colorScheme.onSurfaceVariant
+}
+
+/** 新建 / 编辑命令（M3 AlertDialog，对应 miuix 的 WindowDialog 版）。 */
+@Composable
+private fun MdCmdEditDialog(model: MiuixModel, actions: MiuixActions) {
+    val dialog = model.cmdDialog ?: return
+    var name by remember(dialog) { mutableStateOf(dialog.name) }
+    var command by remember(dialog) { mutableStateOf(dialog.command) }
+    AlertDialog(
+        onDismissRequest = { model.cmdDialog = null },
+        title = { Text(if (dialog.editIndex == null) "新建快捷命令" else "编辑快捷命令") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("名称") },
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = command,
+                    onValueChange = { command = it },
+                    label = { Text("命令") },
+                    singleLine = true,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val ok = actions.onSaveCommand(dialog.editIndex, name.trim(), command.trim())
+                if (ok) model.cmdDialog = null
+            }) { Text(stringResource(R.string.confirm)) }
+        },
+        dismissButton = {
+            TextButton(onClick = { model.cmdDialog = null }) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+    )
 }

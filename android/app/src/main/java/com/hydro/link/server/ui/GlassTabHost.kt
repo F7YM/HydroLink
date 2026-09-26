@@ -2,6 +2,8 @@ package com.hydro.link.server.ui
 
 import android.graphics.drawable.Drawable
 import android.os.Build
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -124,6 +126,13 @@ private fun GlassTabHostContent(
         }
 
         if (glassOn) {
+            // 授权器二级页整页覆盖时胶囊淡出（与 ShortNavigationBar 同款处理）
+            androidx.compose.animation.AnimatedVisibility(
+                visible = !model.authorizerPage,
+                modifier = Modifier.align(Alignment.BottomCenter),
+                enter = fadeIn(),
+                exit = fadeOut(),
+            ) {
             LiquidFloatingBar(
                 items = tabLabels.mapIndexed { index, label ->
                     LiquidBarItem(
@@ -147,8 +156,10 @@ private fun GlassTabHostContent(
                 else MaterialTheme.colorScheme.onSurface,
                 surfaceContainerColor = if (miuix) MiuixTheme.colorScheme.surfaceContainer
                 else MaterialTheme.colorScheme.surfaceContainer,
-                modifier = Modifier.align(Alignment.BottomCenter),
+                // 对齐交给外层 AnimatedVisibility（BottomCenter）
+                modifier = Modifier,
             )
+            }
         }
     }
 }

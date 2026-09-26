@@ -50,6 +50,8 @@ class MiuixModel {
     var authorizerStatus by mutableStateOf("")
     /** 授权器选了 Shizuku 但还没授权（决定是否显示「去授权」）。 */
     var authorizerNeedsGrant by mutableStateOf(false)
+    /** MD3 二级页：授权器选择页（整页覆盖，期间隐藏底栏与底栏胶囊）。 */
+    var authorizerPage by mutableStateOf(false)
     var bootStart by mutableStateOf(false)
     var liquidGlass by mutableStateOf(false)
     var miuix by mutableStateOf(false)
