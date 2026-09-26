@@ -92,10 +92,15 @@ dependencies {
     implementation 'io.github.kyant0:shapes-android:1.2.1'
     implementation 'org.jetbrains.compose.foundation:foundation-android:1.12.0'
     implementation 'org.jetbrains.compose.ui:ui-android:1.12.0'
+    // MD3 界面引擎（Compose Material3，和 InstallerX 同一套组件：ListItem/Switch/
+    // SegmentedColumn/LargeFlexibleTopAppBar）
+    implementation 'org.jetbrains.compose.material3:material3:1.12.0-alpha03'
 
     // miuix（MIUI/HyperOS 风格 Compose 组件库，Apache-2.0）：设置里的开关控制启用；
     // 刻意不加 miuix-blur —— 它要 minSdk 33，本项目 minSdk 24
     implementation 'top.yukonga.miuix.kmp:miuix-ui-android:0.9.4'
+    // WindowSpinnerPreference（UI 引擎下拉，InstallerX 同款设置组件）
+    implementation 'top.yukonga.miuix.kmp:miuix-preference-android:0.9.4'
     // XMS Wearable SDK for interconnect (included as AAR in libs/)
 
     // HydroKit 的协议/运行时/存储等纯逻辑放在 JVM 单测里跑（不依赖 Android API）

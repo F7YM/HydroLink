@@ -67,6 +67,7 @@ import top.yukonga.miuix.kmp.basic.BasicComponentColors
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -81,6 +82,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.overScrollVertical
@@ -493,9 +495,15 @@ private fun StatusTab(
                         if (model.serverRunning) R.string.server_running
                         else R.string.server_stopped
                     ),
-                    summary = listOf(model.ipText, model.portText)
-                        .filter { it.isNotBlank() }
-                        .joinToString("\n"),
+                    summary = run {
+                        val ip = model.ipText.removePrefix("IP: ").trim()
+                        val port = model.portText.removePrefix("端口: ").trim()
+                        when {
+                            ip.isNotEmpty() && port.isNotEmpty() -> "$ip:$port"
+                            ip.isNotEmpty() -> ip
+                            else -> port
+                        }
+                    },
                     onClick = actions.onOpenLogs,
                 )
                 StatCard(
@@ -715,27 +723,31 @@ private fun SettingsTab(padding: PaddingValues, model: MiuixModel, actions: Miui
                 )
                 SwitchRow(
                     title = "开机后自动启动服务",
-                    summary = "默认关闭，打开后重启手机自动拉起服务",
+                    summary = "重启手机后自动启动服务",
                     checked = model.bootStart,
                     onCheckedChange = actions.onToggleBoot,
                 )
             }
         }
 
-        item { SmallTitle("外观") }
+        item { SmallTitle("主题风格") }
         item {
             Card(modifier = Modifier.sectionCard()) {
-                SwitchRow(
-                    title = "Liquid Glass 效果",
-                    summary = "底栏胶囊的玻璃折射与模糊（默认关）",
-                    checked = model.liquidGlass,
-                    onCheckedChange = actions.onToggleGlass,
+                // UI 引擎：InstallerX 同款 WindowSpinnerPreference（下拉选择，不弹自造对话框）
+                WindowSpinnerPreference(
+                    title = "UI 引擎",
+                    items = listOf(
+                        DropdownItem(text = "Miuix", summary = "类 HyperOS 风格界面"),
+                        DropdownItem(text = "Google Material 3", summary = "标准 Material Design 界面"),
+                    ),
+                    selectedIndex = if (model.miuix) 0 else 1,
+                    onSelectedIndexChange = { actions.onToggleMiuix(it == 0) },
                 )
                 SwitchRow(
-                    title = "miuix 界面风格",
-                    summary = "打开后整个界面使用 miuix 设计，关掉立即回到 MD3",
-                    checked = model.miuix,
-                    onCheckedChange = actions.onToggleMiuix,
+                    title = "启用悬浮底栏",
+                    summary = "在屏幕底部使用悬浮样式的导航栏",
+                    checked = model.liquidGlass,
+                    onCheckedChange = actions.onToggleGlass,
                 )
             }
         }

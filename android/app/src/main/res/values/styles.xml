@@ -5,12 +5,13 @@
     <style name="ShapeAppearance.Hydro.Medium" parent="ShapeAppearance.Material3.Corner.Large" />
     <style name="ShapeAppearance.Hydro.Large" parent="ShapeAppearance.Material3.Corner.ExtraLarge" />
 
-    <!-- ============ 卡片：填充色调面 + 28dp 圆角，不用阴影 ============ -->
+    <!-- ============ 卡片：填充色调面 + 16dp 圆角，不用阴影（InstallerX CornerRadius=16dp，
+         列表项容器色 surfaceBright） ============ -->
     <style name="Widget.Hydro.Card" parent="Widget.Material3.CardView.Filled">
-        <item name="cardCornerRadius">28dp</item>
+        <item name="cardCornerRadius">16dp</item>
         <item name="cardElevation">0dp</item>
-        <item name="cardBackgroundColor">?attr/colorSurfaceContainerHigh</item>
-        <item name="contentPadding">20dp</item>
+        <item name="cardBackgroundColor">?attr/colorSurfaceBright</item>
+        <item name="contentPadding">16dp</item>
         <item name="android:layout_marginBottom">12dp</item>
     </style>
 
@@ -26,29 +27,38 @@
         <item name="android:textStyle">bold</item>
     </style>
 
-    <!-- 分区小标题（设置页那种分组标题） -->
+    <!-- 分区小标题（InstallerX SegmentedColumn：titleSmall + primary，
+         start 16 / top 8 / bottom 16） -->
     <style name="Widget.Hydro.SectionHeader" parent="">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
-        <item name="android:paddingStart">28dp</item>
-        <item name="android:paddingEnd">28dp</item>
-        <item name="android:paddingTop">20dp</item>
-        <item name="android:paddingBottom">8dp</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+        <item name="android:paddingTop">8dp</item>
+        <item name="android:paddingBottom">16dp</item>
         <item name="android:textAppearance">?attr/textAppearanceTitleSmall</item>
         <item name="android:textColor">?attr/colorPrimary</item>
     </style>
 
-    <!-- 列表行：图标 + 标题 + 说明 + 尾部控件 -->
+    <!-- 列表行（InstallerX Material3 ListItem：左右 16dp、上下 8dp、最小 72dp） -->
     <style name="Widget.Hydro.ListRow" parent="">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
+        <item name="android:minHeight">72dp</item>
         <item name="android:orientation">horizontal</item>
         <item name="android:gravity">center_vertical</item>
-        <item name="android:paddingStart">20dp</item>
-        <item name="android:paddingEnd">20dp</item>
-        <item name="android:paddingTop">14dp</item>
-        <item name="android:paddingBottom">14dp</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+        <item name="android:paddingTop">8dp</item>
+        <item name="android:paddingBottom">8dp</item>
         <item name="android:background">?attr/selectableItemBackground</item>
+    </style>
+
+    <!-- 行首图标（InstallerX ListItem leading：24dp、onSurfaceVariant，无底色方块） -->
+    <style name="Widget.Hydro.RowIcon" parent="">
+        <item name="android:layout_width">24dp</item>
+        <item name="android:layout_height">24dp</item>
+        <item name="android:tint">?attr/colorOnSurfaceVariant</item>
     </style>
 
     <!-- 行尾图标按钮（编辑/删除/刷新等统一用它，避免有的用 MaterialButton、有的用系统图标） -->
@@ -58,14 +68,5 @@
         <item name="android:padding">10dp</item>
         <item name="android:background">?attr/selectableItemBackgroundBorderless</item>
         <item name="android:tint">?attr/colorOnSurfaceVariant</item>
-    </style>
-
-    <!-- 行里的图标容器（圆角方块 + 主色容器底） -->
-    <style name="Widget.Hydro.RowIcon" parent="">
-        <item name="android:layout_width">44dp</item>
-        <item name="android:layout_height">44dp</item>
-        <item name="android:padding">10dp</item>
-        <item name="android:background">@drawable/bg_row_icon</item>
-        <item name="android:tint">?attr/colorOnPrimaryContainer</item>
     </style>
 </resources>

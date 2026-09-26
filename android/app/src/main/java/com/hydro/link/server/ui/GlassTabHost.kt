@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.hydro.link.server.R
+import com.hydro.link.server.ui.material.MaterialApp
 import com.hydro.link.server.ui.miuix.MiuixActions
 import com.hydro.link.server.ui.miuix.MiuixApp
 import com.hydro.link.server.ui.miuix.MiuixModel
@@ -36,29 +37,19 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
 
 /**
- * 底部 Tab 承载层（Liquid Glass 的 catalog 组件 LiquidBottomTabs，
- * 玻璃与 miuix 两个开关复用同一套胶囊底栏）：
+ * 底部 Tab 承载层（Liquid Glass 的 catalog 组件 LiquidBottomTabs）：
  *
- * - 现有 View 页面 [page] 经 AndroidView 进入组合，用 layerBackdrop 录成背景层；
- *   背景层开头 drawRect 页面底色，胶囊下没内容时玻璃也不会透出黑底
- * - 底栏复用：[glassOn] 或 [miuixOn] 任一打开就渲染胶囊 LiquidBottomTabs（拖拽切换 +
- *   按压反馈 + vibrancy/blur/lens 折射全在组件内部），真实 BottomNavigationView 由
- *   applyBottomBarMode 隐藏，切换回调走同一套 selectedItemId 监听逻辑。
- *   玻璃开关管折射效果，miuix 开关管配色——打开时整段套 MiuixTheme，
- *   Tab 选中/未选中色从 MiuixTheme.colorScheme 取
- * - miuixOn=true 时页面主体不再是 XML 的 [page]，而是真 miuix 组件渲染的 [MiuixApp]
- *   （Scaffold/TopAppBar/Card/Switch…，状态 [model]、动作 [actions]）——
- *   设计语言整体切到 miuix，关掉开关立刻回到 MD3 页面
- * - 底栏逻辑与 InstallerX 统一：**只有 Liquid Glass 开才出胶囊**；miuix 开（玻璃关）
- *   用 miuix 自己的 NavigationBar（在 MiuixApp 的 Scaffold bottomBar 里）；两开关
- *   全关（默认）时胶囊与 miuix 底栏都不渲染，壳里的老底栏照常工作——
- *   Liquid Glass 默认关是因为 FAQ 有 RenderThread SIGSEGV 案例，必须能一键退回
+ * - 页面主体进 Compose 组合：miuix 引擎 → [MiuixApp]，MD3 引擎 → [MaterialApp]
+ *   （两者都是真 Compose 组件，MD3 不再用 XML View 拼）；内容用 layerBackdrop 录成
+ *   背景层，背景层开头 drawRect 页面底色，胶囊下没内容时玻璃也不会透出黑底
+ * - 底栏：「启用悬浮底栏」开（[glassOn]）→ 悬浮胶囊（拖拽切换 + 折射）；否则各引擎
+ *   的 Scaffold 挂自己的 NavigationBar；真实 BottomNavigationView 始终隐藏
+ * - Liquid Glass 默认关是因为 FAQ 有 RenderThread SIGSEGV 案例，必须能一键退回
  */
 @Composable
 fun GlassTabHost(
     glassOn: Boolean,
     miuixOn: Boolean,
-    page: View,
     model: MiuixModel,
     actions: MiuixActions,
     selectedIndex: () -> Int,
@@ -71,7 +62,6 @@ fun GlassTabHost(
             GlassTabHostContent(
                 miuix = true,
                 glassOn = glassOn,
-                page = page,
                 model = model,
                 actions = actions,
                 selectedIndex = selectedIndex,
@@ -84,7 +74,6 @@ fun GlassTabHost(
         GlassTabHostContent(
             miuix = false,
             glassOn = glassOn,
-            page = page,
             model = model,
             actions = actions,
             selectedIndex = selectedIndex,
@@ -99,7 +88,6 @@ fun GlassTabHost(
 private fun GlassTabHostContent(
     miuix: Boolean,
     glassOn: Boolean,
-    page: View,
     model: MiuixModel,
     actions: MiuixActions,
     selectedIndex: () -> Int,
@@ -138,7 +126,14 @@ private fun GlassTabHostContent(
                     onTabSelected = onTabSelected,
                 )
             } else {
-                AndroidView(factory = { page }, modifier = Modifier.fillMaxSize())
+                MaterialApp(
+                    model = model,
+                    actions = actions,
+                    selectedIndex = selectedIndex,
+                    tabLabels = tabLabels,
+                    floatingBar = glassOn,
+                    onTabSelected = onTabSelected,
+                )
             }
         }
 

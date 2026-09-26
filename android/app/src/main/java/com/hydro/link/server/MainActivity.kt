@@ -101,7 +101,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvRootStatus: TextView
     private lateinit var switchBoot: MaterialSwitch
     private lateinit var switchLiquidGlass: MaterialSwitch
-    private lateinit var switchMiuix: MaterialSwitch
+    private lateinit var rowEngineGoogle: View
+    private lateinit var rowEngineMiuix: View
+    private lateinit var radioGoogle: com.google.android.material.radiobutton.MaterialRadioButton
+    private lateinit var radioMiuix: com.google.android.material.radiobutton.MaterialRadioButton
     private var settingsSwitchSyncing = false
 
     // 玻璃 / miuix 底栏（compose 承载，见 GlassTabHost）：页面进组合，状态归这里管
@@ -177,8 +180,18 @@ class MainActivity : AppCompatActivity() {
         onToggleRoot = { forceSwitch(switchRoot, it); refreshData() },
         onToggleBoot = { forceSwitch(switchBoot, it); refreshData() },
         onToggleGlass = { forceSwitch(switchLiquidGlass, it); refreshData() },
-        onToggleMiuix = { forceSwitch(switchMiuix, it); refreshData() },
-        onRootConfirmDismiss = { miuixModel.rootConfirm = false },
+        onToggleMiuix = { setMiuix(it) },
+        onRootConfirmDismiss = {
+            miuixModel.rootConfirm = false
+            // 取消时把 XML 开关拨回关：它已被 performClick 拨成开，不回退的话
+            // 下次点「使用 root 执行」时 forceSwitch 发现已是开、不再触发确认框
+            if (::switchRoot.isInitialized) {
+                settingsSwitchSyncing = true
+                switchRoot.isChecked = false
+                settingsSwitchSyncing = false
+            }
+            refreshData()
+        },
         onRootConfirmAccept = {
             miuixModel.rootConfirm = false
             enableRootWithProbe()
@@ -321,7 +334,10 @@ class MainActivity : AppCompatActivity() {
         tvRootStatus = findViewById(R.id.tvRootStatus)
         switchBoot = findViewById(R.id.switchBoot)
         switchLiquidGlass = findViewById(R.id.switchLiquidGlass)
-        switchMiuix = findViewById(R.id.switchMiuix)
+        rowEngineGoogle = findViewById(R.id.rowEngineGoogle)
+        rowEngineMiuix = findViewById(R.id.rowEngineMiuix)
+        radioGoogle = findViewById(R.id.radioGoogle)
+        radioMiuix = findViewById(R.id.radioMiuix)
 
         val versionName = packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0.0"
         tvAppName.text = "HydroLink $versionName"
@@ -332,8 +348,9 @@ class MainActivity : AppCompatActivity() {
         switchBoot.isChecked = cfg.bootStart
         switchLiquidGlass.isChecked = cfg.liquidGlass
         glassOn.value = cfg.liquidGlass
-        switchMiuix.isChecked = cfg.miuix
         miuixOn.value = cfg.miuix
+        radioMiuix.isChecked = cfg.miuix
+        radioGoogle.isChecked = !cfg.miuix
     }
 
     private fun setupBottomNav() {
@@ -443,15 +460,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         // 设置 Tab：开机自启（默认关；打开后重启由 BootReceiver 拉起服务）
-        switchBoot.setOnCheckedChangeListener { switch, isChecked ->
+        switchBoot.setOnCheckedChangeListener { _, isChecked ->
             if (settingsSwitchSyncing) return@setOnCheckedChangeListener
             val cfg = dataManager.loadConfig()
             cfg.bootStart = isChecked
             dataManager.saveConfig(cfg)
-            notifyUser(
-                switch,
-                if (isChecked) "已开启：重启后自动启动服务" else "已关闭：重启后需手动打开 App",
-            )
         }
 
         // 设置 Tab：Liquid Glass 效果（默认关；FAQ 有 RenderThread 崩溃案例，必须可关）
@@ -464,15 +477,9 @@ class MainActivity : AppCompatActivity() {
             applyBottomBarMode()
         }
 
-        // 设置 Tab：miuix 界面风格（miuix 开=miuix 底栏，Liquid Glass 同开才出玻璃胶囊；不弹提示）
-        switchMiuix.setOnCheckedChangeListener { _, isChecked ->
-            if (settingsSwitchSyncing) return@setOnCheckedChangeListener
-            val cfg = dataManager.loadConfig()
-            cfg.miuix = isChecked
-            dataManager.saveConfig(cfg)
-            miuixOn.value = isChecked
-            applyBottomBarMode()
-        }
+        // 设置 Tab：UI 引擎（Google Material 3 / Miuix，InstallerX 同款单选行）
+        rowEngineGoogle.setOnClickListener { setMiuix(false) }
+        rowEngineMiuix.setOnClickListener { setMiuix(true) }
 
     }
 
@@ -494,7 +501,6 @@ class MainActivity : AppCompatActivity() {
                 GlassTabHost(
                     glassOn = glassOn.value,
                     miuixOn = miuixOn.value,
-                    page = page ?: return@CompositionLocalProvider,
                     model = miuixModel,
                     actions = miuixActions,
                     selectedIndex = { selectedIndex.value },
@@ -521,32 +527,11 @@ class MainActivity : AppCompatActivity() {
      * 胶囊上方。全关时才用 contentFrame 垫底给真实底栏让位。
      */
     private fun applyBottomBarMode() {
-        val composeBar = glassOn.value || miuixOn.value
-        // 冷启动即开玻璃时底栏 GONE 未量过高度，按底栏标准 80dp 兜底
-        val navHeight = if (navHeightPx.value > 0) navHeightPx.value
-        else (80 * resources.displayMetrics.density).toInt()
-        val fabParams = fabAddCommand.layoutParams as FrameLayout.LayoutParams
-        bottomNav.visibility = if (composeBar) View.GONE else View.VISIBLE
-        if (composeBar) {
-            contentFrame.setPadding(0, 0, 0, 0)
-            fabParams.bottomMargin = fabBaseMarginBottom + navHeight
-            pageScrollers().forEach { v ->
-                (v as? ViewGroup)?.apply {
-                    clipToPadding = false
-                    setPadding(0, 0, 0, navHeight)
-                }
-            }
-        } else {
-            contentFrame.setPadding(0, 0, 0, navHeight)
-            fabParams.bottomMargin = fabBaseMarginBottom
-            pageScrollers().forEach { v ->
-                (v as? ViewGroup)?.apply {
-                    clipToPadding = false
-                    setPadding(0, 0, 0, 0)
-                }
-            }
-        }
-        fabAddCommand.layoutParams = fabParams
+        // 页面主体始终是 Compose（miuix / Material3 引擎各自在 Scaffold 画底栏与 FAB），
+        // 壳里的 XML 底栏与 FAB 一律隐藏、contentFrame 不垫底；悬浮胶囊由 GlassTabHost 覆盖
+        bottomNav.visibility = View.GONE
+        fabAddCommand.visibility = View.GONE
+        contentFrame.setPadding(0, 0, 0, 0)
         applyStatusBarMode()
     }
 
@@ -561,7 +546,7 @@ class MainActivity : AppCompatActivity() {
         val color = when {
             miuixOn.value && !night -> 0xFFF7F7F7.toInt()
             miuixOn.value -> 0xFF000000.toInt()
-            else -> ContextCompat.getColor(this, R.color.md_theme_background)
+            else -> ContextCompat.getColor(this, R.color.md_theme_surfaceContainer)
         }
         window.statusBarColor = color
         window.navigationBarColor = color
@@ -572,9 +557,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** MD3 页面里实际滚动的容器：安全区的「页面下固定空白」垫在它们尾部。 */
-    private fun pageScrollers(): List<View> =
-        listOfNotNull(tabStatus, rvDevices, rvCommands, rvPlugins, tabSettings)
-
     /**
      * MD3（XML）列表滑到顶/底时补一次系统触觉反馈——MIUI 开了振动反馈就会在这时震
      * 一下（InstallerX 的效果即来自 miuix 的 scrollEndHaptic；miuix 模式的列表已接，
@@ -616,6 +598,17 @@ class MainActivity : AppCompatActivity() {
     /** miuix 动作桥：把目标值拨到 XML 开关上，走原监听器（确认弹窗/落盘/后台探测复用）。 */
     private fun forceSwitch(sw: MaterialSwitch, want: Boolean) {
         if (sw.isChecked != want) sw.performClick()
+    }
+
+    /** 切换 UI 引擎（miuix / MD3）：落盘 + 刷新两种界面的状态，与 InstallerX 同逻辑。 */
+    private fun setMiuix(enabled: Boolean) {
+        if (miuixOn.value == enabled) return
+        val cfg = dataManager.loadConfig()
+        cfg.miuix = enabled
+        dataManager.saveConfig(cfg)
+        miuixOn.value = enabled
+        refreshData()
+        applyBottomBarMode()
     }
 
     /**
@@ -774,6 +767,10 @@ class MainActivity : AppCompatActivity() {
         m.bootStart = cfg.bootStart
         m.liquidGlass = cfg.liquidGlass
         m.miuix = cfg.miuix
+        if (::radioMiuix.isInitialized) {
+            radioMiuix.isChecked = cfg.miuix
+            radioGoogle.isChecked = !cfg.miuix
+        }
     }
 
     private fun updateInterconnectStatus() {
@@ -886,11 +883,6 @@ class MainActivity : AppCompatActivity() {
                 settingsSwitchSyncing = true
                 switchRoot.isChecked = ok
                 settingsSwitchSyncing = false
-                notifyUser(
-                    switchRoot,
-                    if (ok) "已开启：命令将以 root 执行" else "root 不可用",
-                    long = !ok,
-                )
                 updateRootStatus()
             }
         }.start()
