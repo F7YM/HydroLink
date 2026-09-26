@@ -90,11 +90,11 @@ private fun LogsContent(onBack: () -> Unit) {
                 },
             )
         },
-    ) {
+    ) { inner ->
         if (logs.isEmpty()) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = 8.dp),
+                contentPadding = PaddingValues(top = inner.calculateTopPadding() + 8.dp),
             ) {
                 item {
                     Card(modifier = Modifier.padding(horizontal = 12.dp)) {
@@ -109,7 +109,10 @@ private fun LogsContent(onBack: () -> Unit) {
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp),
+                contentPadding = PaddingValues(
+                    top = inner.calculateTopPadding() + 8.dp,
+                    bottom = 16.dp,
+                ),
             ) {
                 items(logs.size) { i ->
                     val entry = logs[i]

@@ -434,8 +434,8 @@ private fun RunningCard(
                 contentDescription = null,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .offset(x = 32.dp, y = 42.dp)
-                    .size(152.dp),
+                    .offset(x = 48.dp, y = 58.dp)
+                    .size(160.dp),
                 tint = iconTint,
             )
             Column(modifier = Modifier.padding(16.dp)) {

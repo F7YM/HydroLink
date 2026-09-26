@@ -128,10 +128,13 @@ private fun PermissionsContent(
                 },
             )
         },
-    ) {
+    ) { inner ->
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = 8.dp, bottom = 12.dp),
+            contentPadding = PaddingValues(
+                top = inner.calculateTopPadding() + 8.dp,
+                bottom = 12.dp,
+            ),
         ) {
             item {
                 Card(modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp)) {
