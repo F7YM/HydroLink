@@ -29,6 +29,9 @@ const ()
 // 二进制里报告的版本与包版本永远一致。
 var Version = "1.1.0"
 
+// defaultPort 与 cmd/hydrolink 的兜底一致（配置文件里没写 last_port 时用它）。
+const defaultPort = 9000
+
 // LogEntry mirrors Android's LogEntry.
 type LogEntry struct {
 	Text  string `json:"text"`
@@ -69,6 +72,10 @@ type Server struct {
 	// register/unregister a plugin package in the HydroKit runtime (called by
 	// the GUI right after install/uninstall, so the watch sees the change
 	// without a server restart).
+	// port/portMu：实际监听端口（设置页要区分「当前端口」和「下次启动用的端口」）
+	portMu sync.Mutex
+	port   int
+
 	// reloadPlugins 由 app 层注入：重扫插件目录并热注册（POST /api/hydro/reload）
 	reloadPlugins func() ([]string, error)
 	loadPlugin    func(id string) error
@@ -151,6 +158,13 @@ func (s *Server) SetWorkerBridge(b *hydrokit.WorkerBridge) {
 	s.workerBridge = b
 }
 
+// Port returns the port the server is actually listening on (0 before Start).
+func (s *Server) Port() int {
+	s.portMu.Lock()
+	defer s.portMu.Unlock()
+	return s.port
+}
+
 // WorkerBridge returns the bridge backing JS plugins (nil when unset).
 func (s *Server) WorkerBridge() *hydrokit.WorkerBridge {
 	return s.workerBridge
@@ -199,6 +213,13 @@ func (s *Server) Handler() http.Handler {
 // Start begins serving on addr in a background goroutine. The server can be
 // stopped with Stop (used by the GUI when the port setting changes).
 func (s *Server) Start(addr string) error {
+	if _, p, err := net.SplitHostPort(addr); err == nil {
+		if n, err := strconv.Atoi(p); err == nil {
+			s.portMu.Lock()
+			s.port = n
+			s.portMu.Unlock()
+		}
+	}
 	s.srvMu.Lock()
 	if s.httpSrv != nil {
 		s.srvMu.Unlock()
@@ -377,6 +398,37 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	case (path == "/api/music/control" || path == "/music/control") && r.Method == http.MethodPost:
 		s.withTrusted(w, r, func() { s.handleMusicControl(w, r) })
 
+	// ---- 桌面 UI 侧需要的管理端点（Compose 端自实现业务，不走 Wails 绑定）----
+	case path == "/api/plugins/install" && r.Method == http.MethodPost:
+		s.handleInstallPlugin(w, r)
+
+	case strings.HasPrefix(path, "/api/plugins/") && r.Method == http.MethodDelete:
+		s.handleUninstallPlugin(w, strings.TrimPrefix(path, "/api/plugins/"))
+
+	case path == "/api/logs" && r.Method == http.MethodGet:
+		s.handleGetLogs(w)
+
+	case path == "/api/devices" && r.Method == http.MethodGet:
+		s.handleGetDevices(w)
+
+	case strings.HasPrefix(path, "/api/devices/") && r.Method == http.MethodDelete:
+		s.handleDeleteDevice(w, strings.TrimPrefix(path, "/api/devices/"))
+
+	case path == "/api/settings" && r.Method == http.MethodGet:
+		s.handleGetSettings(w)
+
+	case path == "/api/settings" && r.Method == http.MethodPut:
+		s.handlePutSettings(w, r)
+
+	case path == "/api/commands" && r.Method == http.MethodPost:
+		s.handleCreateCommand(w, r)
+
+	case matchCommandID(path) && r.Method == http.MethodPut:
+		s.handleUpdateCommand(w, r, commandID(path))
+
+	case matchCommandID(path) && r.Method == http.MethodDelete:
+		s.handleDeleteCommand(w, commandID(path))
+
 	case (path == "/api/commands" || path == "/commands") && r.Method == http.MethodGet:
 		s.withTrusted(w, r, func() { s.handleGetCommands(w) })
 
@@ -538,6 +590,8 @@ func (s *Server) handleStatus(w http.ResponseWriter) {
 		"system": map[string]any{
 			"hostname": system.Hostname(),
 			"version":  system.Version(),
+			// 局域网 IP：手表/手机要连的是这个，只给 hostname 的话 UI 上没法显示地址
+			"ip": LocalIP(),
 		},
 		"battery": map[string]any{
 			"has_battery": bat.HasBattery,
@@ -658,6 +712,13 @@ func (s *Server) withTrusted(w http.ResponseWriter, r *http.Request, block func(
 		block()
 		return
 	}
+	// 本机进程（桌面 Compose 端就住在这个进程旁边）直接放行：loopback 请求只可能来自
+	// 跑着服务的那台机器。这道门禁是给 LAN 上的手表/手机准备的——它们不能没有 device id
+	// 就读到状态和命令。判定只看 TCP 对端地址，不看任何请求头，所以伪造头也绕不过去。
+	if isLoopbackAddr(r.RemoteAddr) {
+		block()
+		return
+	}
 	deviceID := strings.TrimSpace(r.Header.Get("X-Device-ID"))
 	if deviceID == "" || len(deviceID) > 100 {
 		s.writeJSON(w, http.StatusUnauthorized, map[string]any{"status": "error", "message": "Missing device ID"})
@@ -668,6 +729,24 @@ func (s *Server) withTrusted(w http.ResponseWriter, r *http.Request, block func(
 		return
 	}
 	block()
+}
+
+// isLoopbackAddr 判断对端是不是本机（127.0.0.0/8、::1、空地址）。
+func isLoopbackAddr(remoteAddr string) bool {
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		host = remoteAddr
+	}
+	host = strings.TrimSpace(host)
+	if host == "" {
+		// httptest 之类没有真实对端：按本机处理（测试与本地直连都走这条）
+		return true
+	}
+	if host == "::1" || host == "[::1]" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // ---- Helpers ----
@@ -724,3 +803,284 @@ func truncate(s string, n int) string {
 }
 
 // LocalIP returns the LAN address the watch should use (see localip.go).
+
+// ---- 桌面 UI 侧的管理端点 ----
+
+// handleInstallPlugin 安装一个本地 .hpk 并热注册。
+//
+// 职责划分：UI 侧负责下载与 sha256 校验（它才有市场索引），Go 侧负责解包安装与热注册
+// ——插件目录格式只有 store 这一处实现，不让两端各写一份解包逻辑。
+func (s *Server) handleInstallPlugin(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Path string `json:"path"`
+	}
+	if !parseBody(r, &body) {
+		s.writeJSON(w, http.StatusBadRequest, map[string]any{
+			"status": "error", "message": "Invalid JSON",
+		})
+		return
+	}
+	path := strings.TrimSpace(body.Path)
+	if path == "" {
+		s.writeJSON(w, http.StatusBadRequest, map[string]any{
+			"status": "error", "message": "缺少插件包路径",
+		})
+		return
+	}
+	if _, err := os.Stat(path); err != nil {
+		s.writeJSON(w, http.StatusBadRequest, map[string]any{
+			"status": "error", "message": "插件包不存在: " + err.Error(),
+		})
+		return
+	}
+	info, err := s.store.InstallPlugin(path)
+	if err != nil {
+		s.AddLog("插件安装失败: "+err.Error(), "error")
+		s.writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"status": "error", "message": err.Error(),
+		})
+		return
+	}
+	// 装完立刻热注册，UI 不必再单独调一次 reload
+	if s.loadPlugin != nil {
+		if err := s.loadPlugin(info.ID); err != nil {
+			s.AddLog("插件已安装但加载失败: "+err.Error(), "error")
+			s.writeJSON(w, http.StatusInternalServerError, map[string]any{
+				"status": "error", "message": err.Error(),
+			})
+			return
+		}
+	}
+	s.AddLog("已安装插件: "+info.ID+" "+info.Version, "success")
+	s.writeJSON(w, http.StatusOK, map[string]any{
+		"status": "ok", "id": info.ID, "version": info.Version,
+	})
+}
+
+func (s *Server) handleUninstallPlugin(w http.ResponseWriter, id string) {
+	if id == "" {
+		s.writeJSON(w, http.StatusBadRequest, map[string]any{
+			"status": "error", "message": "缺少插件 id",
+		})
+		return
+	}
+	if err := s.store.UninstallPlugin(id); err != nil {
+		s.writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"status": "error", "message": err.Error(),
+		})
+		return
+	}
+	if s.unloadPlugin != nil {
+		_ = s.unloadPlugin(id)
+	}
+	s.AddLog("已卸载插件: "+id, "info")
+	s.writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
+}
+
+// handleGetLogs 返回最近的日志（最多 400 条，与安卓端日志页一致）。
+func (s *Server) handleGetLogs(w http.ResponseWriter) {
+	logs := s.Logs()
+	if len(logs) > 400 {
+		logs = logs[len(logs)-400:]
+	}
+	s.writeJSON(w, http.StatusOK, map[string]any{"logs": logs})
+}
+
+func (s *Server) handleGetDevices(w http.ResponseWriter) {
+	devices, err := s.store.LoadTrustedDevices()
+	if err != nil {
+		s.writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"status": "error", "message": err.Error(),
+		})
+		return
+	}
+	s.writeJSON(w, http.StatusOK, map[string]any{"devices": devices})
+}
+
+func (s *Server) handleDeleteDevice(w http.ResponseWriter, deviceID string) {
+	if deviceID == "" {
+		s.writeJSON(w, http.StatusBadRequest, map[string]any{
+			"status": "error", "message": "missing device id",
+		})
+		return
+	}
+	if err := s.store.RemoveTrustedDevice(deviceID); err != nil {
+		s.writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"status": "error", "message": err.Error(),
+		})
+		return
+	}
+	s.AddLog("已删除设备: "+deviceID, "info")
+	s.writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
+}
+
+// settingsView 是 UI 侧看到的设置（不把 encryption_key 之类的内部字段暴露出去）。
+type settingsView struct {
+	Port         int    `json:"port"`
+	AcceptAll    bool   `json:"accept_all"`
+	MarketSource string `json:"market_source"`
+	CurrentPort  int    `json:"current_port"`
+}
+
+func (s *Server) handleGetSettings(w http.ResponseWriter) {
+	cfg, err := s.store.LoadConfig()
+	if err != nil {
+		s.writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"status": "error", "message": err.Error(),
+		})
+		return
+	}
+	port := cfg.LastPort
+	if port == 0 {
+		port = defaultPort
+	}
+	s.writeJSON(w, http.StatusOK, settingsView{
+		Port:         port,
+		AcceptAll:    cfg.AcceptAll,
+		MarketSource: cfg.MarketSource,
+		CurrentPort:  s.Port(),
+	})
+}
+
+// handlePutSettings 保存设置。端口只存「下次启动用」的值（LastPort）——
+// 运行中的监听端口要改得重启服务，这里明确只写配置，不假装能热改。
+func (s *Server) handlePutSettings(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Port         *int    `json:"port"`
+		AcceptAll    *bool   `json:"accept_all"`
+		MarketSource *string `json:"market_source"`
+	}
+	if !parseBody(r, &body) {
+		s.writeJSON(w, http.StatusBadRequest, map[string]any{
+			"status": "error", "message": "Invalid JSON",
+		})
+		return
+	}
+	cfg, err := s.store.LoadConfig()
+	if err != nil {
+		s.writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"status": "error", "message": err.Error(),
+		})
+		return
+	}
+	if body.Port != nil {
+		if *body.Port < 1 || *body.Port > 65535 {
+			s.writeJSON(w, http.StatusBadRequest, map[string]any{
+				"status": "error", "message": "端口超出范围",
+			})
+			return
+		}
+		cfg.LastPort = *body.Port
+	}
+	if body.AcceptAll != nil {
+		cfg.AcceptAll = *body.AcceptAll
+	}
+	if body.MarketSource != nil {
+		cfg.MarketSource = *body.MarketSource
+	}
+	if err := s.store.SaveConfig(cfg); err != nil {
+		s.writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"status": "error", "message": err.Error(),
+		})
+		return
+	}
+	s.AddLog("设置已保存", "success")
+	s.handleGetSettings(w)
+}
+
+// parseCommandBody 读命令的 name/command，两边都必须非空。
+func parseCommandBody(r *http.Request) (store.Command, bool) {
+	var body store.Command
+	if !parseBody(r, &body) {
+		return store.Command{}, false
+	}
+	body.Name = strings.TrimSpace(body.Name)
+	body.Command = strings.TrimSpace(body.Command)
+	if body.Name == "" || body.Command == "" {
+		return store.Command{}, false
+	}
+	return body, true
+}
+
+func (s *Server) handleCreateCommand(w http.ResponseWriter, r *http.Request) {
+	cmd, ok := parseCommandBody(r)
+	if !ok {
+		s.writeJSON(w, http.StatusBadRequest, map[string]any{
+			"status": "error", "message": "命令名与内容都不能为空",
+		})
+		return
+	}
+	if err := s.store.AddCommand(cmd.Name, cmd.Command); err != nil {
+		s.writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"status": "error", "message": err.Error(),
+		})
+		return
+	}
+	commands, _ := s.store.LoadCommands()
+	s.writeJSON(w, http.StatusOK, map[string]any{"commands": commands})
+}
+
+func (s *Server) handleUpdateCommand(w http.ResponseWriter, r *http.Request, index int) {
+	cmd, ok := parseCommandBody(r)
+	if !ok {
+		s.writeJSON(w, http.StatusBadRequest, map[string]any{
+			"status": "error", "message": "命令名与内容都不能为空",
+		})
+		return
+	}
+	commands, err := s.store.LoadCommands()
+	if err != nil {
+		s.writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"status": "error", "message": err.Error(),
+		})
+		return
+	}
+	if index < 0 || index >= len(commands) {
+		s.writeJSON(w, http.StatusNotFound, map[string]any{
+			"status": "error", "message": "命令不存在",
+		})
+		return
+	}
+	commands[index] = cmd
+	if err := s.store.SaveCommands(commands); err != nil {
+		s.writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"status": "error", "message": err.Error(),
+		})
+		return
+	}
+	s.writeJSON(w, http.StatusOK, map[string]any{"commands": commands})
+}
+
+func (s *Server) handleDeleteCommand(w http.ResponseWriter, index int) {
+	commands, err := s.store.LoadCommands()
+	if err != nil {
+		s.writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"status": "error", "message": err.Error(),
+		})
+		return
+	}
+	if index < 0 || index >= len(commands) {
+		s.writeJSON(w, http.StatusNotFound, map[string]any{
+			"status": "error", "message": "命令不存在",
+		})
+		return
+	}
+	if err := s.store.RemoveCommand(index); err != nil {
+		s.writeJSON(w, http.StatusInternalServerError, map[string]any{
+			"status": "error", "message": err.Error(),
+		})
+		return
+	}
+	s.writeJSON(w, http.StatusOK, map[string]any{"status": "ok"})
+}
+
+// matchCommandID 匹配 /api/commands/{index}（{index} 必须是数字）。
+func matchCommandID(path string) bool {
+	_, err := strconv.Atoi(strings.TrimPrefix(path, "/api/commands/"))
+	return err == nil
+}
+
+func commandID(path string) int {
+	id, _ := strconv.Atoi(strings.TrimPrefix(path, "/api/commands/"))
+	return id
+}

@@ -2,6 +2,7 @@ package hydrokit
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 )
 
@@ -73,6 +74,9 @@ type PluginSummary struct {
 }
 
 // List returns a summary of every registered plugin (for launchers).
+//
+// 按包 id 排序：rt.plugins 是 map，直接遍历出来的顺序每次都不一样。桌面 UI 每 2 秒
+// 拉一次这个列表，不排序的话用户会看到插件列表顺序莫名其妙地跳。
 func (rt *Runtime) List() []PluginSummary {
 	rt.mu.RLock()
 	defer rt.mu.RUnlock()
@@ -81,6 +85,7 @@ func (rt *Runtime) List() []PluginSummary {
 		m := p.Manifest()
 		out = append(out, PluginSummary{Package: m.Package, Apps: m.Apps, Widgets: m.Widgets})
 	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Package.ID < out[j].Package.ID })
 	return out
 }
 
