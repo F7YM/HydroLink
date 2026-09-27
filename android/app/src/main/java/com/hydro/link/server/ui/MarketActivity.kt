@@ -55,11 +55,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.core.tween
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -342,10 +337,11 @@ private fun MarketScreen(
         navController = nav,
         startDestination = ROUTE_LIST,
         modifier = Modifier.fillMaxSize(),
-        enterTransition = { slideInHorizontally(tween(240)) { it } + fadeIn(tween(200)) },
-        exitTransition = { fadeOut(tween(160)) },
-        popEnterTransition = { fadeIn(tween(200)) },
-        popExitTransition = { slideOutHorizontally(tween(240)) { it } + fadeOut(tween(200)) },
+        // 子页转场用全应用共享规格（见 PageTransitions），别又在这里自己写一套时长
+        enterTransition = { PageTransitions.enter },
+        exitTransition = { PageTransitions.exit },
+        popEnterTransition = { PageTransitions.popEnter },
+        popExitTransition = { PageTransitions.popExit },
     ) {
         composable(ROUTE_LIST) {
             val goDetail: (MarketRow) -> Unit = { row ->

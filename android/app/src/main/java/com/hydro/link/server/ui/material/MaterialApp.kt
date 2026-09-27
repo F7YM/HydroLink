@@ -213,8 +213,9 @@ fun MaterialApp(
                     androidx.compose.animation.AnimatedVisibility(
                         visible = model.authorizerPage,
                         modifier = Modifier.fillMaxSize(),
-                        enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
-                        exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
+                        // 与插件市场详情页同一份规格（PageTransitions）
+                        enter = com.hydro.link.server.ui.PageTransitions.enter,
+                        exit = com.hydro.link.server.ui.PageTransitions.exit,
                     ) {
                         Box(
                             modifier = Modifier
