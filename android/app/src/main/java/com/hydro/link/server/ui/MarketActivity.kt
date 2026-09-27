@@ -793,10 +793,8 @@ private fun MiuixDetailScreen(
                         )
                     }
                 }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
                 Spacer(Modifier.width(12.dp))
-                // 安装/更新按钮就摆在图标右侧；不兼容时灰显，原因写在下面
+                // 安装/更新按钮就在同一行的图标右侧；不兼容时灰显
                 MiuixTextButton(
                     text = if (state.busyId == row.entry.id) "下载中…"
                     else MarketCatalog.actionLabel(row.status),
@@ -809,25 +807,6 @@ private fun MiuixDetailScreen(
                 MiuixText(
                     text = "HydroLink 版本过低（需要 v" + row.entry.minHydrolink + "+）",
                     fontSize = 12.sp,
-                    color = Color(0xFFE5484D),
-                )
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Spacer(Modifier.width(12.dp))
-                // 安装/更新按钮就摆在图标右侧；不兼容时灰显，原因写在下面
-                TextButton(
-                    enabled = row.status != MarketStatus.INCOMPATIBLE && state.busyId.isEmpty(),
-                    onClick = onInstall,
-                ) {
-                    Text(
-                        if (state.busyId == row.entry.id) "下载中…"
-                        else MarketCatalog.actionLabel(row.status)
-                    )
-                }
-            }
-            if (row.status == MarketStatus.INCOMPATIBLE) {
-                Text(
-                    text = "HydroLink 版本过低（需要 v" + row.entry.minHydrolink + "+）",
                     color = Color(0xFFE5484D),
                 )
             }
@@ -936,6 +915,23 @@ private fun MdDetailScreen(
                         )
                     }
                 }
+                Spacer(Modifier.width(12.dp))
+                // 安装/更新按钮就在同一行的图标右侧；不兼容时灰显
+                TextButton(
+                    enabled = row.status != MarketStatus.INCOMPATIBLE && state.busyId.isEmpty(),
+                    onClick = onInstall,
+                ) {
+                    Text(
+                        if (state.busyId == row.entry.id) "下载中…"
+                        else MarketCatalog.actionLabel(row.status)
+                    )
+                }
+            }
+            if (row.status == MarketStatus.INCOMPATIBLE) {
+                Text(
+                    text = "HydroLink 版本过低（需要 v" + row.entry.minHydrolink + "+）",
+                    color = Color(0xFFE5484D),
+                )
             }
             if (row.entry.screenshots.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
