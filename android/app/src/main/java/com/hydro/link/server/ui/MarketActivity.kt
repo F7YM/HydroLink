@@ -574,9 +574,12 @@ private fun MdMarketScreen(
                             )
                         }
                         item {
+                            // 分类标签要能左右滑：分类会随索引增长（现在是 3 个，
+                            // 以后加），固定宽度排不下就得能滑
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState())
                                     .padding(horizontal = 16.dp, vertical = 4.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
@@ -875,7 +878,10 @@ private fun MdSourceOptions(current: String, onPick: (String) -> Unit) {
         modifier = Modifier.padding(top = 4.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             sourceOptions().forEach { value ->
                 FilterChip(
                     selected = value == current,
