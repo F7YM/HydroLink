@@ -38,3 +38,6 @@ dist/*.apk
 
 # 本地开发笔记（不入库）
 AGENTS.md
+
+# 桌面端重写工程（独立 git 仓库，不属于主仓）
+desktop-compose/
