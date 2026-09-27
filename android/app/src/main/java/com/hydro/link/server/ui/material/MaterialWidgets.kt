@@ -119,9 +119,13 @@ fun MdBaseWidget(
     title: String,
     description: String? = null,
     @DrawableRes icon: Int? = null,
+    /** 自定义前导（市场那种网络图标；给 [icon] 时优先用图标资源）。 */
+    leading: (@Composable () -> Unit)? = null,
     onClick: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
     descriptionColor: Color? = null,
+    /** 副标题行数上限：详情页的长文本（介绍/更新日志）要放开，列表行仍保持 2 行。 */
+    descriptionMaxLines: Int = 2,
 ) {
     ListItem(
         modifier = Modifier.then(
@@ -142,21 +146,52 @@ fun MdBaseWidget(
                     text = it,
                     style = MaterialTheme.typography.bodyMedium,
                     color = descriptionColor ?: MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                    maxLines = 2,
+                    maxLines = descriptionMaxLines,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
         },
-        leadingContent = icon?.let {
-            {
-                Icon(
-                    painter = painterResource(it),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+        leadingContent = when {
+            leading != null -> leading
+            icon != null -> {
+                {
+                    Icon(
+                        painter = painterResource(icon),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
+            else -> null
         },
         trailingContent = trailing,
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+    )
+}
+
+/**
+ * 分组里的一段长文本（详情页的「介绍」「更新日志」）。
+ *
+ * 和 [MdBaseWidget] 同族的 ListItem：标题用主色小字，正文**不截断**——介绍/更新日志
+ * 用 MdBaseWidget 会被 `maxLines = 2` 砍掉半段。
+ */
+@Composable
+fun MdNoteWidget(title: String, text: String) {
+    ListItem(
+        headlineContent = {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        },
+        supportingContent = {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+            )
+        },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
     )
 }

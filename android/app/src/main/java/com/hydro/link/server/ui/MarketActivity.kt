@@ -69,6 +69,9 @@ import com.hydro.link.server.market.MarketSources
 import com.hydro.link.server.market.MarketStatus
 import com.hydro.link.server.market.UrlFetcher
 import com.hydro.link.server.ui.material.ExpressiveBackButton
+import com.hydro.link.server.ui.material.MdBaseWidget
+import com.hydro.link.server.ui.material.MdEmptyItem
+import com.hydro.link.server.ui.material.MdSegmentedColumn
 import com.hydro.link.server.ui.material.HydroMaterialTheme
 import com.hydro.link.server.ui.miuix.ConfirmDialog
 import com.hydro.link.server.util.DataManager
@@ -147,6 +150,11 @@ class MarketActivity : AppCompatActivity() {
                     onCategory = { c -> ui.value = ui.value.copy(category = c) },
                     onRefresh = ::refresh,
                     onInstall = ::install,
+                    onOpenDetail = { row ->
+                        // 详情页是独立 Activity：开/关用系统转场、返回走系统返回栈。
+                        // 页内 NavHost 手写的滑入淡入手感与应用其他页不一致，不要再走那条路
+                        startActivity(MarketDetailActivity.intent(this, row.entry, ui.value.base))
+                    },
                     onPickSource = { ui.value = ui.value.copy(sourcePicker = true) },
                     onCloseSource = { ui.value = ui.value.copy(sourcePicker = false) },
                     onSource = ::setSource,
@@ -255,36 +263,9 @@ private data class MarketUi(
 
 // ---------------------------------------------------------------- 界面
 
-private fun categoryLabel(category: String): String = when (category) {
-    "game" -> "游戏"
-    "utility" -> "工具"
-    "other" -> "其他"
-    else -> category
-}
 
-private fun statusLabel(row: MarketRow): String = when (row.status) {
-    MarketStatus.AVAILABLE -> ""
-    MarketStatus.INSTALLED -> "已安装"
-    MarketStatus.UPDATE -> "可更新"
-    MarketStatus.INCOMPATIBLE -> "需要 HydroLink ${row.entry.minHydrolink}+"
-}
 
 /** 详情页与列表共用的信息行（标题 + 值）。 */
-private fun detailFields(row: MarketRow): List<Pair<String, String>> {
-    val e = row.entry
-    return buildList {
-        add("版本" to "v${e.version}")
-        add("作者" to e.author.ifBlank { "—" })
-        add("包名" to e.id)
-        add("分类" to categoryLabel(e.category))
-        add("运行时" to e.runtime)
-        add("大小" to "${e.size / 1024} KB")
-        add("权限" to if (e.permissions.isEmpty()) "未申请权限" else e.permissions.joinToString("、"))
-        add("指纹" to e.sha256.take(12))
-        if (e.minHydrolink.isNotBlank()) add("最低宿主" to "HydroLink v${e.minHydrolink}")
-        if (e.homepage.isNotBlank()) add("主页" to e.homepage)
-    }
-}
 
 /** 一个文本弹窗的内容（两个引擎各画各的壳，内容共用）。 */
 private data class TextDialogSpec(
@@ -306,6 +287,7 @@ private fun MarketScreen(
     onCategory: (String) -> Unit,
     onRefresh: () -> Unit,
     onInstall: (MarketRow) -> Unit,
+    onOpenDetail: (MarketRow) -> Unit,
     onPickSource: () -> Unit,
     onCloseSource: () -> Unit,
     onSource: (String) -> Unit,
@@ -329,66 +311,16 @@ private fun MarketScreen(
         null
     }
 
-    // 详情页走**真的返回栈**（NavController）：系统返回 = 回列表，再返回才退出 Activity。
-    // 早先图省事用一个 state 字段整页覆盖，系统返回会直接退出到主界面——那种写法不算
-    // 导航栈，用户按返回的预期是「回到刚才那页」。
-    val nav = rememberNavController()
-    NavHost(
-        navController = nav,
-        startDestination = ROUTE_LIST,
-        modifier = Modifier.fillMaxSize(),
-        // 子页转场用全应用共享规格（见 PageTransitions），别又在这里自己写一套时长
-        enterTransition = { PageTransitions.enter },
-        exitTransition = { PageTransitions.exit },
-        popEnterTransition = { PageTransitions.popEnter },
-        popExitTransition = { PageTransitions.popExit },
-    ) {
-        composable(ROUTE_LIST) {
-            val goDetail: (MarketRow) -> Unit = { row ->
-                // 路径里只放值（`detail/<id>`）：写成 `detail/id=<值>` 的话整段会被当成
-                // {id} 的值，详情页找不到对应条目 → 立刻退回列表，看起来就是「点不开」
-                nav.navigate("$ROUTE_DETAIL/${row.entry.id}")
-            }
-            if (miuix) {
-                MiuixMarketScreen(
-                    state, spec, onBack, onQuery, onCategory, onRefresh, onInstall, goDetail,
-                    onPickSource,
-                )
-            } else {
-                MdMarketScreen(
-                    state, spec, onBack, onQuery, onCategory, onRefresh, onInstall, goDetail,
-                    onPickSource,
-                )
-            }
-        }
-        composable("$ROUTE_DETAIL/{$ARG_ID}") { entry ->
-            val id = entry.arguments?.getString(ARG_ID).orEmpty()
-            val row = state.rows.firstOrNull { it.entry.id == id }
-            if (row == null) {
-                // 索引刷新后这个插件不在了（下了架/过滤没了）：别停在空详情页
-                LaunchedEffect(id) { nav.popBackStack() }
-            } else if (miuix) {
-                MiuixDetailScreen(
-                    state = state,
-                    row = row,
-                    onBack = { nav.popBackStack() },
-                    onInstall = {
-                        nav.popBackStack()
-                        if (row.status != MarketStatus.INCOMPATIBLE) onInstall(row)
-                    },
-                )
-            } else {
-                MdDetailScreen(
-                    state = state,
-                    row = row,
-                    onBack = { nav.popBackStack() },
-                    onInstall = {
-                        nav.popBackStack()
-                        if (row.status != MarketStatus.INCOMPATIBLE) onInstall(row)
-                    },
-                )
-            }
-        }
+    if (miuix) {
+        MiuixMarketScreen(
+            state, spec, onBack, onQuery, onCategory, onRefresh, onInstall, onOpenDetail, onPickSource,
+        )
+        MiuixConfirmHost(state.dialog, onDismissDialog)
+    } else {
+        MdMarketScreen(
+            state, spec, onBack, onQuery, onCategory, onRefresh, onInstall, onOpenDetail, onPickSource,
+        )
+        MdConfirmHost(state.dialog, onDismissDialog)
     }
 
     if (miuix) {
@@ -625,101 +557,82 @@ private fun MdMarketScreen(
                     top = 8.dp,
                     bottom = inner.calculateBottomPadding() + 24.dp,
                 ),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                // 列表一律走 MD 组件（与主页「服务器信息」同一套 MdSegmentedColumn +
+                // MdBaseWidget），不再手搓行
                 item {
-                    OutlinedTextField(
-                        value = state.query,
-                        onValueChange = onQuery,
-                        label = { Text("搜索插件") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        FilterChip(
-                            selected = state.category == MarketCatalog.CATEGORY_ALL,
-                            onClick = { onCategory(MarketCatalog.CATEGORY_ALL) },
-                            label = { Text("全部 ${counts[MarketCatalog.CATEGORY_ALL] ?: 0}") },
-                        )
-                        MarketIndexParser.CATEGORIES.forEach { c ->
-                            FilterChip(
-                                selected = state.category == c,
-                                onClick = { onCategory(c) },
-                                label = { Text("${categoryLabel(c)} ${counts[c] ?: 0}") },
+                    MdSegmentedColumn {
+                        item {
+                            OutlinedTextField(
+                                value = state.query,
+                                onValueChange = onQuery,
+                                label = { Text("搜索插件") },
+                                singleLine = true,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 4.dp),
                             )
                         }
-                    }
-                }
-                if (visible.isEmpty() && !state.loading) {
-                    item {
-                        Text(
-                            text = if (state.rows.isEmpty()) "市场里还没有插件" else "没有匹配的插件",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(vertical = 24.dp),
-                        )
-                    }
-                }
-                visible.forEach { row ->
-                    item {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onOpenDetail(row) }
-                                .padding(vertical = 6.dp),
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                RemoteImage(iconUrl(state, row), 40.dp)
-                                Spacer(Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = row.entry.name,
-                                        style = MaterialTheme.typography.titleSmall,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                    Text(
-                                        text = "v${row.entry.version} · ${row.entry.author}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                FilterChip(
+                                    selected = state.category == MarketCatalog.CATEGORY_ALL,
+                                    onClick = { onCategory(MarketCatalog.CATEGORY_ALL) },
+                                    label = { Text("全部 ${counts[MarketCatalog.CATEGORY_ALL] ?: 0}") },
+                                )
+                                MarketIndexParser.CATEGORIES.forEach { c ->
+                                    FilterChip(
+                                        selected = state.category == c,
+                                        onClick = { onCategory(c) },
+                                        label = { Text("${categoryLabel(c)} ${counts[c] ?: 0}") },
                                     )
                                 }
-                                Spacer(Modifier.width(8.dp))
-                                MarketAction(state = state, row = row, miuix = false, onInstall = onInstall)
                             }
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                text = row.entry.description,
-                                style = MaterialTheme.typography.bodyMedium,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text(
-                                    text = categoryLabel(row.entry.category),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary,
+                        }
+                        if (visible.isEmpty() && !state.loading) {
+                            item {
+                                MdEmptyItem(
+                                    if (state.rows.isEmpty()) "市场里还没有插件" else "没有匹配的插件"
                                 )
-                                Text(
-                                    text = statusLabel(row),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MdStatusColor(row.status),
+                            }
+                        }
+                        visible.forEach { row ->
+                            item {
+                                MdBaseWidget(
+                                    title = row.entry.name,
+                                    description = buildString {
+                                        append("v").append(row.entry.version)
+                                        append(" · ").append(row.entry.author)
+                                        append(" · ").append(categoryLabel(row.entry.category))
+                                        if (row.entry.permissions.isNotEmpty()) {
+                                            append(" · ").append(row.entry.permissions.joinToString(" "))
+                                        }
+                                        append('\n').append(row.entry.description)
+                                    },
+                                    descriptionMaxLines = 3,
+                                    leading = {
+                                        RemoteImage(marketAssetUrl(state.base, row.entry.icon), 40.dp)
+                                    },
+                                    onClick = { onOpenDetail(row) },
+                                    trailing = {
+                                        if (state.busyId == row.entry.id) {
+                                            Text(
+                                                text = "下载中…",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        } else if (row.status != MarketStatus.INCOMPATIBLE) {
+                                            TextButton(onClick = { onInstall(row) }) {
+                                                Text(MarketCatalog.actionLabel(row.status))
+                                            }
+                                        }
+                                    },
                                 )
-                                if (row.entry.permissions.isNotEmpty()) {
-                                    Text(
-                                        text = row.entry.permissions.joinToString(" · "),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
                             }
                         }
                     }
@@ -729,269 +642,6 @@ private fun MdMarketScreen(
     }
 
     MdTextDialogHost(spec)
-}
-
-// ---------------------------------------------------------------- 详情页
-
-/**
- * 插件详情（整页，两个引擎各一套外观）。
- *
- * 单独一页而不是弹窗：图标、描述、更新日志、截图放不进一个小对话框里；
- * 顶栏返回键/系统返回都只是回到列表。
- */
-@Composable
-private fun MiuixDetailScreen(
-    state: MarketUi,
-    row: MarketRow,
-    onBack: () -> Unit,
-    onInstall: () -> Unit,
-) {
-    MiuixScaffold(
-        containerColor = MiuixTheme.colorScheme.surface,
-        topBar = {
-            MiuixTopAppBar(
-                title = row.entry.name,
-                navigationIcon = {
-                    MiuixIconButton(onClick = onBack) {
-                        MiuixIcon(
-                            painter = painterResource(R.drawable.ic_arrow_back),
-                            contentDescription = "返回",
-                            tint = MiuixTheme.colorScheme.onSurface,
-                        )
-                    }
-                },
-            )
-        },
-    ) { inner ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = inner.calculateTopPadding())
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-        ) {
-            Spacer(Modifier.height(12.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                RemoteImage(iconUrl(state, row), 56.dp)
-                Spacer(Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    MiuixText(text = row.entry.name, color = MiuixTheme.colorScheme.onSurface)
-                    MiuixText(
-                        text = "v${row.entry.version} · ${row.entry.author}",
-                        fontSize = 12.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    )
-                    if (statusLabel(row).isNotEmpty()) {
-                        MiuixText(
-                            text = statusLabel(row),
-                            fontSize = 11.sp,
-                            color = MiuixStatusColor(row.status),
-                        )
-                    }
-                }
-                Spacer(Modifier.width(12.dp))
-                // 安装/更新按钮就在同一行的图标右侧；不兼容时灰显
-                MiuixTextButton(
-                    text = if (state.busyId == row.entry.id) "下载中…"
-                    else MarketCatalog.actionLabel(row.status),
-                    enabled = row.status != MarketStatus.INCOMPATIBLE && state.busyId.isEmpty(),
-                    onClick = onInstall,
-                    colors = MiuixButtonDefaults.textButtonColorsPrimary(),
-                )
-            }
-            if (row.status == MarketStatus.INCOMPATIBLE) {
-                MiuixText(
-                    text = "HydroLink 版本过低（需要 v" + row.entry.minHydrolink + "+）",
-                    fontSize = 12.sp,
-                    color = Color(0xFFE5484D),
-                )
-            }
-            if (row.entry.screenshots.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    row.entry.screenshots.forEach { path ->
-                        RemoteImage(
-                            MarketSources.join(state.base, path),
-                            120.dp,
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            MiuixCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
-                    MiuixText(text = "介绍", fontSize = 12.sp, color = MiuixTheme.colorScheme.primary)
-                    Spacer(Modifier.height(4.dp))
-                    MiuixText(text = row.entry.description, color = MiuixTheme.colorScheme.onSurface)
-                    if (row.entry.keywords.isNotEmpty()) {
-                        Spacer(Modifier.height(8.dp))
-                        MiuixText(
-                            text = "关键词：${row.entry.keywords.joinToString("、")}",
-                            fontSize = 12.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        )
-                    }
-                }
-            }
-            if (row.entry.notes.isNotBlank()) {
-                Spacer(Modifier.height(12.dp))
-                MiuixCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
-                        MiuixText(text = "更新日志", fontSize = 12.sp, color = MiuixTheme.colorScheme.primary)
-                        Spacer(Modifier.height(4.dp))
-                        MiuixText(text = row.entry.notes, color = MiuixTheme.colorScheme.onSurface)
-                    }
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            MiuixCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
-                    detailFields(row).forEach { (label, value) ->
-                        MiuixText(
-                            text = label,
-                            fontSize = 12.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        )
-                        MiuixText(text = value, color = MiuixTheme.colorScheme.onSurface)
-                        Spacer(Modifier.height(6.dp))
-                    }
-                }
-            }
-            Spacer(Modifier.height(32.dp))
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun MdDetailScreen(
-    state: MarketUi,
-    row: MarketRow,
-    onBack: () -> Unit,
-    onInstall: () -> Unit,
-) {
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        topBar = {
-            TopAppBar(
-                title = { Text(row.entry.name) },
-                navigationIcon = { ExpressiveBackButton(onClick = onBack) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                ),
-            )
-        },
-    ) { inner ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = inner.calculateTopPadding())
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-        ) {
-            Spacer(Modifier.height(12.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                RemoteImage(iconUrl(state, row), 56.dp)
-                Spacer(Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(text = row.entry.name, style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        text = "v${row.entry.version} · ${row.entry.author}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    if (statusLabel(row).isNotEmpty()) {
-                        Text(
-                            text = statusLabel(row),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MdStatusColor(row.status),
-                        )
-                    }
-                }
-                Spacer(Modifier.width(12.dp))
-                // 安装/更新按钮就在同一行的图标右侧；不兼容时灰显
-                TextButton(
-                    enabled = row.status != MarketStatus.INCOMPATIBLE && state.busyId.isEmpty(),
-                    onClick = onInstall,
-                ) {
-                    Text(
-                        if (state.busyId == row.entry.id) "下载中…"
-                        else MarketCatalog.actionLabel(row.status)
-                    )
-                }
-            }
-            if (row.status == MarketStatus.INCOMPATIBLE) {
-                Text(
-                    text = "HydroLink 版本过低（需要 v" + row.entry.minHydrolink + "+）",
-                    color = Color(0xFFE5484D),
-                )
-            }
-            if (row.entry.screenshots.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    row.entry.screenshots.forEach { path ->
-                        RemoteImage(MarketSources.join(state.base, path), 120.dp)
-                    }
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            SectionCard(title = "介绍") {
-                Text(text = row.entry.description)
-                if (row.entry.keywords.isNotEmpty()) {
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = "关键词：${row.entry.keywords.joinToString("、")}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            if (row.entry.notes.isNotBlank()) {
-                Spacer(Modifier.height(12.dp))
-                SectionCard(title = "更新日志") {
-                    Text(text = row.entry.notes)
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            SectionCard(title = "信息") {
-                detailFields(row).forEach { (label, value) ->
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(text = value)
-                    Spacer(Modifier.height(6.dp))
-                }
-            }
-            Spacer(Modifier.height(32.dp))
-        }
-    }
-}
-
-@Composable
-private fun SectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
-    androidx.compose.material3.Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        shape = MaterialTheme.shapes.medium,
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(Modifier.height(4.dp))
-            content()
-        }
-    }
 }
 
 // ---------------------------------------------------------------- 公共小件
@@ -1030,19 +680,7 @@ private fun MarketAction(
     }
 }
 
-@Composable
-private fun MiuixStatusColor(status: MarketStatus): Color = when (status) {
-    MarketStatus.AVAILABLE -> MiuixTheme.colorScheme.onSurfaceVariantSummary
-    MarketStatus.INSTALLED, MarketStatus.UPDATE -> MiuixTheme.colorScheme.primary
-    MarketStatus.INCOMPATIBLE -> Color(0xFFE5484D)
-}
 
-@Composable
-private fun MdStatusColor(status: MarketStatus): Color = when (status) {
-    MarketStatus.AVAILABLE -> MaterialTheme.colorScheme.onSurfaceVariant
-    MarketStatus.INSTALLED, MarketStatus.UPDATE -> MaterialTheme.colorScheme.primary
-    MarketStatus.INCOMPATIBLE -> Color(0xFFE5484D)
-}
 
 /** 来源选项：自动 / jsDelivr / GitHub Raw / Gh-Proxy（值 → 显示名由 [MarketSources.label] 给）。 */
 private fun sourceOptions(): List<String> =
@@ -1205,6 +843,7 @@ private fun MdConfirmHost(dialog: ConfirmDialog?, onDismiss: () -> Unit) {
 
 // ---------------------------------------------------------------- 来源弹窗内容
 
+
 /**
  * 「市场来源」弹窗里的选项列表。选中哪个哪个用主题色；miuix 侧按钮之间留 8dp
  * （不排间距会挤成一坨，很难看）。
@@ -1245,60 +884,5 @@ private fun MdSourceOptions(current: String, onPick: (String) -> Unit) {
                 )
             }
         }
-    }
-}
-
-/**
- * 远程图标（索引里的 icon 是仓库内相对路径，基址可切）。
- *
- * 不引 Coil/Glide：图标 ≤256KB，直接内存解码 + 进程内 LRU 缓存就够，
- * 少一个依赖少一份许可证与安装包体积。base 为空（还没拉到索引）就不请求。
- */
-@Composable
-private fun RemoteImage(url: String, size: Dp) {
-    var bitmap by remember(url) { mutableStateOf(if (url.isEmpty()) null else RemoteImages.get(url)) }
-    LaunchedEffect(url) {
-        if (url.isNotEmpty() && bitmap == null) {
-            val loaded = withContext(Dispatchers.IO) { RemoteImages.load(url) }
-            if (loaded != null) bitmap = loaded
-        }
-    }
-    Box(modifier = Modifier.size(size), contentAlignment = Alignment.Center) {
-        bitmap?.let {
-            Image(
-                bitmap = it,
-                contentDescription = null,
-                modifier = Modifier.size(size),
-                contentScale = ContentScale.Fit,
-            )
-        }
-    }
-}
-
-private object RemoteImages {
-    private const val MAX = 64
-    private val cache = object : LinkedHashMap<String, ImageBitmap>(16, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageBitmap>) = size > MAX
-    }
-
-    @Synchronized
-    fun get(url: String): ImageBitmap? = cache[url]
-
-    fun load(url: String): ImageBitmap? = try {
-        val conn = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
-            connectTimeout = 10_000
-            readTimeout = 15_000
-            instanceFollowRedirects = true
-        }
-        val bytes = try {
-            if (conn.responseCode == 200) conn.inputStream.use { it.readBytes() } else null
-        } finally {
-            conn.disconnect()
-        }
-        val decoded = bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }?.asImageBitmap()
-        if (decoded != null) synchronized(this) { cache[url] = decoded }
-        decoded
-    } catch (e: Exception) {
-        null
     }
 }
