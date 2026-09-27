@@ -71,6 +71,7 @@ import com.hydro.link.server.market.UrlFetcher
 import com.hydro.link.server.ui.material.ExpressiveBackButton
 import com.hydro.link.server.ui.material.MdBaseWidget
 import com.hydro.link.server.ui.material.MdEmptyItem
+import com.hydro.link.server.ui.material.MdRadioWidget
 import com.hydro.link.server.ui.material.MdSegmentedColumn
 import com.hydro.link.server.ui.material.HydroMaterialTheme
 import com.hydro.link.server.ui.miuix.ConfirmDialog
@@ -871,24 +872,25 @@ private fun MiuixSourceOptions(current: String, onPick: (String) -> Unit) {
     }
 }
 
+/**
+ * MD 侧来源选择：与设置页「主题风格」「授权器」同一套 [MdRadioWidget]（不是 chip）。
+ * 弹窗里放单选行，语义和别处一致：选中哪一项一眼看得出来。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MdSourceOptions(current: String, onPick: (String) -> Unit) {
-    Column(
-        modifier = Modifier.padding(top = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            sourceOptions().forEach { value ->
-                FilterChip(
-                    selected = value == current,
-                    onClick = { onPick(value) },
-                    label = { Text(MarketSources.label(value)) },
-                )
-            }
+    Column {
+        MdRadioWidget(
+            title = "自动",
+            description = "依次尝试 jsDelivr → GitHub Raw → Gh-Proxy",
+            selected = current == MarketSources.AUTO,
+        ) { onPick(MarketSources.AUTO) }
+        MarketSources.candidates.forEachIndexed { index, base ->
+            MdRadioWidget(
+                title = MarketSources.label(base),
+                description = base,
+                selected = base == current,
+            ) { onPick(base) }
         }
     }
 }
