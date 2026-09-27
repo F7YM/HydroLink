@@ -97,6 +97,17 @@
         <!-- 插件 -->
         <section class="panel" id="tab-plugins">
           <div class="card">
+            <div class="card-title">插件市场</div>
+            <div class="market-bar">
+              <input id="marketQuery" class="market-input" type="search" placeholder="搜索插件（名称 / 作者 / 关键词）">
+              <select id="marketSource" class="market-input" title="市场来源"></select>
+              <button class="btn" id="marketRefresh">刷新</button>
+            </div>
+            <div class="chips chips-scroll" id="marketChips"></div>
+            <p class="muted" id="marketMsg"></p>
+            <div id="marketList" class="list"></div>
+          </div>
+          <div class="card">
             <div class="card-title">HydroPlugin</div>
             <div class="card-actions">
               <button class="btn" id="pluginInstall">安装插件 (.hpk/.zip)</button>

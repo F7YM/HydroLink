@@ -246,6 +246,9 @@
   async function loadPlugins() {
     const plugins = await api("GetPlugins");
     window.__plugins = plugins || [];
+    if ($("marketList")) loadMarket(); // 市场的「已安装/可更新」徽标依赖已装列表
+    const updates = $("marketList") ? (await api("MarketUpdates")) || [] : [];
+    const updateIds = new Set(updates.map((u) => (u.entry || {}).id));
     const list = $("pluginList");
     if (!plugins || plugins.length === 0) {
       list.innerHTML = `<p class="empty">暂无插件，点击上方按钮安装 .hpk</p>`;
@@ -261,7 +264,8 @@
       return `
         <div class="item">
           <div class="meta">
-            <span class="name">${esc(p.name || p.id)}${p.builtin ? ' <span class="badge builtin">内置</span>' : ""}</span>
+            <span class="name">${esc(p.name || p.id)}${p.builtin ? ' <span class="badge builtin">内置</span>' : ""}${
+              updateIds.has(p.id) ? ` <span class="tag permission" data-pupdate="${esc(p.id)}" style="cursor:pointer">可更新</span>` : ""}</span>
             ${meta}
             <div class="chips">${apps}${wids}${perms}</div>
           </div>
@@ -290,6 +294,18 @@
       }));
     list.querySelectorAll("[data-pweb]").forEach((b) =>
       b.addEventListener("click", () => openWebUI(b.dataset.pweb)));
+    // 「可更新」→ 弹更新日志（宿主版本不够时 Go 侧会把原因写进正文，装不了）
+    list.querySelectorAll("[data-pupdate]").forEach((n) =>
+      n.addEventListener("click", async () => {
+        const id = n.dataset.pupdate;
+        const text = (await api("MarketUpdateDialog", id)) || "";
+        showConfirm({
+          title: "插件更新",
+          text,
+          ok: "继续更新",
+          action: () => installFromMarket(id),
+        });
+      }));
     // Keep every installed JS plugin's worker alive for watch requests and
     // terminate workers of uninstalled plugins.
     if (plugins) {
@@ -310,10 +326,16 @@
     notify: "发送通知", music: "控制音乐", lock: "锁屏",
     commands: "执行命令", fetch: "访问网络", storage: "数据存储"
   };
-  let pendingInstall = null; // { path, info }
+  // pendingInstall: { path, info, fromMarket } —— fromMarket 表示包是市场下载的
+  // （校验已完成、只差用户确认），确认后走 MarketInstallPackage，取消要把它丢掉。
+  let pendingInstall = null; // { path, info, fromMarket }
 
-  function showInstallConfirm(info) {
-    pendingInstall = { path: pendingInstall ? pendingInstall.path : "", info: info };
+  function showInstallConfirm(info, opts) {
+    pendingInstall = {
+      path: pendingInstall ? pendingInstall.path : "",
+      info: info,
+      fromMarket: !!(opts && opts.fromMarket),
+    };
     const perms = (info.permissions || []).map((p) =>
       `<span class="tag permission">${esc(PERM_LABELS[p] || p)}</span>`).join("");
     const apps = (info.apps || []).map((a) => esc(a.name || a.id)).join("、");
@@ -353,17 +375,189 @@
     }
   });
 
-  $("pipCancel").addEventListener("click", () => {
+  $("pipCancel").addEventListener("click", async () => {
     $("pluginConfirmModal").classList.add("hidden");
+    if (pendingInstall && pendingInstall.fromMarket) await api("MarketDiscardStage");
     pendingInstall = null;
   });
 
+  // ---- 插件市场 ----
+  // 索引、状态、搜索/分类、版本比较全在 Go 侧（internal/market），前端只渲染；
+  // 安装走 MarketFetchPackage（下载+校验）→ 复用上面那个确认弹窗 → MarketInstallPackage。
+  const marketState = { rows: [], category: "all", query: "", busy: false };
+
+  function marketMessage(text, isError) {
+    const el = $("marketMsg");
+    if (!el) return;
+    el.textContent = text || "";
+    el.style.color = isError ? "var(--md-error)" : "";
+    if (isError && text) {
+      setTimeout(() => { if (el.textContent === text) { el.textContent = ""; el.style.color = ""; } }, 5000);
+    }
+  }
+
+  async function loadMarket() {
+    const list = $("marketList");
+    if (!list) return;
+    if (marketState.busy) return;
+    marketState.busy = true;
+    try {
+      const view = await api("MarketRefresh", { query: marketState.query, category: marketState.category });
+      if (!view) { marketState.busy = false; return; }
+      marketState.rows = view.rows || [];
+      renderMarketChips(view);
+      renderMarketSource(view);
+      marketMessage(view.err || "", !!view.err);
+      if (!marketState.rows.length) {
+        list.innerHTML = `<p class="empty">${
+          (view.counts && view.counts.all) ? "没有匹配的插件" : "市场里还没有插件"
+        }</p>`;
+      } else {
+        // 图标走 Go 拼好的绝对地址（前端不拼基址，换镜像不用改前端）
+        const icons = {};
+        for (const r of marketState.rows) {
+          const e = r.entry || {};
+          if (e.icon) icons[e.id] = (await api("MarketAssetURL", e.icon)) || "";
+        }
+        list.innerHTML = marketState.rows.map((r) => {
+          const e = r.entry || {};
+          const icon = icons[e.id] ? esc(icons[e.id]) : "";
+          const cats = [catLabel(e.category)];
+          if (e.permissions && e.permissions.length) cats.push(e.permissions.join(" · "));
+          const note = r.status === "update" ? "可更新"
+            : r.status === "incompatible" ? `需要 HydroLink v${e.min_hydrolink}+` : "";
+          return `
+            <div class="item" data-mrow="${esc(e.id)}">
+              <img class="market-icon" src="${icon}" alt="" loading="lazy">
+              <div class="meta">
+                <span class="name">${esc(e.name || e.id)}</span>
+                <span class="sub">v${esc(e.version)} · ${esc(e.author || "未署名")}</span>
+                <div class="market-desc">${esc(e.description || "")}</div>
+                <div class="chips">${cats.map((c) => `<span class="tag">${esc(c)}</span>`).join("")}${
+                  note ? `<span class="tag permission">${esc(note)}</span>` : ""}</div>
+              </div>
+              <div style="display:flex;gap:4px;align-items:center">
+                ${
+                  r.status === "incompatible"
+                    ? `<span class="muted">不兼容</span>`
+                    : `<button class="btn" data-minstall="${esc(e.id)}">${esc(r.actionLabel || "安装")}</button>`
+                }
+              </div>
+            </div>`;
+        }).join("");
+        list.querySelectorAll("[data-minstall]").forEach((b) =>
+          b.addEventListener("click", () => installFromMarket(b.dataset.minstall)));
+        list.querySelectorAll("[data-mrow]").forEach((n) =>
+          n.addEventListener("click", (ev) => {
+            if (ev.target.closest("[data-minstall]")) return;
+            showMarketDetail(n.dataset.mrow);
+          }));
+      }
+    } finally {
+      marketState.busy = false;
+    }
+  }
+
+  function catLabel(c) {
+    return c === "game" ? "游戏" : c === "utility" ? "工具" : c === "other" ? "其他" : (c || "");
+  }
+
+  function renderMarketChips(view) {
+    const el = $("marketChips");
+    if (!el) return;
+    const counts = view.counts || {};
+    const all = [["all", "全部", counts.all || 0]].concat(
+      (view.categories || []).map((c) => [c, catLabel(c), counts[c] || 0]));
+    el.innerHTML = all.map(([value, label, n]) =>
+      `<span class="tag${marketState.category === value ? " active" : ""}" data-mcat="${esc(value)}">${esc(label)} ${n}</span>`
+    ).join("");
+    el.querySelectorAll("[data-mcat]").forEach((n) =>
+      n.addEventListener("click", () => {
+        marketState.category = n.dataset.mcat;
+        loadMarket();
+      }));
+  }
+
+  function renderMarketSource(view) {
+    const sel = $("marketSource");
+    if (!sel) return;
+    const opts = view.sources && view.sources.length
+      ? view.sources
+      : [{ value: "auto", label: "自动" }];
+    const want = opts.map((o) => o.value).join("|") + "=>" + (view.source || "auto");
+    if (sel.dataset.filled !== want) {
+      sel.innerHTML = opts.map((o) => `<option value="${esc(o.value)}">${esc(o.label)}</option>`).join("");
+      sel.dataset.filled = want;
+      if (!sel.dataset.bound) {
+        sel.dataset.bound = "1";
+        sel.addEventListener("change", async () => {
+          await api("MarketSetSource", sel.value);
+          marketState.category = "all";
+          loadMarket();
+        });
+      }
+    }
+    sel.value = view.source || "auto";
+  }
+
+  async function showMarketDetail(id) {
+    const row = marketState.rows.find((r) => (r.entry || {}).id === id);
+    if (!row) return;
+    const e = row.entry;
+    const lines = [
+      `v${e.version} · ${e.author || "未署名"}`,
+      `分类：${catLabel(e.category)} · 运行时：${e.runtime} · 大小：${Math.round((e.size || 0) / 1024)} KB`,
+      `权限：${(e.permissions && e.permissions.length) ? e.permissions.join(", ") : "未申请权限"}`,
+      `指纹：${(e.sha256 || "").slice(0, 12)}`,
+      "",
+      e.description || "",
+    ];
+    if (e.notes) lines.push("", "更新日志：", e.notes);
+    showConfirm({
+      title: e.name || e.id,
+      text: lines.join("\n"),
+      ok: row.actionLabel || "安装",
+      action: () => installFromMarket(id),
+    });
+  }
+
+  async function installFromMarket(id) {
+    marketMessage("正在下载并校验…", false);
+    try {
+      const info = await api("MarketFetchPackage", id);
+      if (!info || !info.id) { marketMessage("下载失败", true); return; }
+      showInstallConfirm(info, { fromMarket: true });
+      marketMessage("", false);
+    } catch (e) {
+      marketMessage(String(e && e.message ? e.message : e), true);
+    }
+  }
+
+  let marketSearchTimer = null;
+  document.addEventListener("DOMContentLoaded", () => {
+    const input = $("marketQuery");
+    if (input) {
+      input.addEventListener("input", () => {
+        clearTimeout(marketSearchTimer);
+        marketSearchTimer = setTimeout(() => {
+          marketState.query = input.value || "";
+          loadMarket();
+        }, 250);
+      });
+    }
+    const btn = $("marketRefresh");
+    if (btn) btn.addEventListener("click", () => { marketState.query = input ? input.value : ""; loadMarket(); });
+  });
+
   $("pipOk").addEventListener("click", async () => {
-    if (!pendingInstall || !pendingInstall.path) return;
+    if (!pendingInstall) return;
     const msg = $("pluginMsg");
+    const fromMarket = pendingInstall.fromMarket;
     try {
       const app = B();
-      const info = await app.InstallPlugin(pendingInstall.path);
+      const info = fromMarket
+        ? await app.MarketInstallPackage()
+        : await app.InstallPlugin(pendingInstall.path);
       if (info && info.id) {
         msg.textContent = `已安装 ${info.name || info.id} v${info.version}`;
         msg.style.color = "var(--md-primary)";
@@ -377,6 +571,7 @@
     $("pluginConfirmModal").classList.add("hidden");
     pendingInstall = null;
     loadPlugins();
+    if (fromMarket) loadMarket();
   });
 
   // ---- plugin WebUI overlay (served same-origin via the asset proxy) ----

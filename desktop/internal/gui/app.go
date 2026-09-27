@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -34,6 +35,10 @@ type App struct {
 	// quitting 由托盘"退出"置位。Wails 的 Quit() 会先问 OnBeforeClose
 	// （用于"关闭=最小化到托盘"），若那里仍返回 true，退出就被自己拦掉了。
 	quitting bool
+
+	// 插件市场状态：拉到的索引 + 待确认的包（懒初始化，见 market.go）
+	marketOnce sync.Once
+	market     *marketState
 }
 
 // NewApp creates the desktop app bindings. trayIcon is the PNG used for the
@@ -362,16 +367,33 @@ func (a *App) PreviewPlugin(path string) (store.PluginInfo, error) {
 }
 
 // PluginInfoFromManifest builds display info from a package manifest.
+//
+// **别在这里丢字段**：先前只搬了 ID/Name/Version/Entry/Apps/Widgets/Permissions，
+// author/url/minHydroLink/runtime/icon 全被扔了——安装确认弹窗看不到作者、列表没有图标，
+// 两端表现还不一样（安卓侧是全的）。manifest 的展示字段逐个搬过来。
 func PluginInfoFromManifest(m *store.PluginManifest) store.PluginInfo {
 	return store.PluginInfo{
-		ID:          m.ID,
-		Name:        m.Name,
-		Version:     m.Version,
-		Entry:       m.Entry,
-		Apps:        m.Apps,
-		Widgets:     m.Widgets,
-		Permissions: m.Permissions,
+		ID:           m.ID,
+		Name:         m.Name,
+		Author:       m.Author,
+		Version:      m.Version,
+		URL:          m.URL,
+		MinHydroLink: m.MinHydroLink,
+		Entry:        m.Entry,
+		Runtime:      runtimeOrDefault(m.Runtime),
+		Apps:         m.Apps,
+		Widgets:      m.Widgets,
+		Permissions:  m.Permissions,
+		Icon:         m.Icon,
 	}
+}
+
+// runtimeOrDefault 沿用列表侧的默认：清单没写 runtime 视为 js。
+func runtimeOrDefault(runtime string) string {
+	if runtime == "" {
+		return "js"
+	}
+	return runtime
 }
 
 // InstallPlugin installs the already-confirmed package path.

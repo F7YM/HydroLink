@@ -39,6 +39,9 @@ type Config struct {
 	LastPort      int    `json:"last_port"`
 	AcceptAll     bool   `json:"accept_all"`
 	UseShizuku    bool   `json:"use_shizuku"` // kept for compatibility; unused on desktop
+	// MarketSource 插件市场来源：空或 "auto" 表示按候选表依次尝试
+	// （jsDelivr → GitHub Raw → Gh-Proxy），也可以是用户自填的基址。
+	MarketSource string `json:"market_source,omitempty"`
 	// TrayEnabled 控制是否在系统托盘区显示图标（关闭窗口时最小化到托盘、服务继续跑）。
 	// 指针语义：**默认开启**——老配置文件里没有这个键（nil）也算开，只有显式写 false
 	// 才是用户关掉了托盘。
@@ -65,6 +68,11 @@ func New() (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
+	return NewInDir(dir)
+}
+
+// NewInDir 是在指定目录开一个 Store（测试与多实例用；生产走 New）。
+func NewInDir(dir string) (*Store, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("create data dir: %w", err)
 	}

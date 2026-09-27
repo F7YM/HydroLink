@@ -42,8 +42,11 @@ type PluginManifest struct {
 
 // PluginItem is an app/widget registration inside a plugin manifest.
 type PluginItem struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// Icon 是包内图标路径（如 "assets/icon.png"），列表/市场展示用。
+	// 之前这个字段没人读，两端表现不一致（安卓侧读），这里补上。
+	Icon      string `json:"icon,omitempty"`
 	RefreshMs int    `json:"refreshMs,omitempty"`
 }
 
@@ -64,6 +67,8 @@ type PluginInfo struct {
 	Builtin      bool         `json:"builtin"`
 	HasWeb       bool         `json:"hasWeb"`
 	Error        string       `json:"error,omitempty"`
+	// Icon 是包内图标路径（manifest 顶层 icon，或第一个 app 的 icon）。
+	Icon string `json:"icon,omitempty"`
 }
 
 // CompareVersions orders dotted versions (numeric segments compared as
