@@ -5,6 +5,7 @@ package app
 import (
 	"fmt"
 	"log"
+	"sort"
 
 	"hydrolink-desktop/internal/api"
 	"hydrolink-desktop/internal/hydrokit"
@@ -54,6 +55,30 @@ func NewServer() (*api.Server, *store.Store, error) {
 			return nil
 		},
 	)
+
+	// UI 侧（Compose 端）把 .hpk 解到插件目录后调 POST /api/hydro/reload：这里重扫目录，
+	// 已删掉的插件从运行时注销，新增/变更的重新注册 —— 不必重启服务。
+	srv.SetPluginReloader(func() ([]string, error) {
+		installed := map[string]bool{}
+		for _, info := range st.ListPlugins() {
+			installed[info.ID] = true
+		}
+		for _, id := range rt.PluginIDs() {
+			if !installed[id] {
+				rt.Unregister(id)
+			}
+		}
+		var loaded []string
+		for id := range installed {
+			if err := registerDiskPlugin(rt, bridge, st, id); err != nil {
+				log.Printf("hydrokit: reload skipped plugin %s: %v", id, err)
+				continue
+			}
+			loaded = append(loaded, id)
+		}
+		sort.Strings(loaded)
+		return loaded, nil
+	})
 
 	return srv, st, nil
 }

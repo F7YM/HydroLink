@@ -69,8 +69,10 @@ type Server struct {
 	// register/unregister a plugin package in the HydroKit runtime (called by
 	// the GUI right after install/uninstall, so the watch sees the change
 	// without a server restart).
-	loadPlugin   func(id string) error
-	unloadPlugin func(id string) error
+	// reloadPlugins 由 app 层注入：重扫插件目录并热注册（POST /api/hydro/reload）
+	reloadPlugins func() ([]string, error)
+	loadPlugin    func(id string) error
+	unloadPlugin  func(id string) error
 }
 
 // New creates a Server backed by the given store.
@@ -123,6 +125,24 @@ func (s *Server) UnloadPlugin(id string) error {
 		return fmt.Errorf("plugin runtime not available")
 	}
 	return s.unloadPlugin(id)
+}
+
+// SetPluginReloader installs the full "re-scan the plugins directory" callback.
+//
+// 为什么需要它：插件**安装**在桌面端是由 UI 侧做的（Compose 端把 .hpk 解到数据目录，
+// 与安卓端同构），Go 侧只负责运行；UI 装完调 POST /api/hydro/reload 让运行时重扫，
+// 就不必重启服务。返回本次成功注册的插件 id。
+func (s *Server) SetPluginReloader(reload func() ([]string, error)) {
+	s.reloadPlugins = reload
+}
+
+// ReloadPlugins re-scans the plugin directory and hot-(re)registers everything.
+// It is a no-op error when no reloader was installed (embedded/headless mode).
+func (s *Server) ReloadPlugins() ([]string, error) {
+	if s.reloadPlugins == nil {
+		return nil, fmt.Errorf("plugin reloader not available")
+	}
+	return s.reloadPlugins()
 }
 
 // SetWorkerBridge records the WorkerBridge backing JS plugins (GUI uses it to
@@ -264,6 +284,28 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	// shadow it.
 	if s.worker != nil && strings.HasPrefix(path, "/api/hydro/worker/") {
 		s.worker.ServeHTTP(w, r)
+		return
+	}
+
+	// 插件目录重扫（UI 侧装完插件调用，让运行时热加载，不必重启服务）。
+	// 放在 hydro 分发之前：/api/hydro/reload 不是 4 段路径，否则会被当成插件请求。
+	if path == "/api/hydro/reload" {
+		if r.Method != http.MethodPost {
+			s.writeJSON(w, http.StatusMethodNotAllowed, map[string]any{
+				"status": "error", "message": "reload requires POST",
+			})
+			return
+		}
+		ids, err := s.ReloadPlugins()
+		if err != nil {
+			s.AddLog("插件重载失败: "+err.Error(), "error")
+			s.writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+				"status": "error", "message": err.Error(),
+			})
+			return
+		}
+		s.AddLog(fmt.Sprintf("插件已重载: %d 个", len(ids)), "success")
+		s.writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "plugins": ids})
 		return
 	}
 
