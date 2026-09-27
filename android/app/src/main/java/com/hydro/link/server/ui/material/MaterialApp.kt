@@ -432,6 +432,14 @@ private fun PluginsTab(padding: PaddingValues, model: MiuixModel, actions: Miuix
     MdPage(padding) {
         item {
             MdSegmentedColumn(title = "插件") {
+                // 插件市场：独立页（搜索/分类/一键装），放在最上面当入口
+                item {
+                    MdBaseWidget(
+                        title = "插件市场",
+                        description = "从 GitHub 索引仓浏览并安装插件",
+                        onClick = { actions.onOpenMarket() },
+                    )
+                }
                 item {
                     MdBaseWidget(
                         title = model.pluginSummary,
@@ -460,6 +468,15 @@ private fun PluginsTab(padding: PaddingValues, model: MiuixModel, actions: Miuix
                             onClick = { actions.onPluginDetails(plugin) },
                             trailing = {
                                 Row {
+                                    // 有新版时，升级钮排在「打开界面」左边；版本不够时灰显
+                                    val update = model.pluginUpdates.firstOrNull { it.entry.id == plugin.id }
+                                    if (update != null) {
+                                        MdRowIconButton(
+                                            R.drawable.ic_upgrade,
+                                            "更新到 v${update.entry.version}",
+                                            enabled = update.compatible,
+                                        ) { actions.onOpenUpdate(update) }
+                                    }
                                     if (plugin.hasWeb) {
                                         MdRowIconButton(R.drawable.ic_plugin_ui, "打开界面") {
                                             actions.onPluginOpenWebUi(plugin)

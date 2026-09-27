@@ -19,6 +19,10 @@ object EngineDialog {
     /**
      * miuix 引擎的接管钩子：返回 true = 已交给 WindowDialog 渲染。
      * null / 返回 false = 用 [MaterialAlertDialogBuilder]。只在主线程调用。
+     *
+     * 参数顺序与 [confirm] 一致，`onConfirm` 刻意排在最后：调用点写尾随 lambda 落到的是
+     * 「确定」而不是「否定」——把「卸载/删除」这种破坏性动作写成尾随 lambda 过一次当，
+     * 结果点「取消」把插件卸了。
      */
     var window: (
         (
@@ -26,15 +30,20 @@ object EngineDialog {
             message: String,
             positive: String,
             negative: String?,
-            onConfirm: (() -> Unit)?,
             onNegative: (() -> Unit)?,
+            onConfirm: (() -> Unit)?,
+            positiveEnabled: Boolean,
         ) -> Boolean
     )? = null
 
     /**
-     * 确认弹窗：[negative] 为 null 时只有一个 [positive] 按钮。
-     * [onConfirm] = 点肯定钮，[onNegative] = 点否定钮（单纯关窗/返回键关闭不触发，
-     * 配对这种「允许/拒绝」两个动作都要落库的场景才用它）。
+     * 确认弹窗。
+     *
+     * - [negative] 为 null 时只显示一个 [positive] 按钮；
+     * - [onNegative] = 点否定钮（配对那种「允许/拒绝」都要落库的才需要）；返回键/点外面
+     *   关窗不触发；
+     * - [onConfirm] = 点肯定钮；
+     * - [positiveEnabled] = false 时肯定钮灰显（版本不够、装不了）。
      */
     fun confirm(
         activity: Activity,
@@ -42,18 +51,21 @@ object EngineDialog {
         message: String,
         positive: String,
         negative: String?,
-        onConfirm: (() -> Unit)? = null,
         onNegative: (() -> Unit)? = null,
+        onConfirm: (() -> Unit)? = null,
+        positiveEnabled: Boolean = true,
     ) {
         val handler = window
-        if (handler != null && handler(title, message, positive, negative, onConfirm, onNegative)) return
+        if (handler != null && handler(title, message, positive, negative, onNegative, onConfirm, positiveEnabled)) {
+            return
+        }
         val builder = MaterialAlertDialogBuilder(activity)
             .setTitle(title)
             .setMessage(message)
         if (negative != null) {
             builder.setNegativeButton(negative) { _, _ -> onNegative?.invoke() }
         }
-        if (onConfirm != null) builder.setPositiveButton(positive) { _, _ -> onConfirm() }
+        if (onConfirm != null && positiveEnabled) builder.setPositiveButton(positive) { _, _ -> onConfirm() }
         else builder.setPositiveButton(positive, null)
         builder.show()
     }

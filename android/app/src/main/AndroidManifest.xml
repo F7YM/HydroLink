@@ -112,6 +112,13 @@
             android:exported="false"
             android:label="插件界面"
             android:theme="@style/Theme.HydroLinkServer" />
+
+        <activity
+            android:name=".ui.MarketActivity"
+            android:exported="false"
+            android:label="插件市场"
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/Theme.HydroLinkServer" />
     </application>
 
 </manifest>

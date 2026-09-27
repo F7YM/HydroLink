@@ -173,8 +173,10 @@ class MainActivity : AppCompatActivity() {
         },
         onDeleteCommand = { deleteCommand(it) },
         onSaveCommand = { index, name, command -> saveCommand(index, name, command) },
-        onRefreshPlugins = { refreshPlugins() },
+        onRefreshPlugins = { refreshPlugins(forceUpdateCheck = true) },
         onInstallPlugin = { pluginInstallLauncher.launch(PluginUi.pickerIntent()) },
+        onOpenMarket = { startActivity(com.hydro.link.server.ui.MarketActivity.intent(this)) },
+        onOpenUpdate = { update -> showPluginUpdate(update) },
         onPluginOpenWebUi = { PluginUi.openWebUi(this, it.id, it.name) },
         onPluginUninstall = { confirmUninstallPlugin(it.id, it.name) },
         onPluginDetails = { PluginUi.showDetails(this, it) },
@@ -199,18 +201,20 @@ class MainActivity : AppCompatActivity() {
             message: String,
             positive: String,
             negative: String?,
-            onConfirm: (() -> Unit)?,
             onNegative: (() -> Unit)?,
+            onConfirm: (() -> Unit)?,
+            positiveEnabled: Boolean,
         ) -> Boolean =
-        { title, message, positive, negative, onConfirm, onNegative ->
+        { title, message, positive, negative, onNegative, onConfirm, positiveEnabled ->
             if (miuixOn.value) {
                 miuixModel.pluginDialog = com.hydro.link.server.ui.miuix.ConfirmDialog(
                     title = title,
                     message = message,
                     positive = positive,
                     negative = negative,
-                    onConfirm = onConfirm,
                     onNegative = onNegative,
+                    onConfirm = onConfirm,
+                    positiveEnabled = positiveEnabled,
                 )
                 true
             } else {
@@ -220,6 +224,25 @@ class MainActivity : AppCompatActivity() {
 
     /** 本会话已经弹过配对授权框的设备 id（弹窗要每 2 秒的刷新里只弹一次）。 */
     private val promptedPairs = mutableSetOf<String>()
+
+    /** 市场客户端（索引缓存 + 基址 failover；市场和更新检查共用一份缓存）。 */
+    private val marketClient: com.hydro.link.server.market.MarketClient by lazy {
+        com.hydro.link.server.market.MarketClient(
+            cacheDir = java.io.File(cacheDir, "marketplace"),
+            fetcher = com.hydro.link.server.market.UrlFetcher(),
+        )
+    }
+
+    /** 上次成功拉到索引的基址（装更新时用，保证和校验时的来源一致）。 */
+    private var marketBase: String = ""
+
+    /** 上次查更新的时间（轮询冷却用，避免每 2 秒问一次市场）。 */
+    private var lastUpdateCheckAt: Long = 0L
+
+    private companion object {
+        /** 轮询路径两次查更新之间的最小间隔（10 分钟）。用户点刷新不受此限。 */
+        const val UPDATE_CHECK_INTERVAL_MS = 10 * 60 * 1000L
+    }
 
     private val refreshRunnable = object : Runnable {
         override fun run() {
@@ -706,12 +729,12 @@ class MainActivity : AppCompatActivity() {
             pairs.forEach { pair ->
                 if (promptedPairs.add(pair.deviceId)) {
                     EngineDialog.confirm(
-                        this,
-                        "配对请求",
-                        "「${pair.deviceName.ifBlank { pair.deviceId.take(8) }}」请求与本机配对。\n" +
+                        activity = this,
+                        title = "配对请求",
+                        message = "「${pair.deviceName.ifBlank { pair.deviceId.take(8) }}」请求与本机配对。\n" +
                             "允许后该设备才能访问本机服务与插件。",
-                        "允许",
-                        "拒绝",
+                        positive = "允许",
+                        negative = "拒绝",
                         onConfirm = { respondPair(pair, "accept") },
                         onNegative = { respondPair(pair, "reject") },
                     )
@@ -873,8 +896,13 @@ class MainActivity : AppCompatActivity() {
         handler.postDelayed({ updateAuthorizerStatus() }, 1200)
     }
 
-    /** 刷新插件列表与摘要（worker 在线状态来自 bridge，能直接看出插件跑没跑起来）。 */
-    private fun refreshPlugins() {
+    /**
+     * 刷新插件列表与摘要（worker 在线状态来自 bridge，能直接看出插件跑没跑起来）。
+     *
+     * [forceUpdateCheck] 只给「用户点刷新」用：状态轮询每 2 秒一次，若每次都去问市场，
+     * 刷新按钮的可用状态就会每 2 秒变一次（一闪一闪），而且纯属浪费流量。
+     */
+    private fun refreshPlugins(forceUpdateCheck: Boolean = false) {
         val srv = PluginUi.server()
         if (srv == null) {
             pluginAdapter.submit(emptyList(), "服务未运行——上面的开关打开后再试")
@@ -890,6 +918,81 @@ class MainActivity : AppCompatActivity() {
         miuixModel.pluginSummary = tvPluginSummary.text.toString()
         miuixModel.pluginMessage = null
         miuixModel.plugins = rows
+        // 顺带向市场查一次版本：有新版就在对应插件行上出现升级钮
+        checkPluginUpdates(rows.associate { it.id to it.version }, force = forceUpdateCheck)
+    }
+
+    /**
+     * 插件更新检查：拉市场索引，与已装版本比。
+     *
+     * 走后台线程 + 缓存索引（`MarketClient` 会按「jsDelivr → 直连 → gh-proxy」failover，
+     * 失败回落本地缓存），所以断网时只是查不到更新，不影响插件列表本身。
+     * 轮询路径有 [UPDATE_CHECK_INTERVAL_MS] 冷却，用户点刷新才强制查。
+     */
+    private fun checkPluginUpdates(installed: Map<String, String>, force: Boolean = false) {
+        if (miuixModel.updateChecking) return
+        if (installed.isEmpty()) {
+            miuixModel.pluginUpdates = emptyList()
+            return
+        }
+        val now = System.currentTimeMillis()
+        if (!force && now - lastUpdateCheckAt < UPDATE_CHECK_INTERVAL_MS) return
+        lastUpdateCheckAt = now
+        miuixModel.updateChecking = true
+        val sources = com.hydro.link.server.market.MarketSources.bases(dataManager.loadConfig().marketSource)
+        Thread {
+            val result = marketClient.fetch(sources)
+            val updates = com.hydro.link.server.market.MarketUpdates.compute(
+                result.index,
+                installed,
+                BuildConfig.VERSION_NAME,
+            )
+            runOnUiThread {
+                marketBase = result.base
+                miuixModel.updateChecking = false
+                miuixModel.pluginUpdates = updates
+            }
+        }.start()
+    }
+
+    /**
+     * 升级弹窗：更新日志 + 版本/大小/权限/来源/指纹。
+     *
+     * 宿主版本不够（插件的 min_hydrolink 更高）时肯定钮灰显并写明差在哪——让用户看得到
+     * 更新内容，但不能真装。
+     */
+    private fun showPluginUpdate(update: com.hydro.link.server.market.PluginUpdate) {
+        val message = com.hydro.link.server.market.MarketUpdates.dialogText(
+            update,
+            marketBase.ifEmpty {
+                com.hydro.link.server.market.MarketSources.bases(dataManager.loadConfig().marketSource).first()
+            },
+            BuildConfig.VERSION_NAME,
+        )
+        EngineDialog.confirm(
+            activity = this,
+            title = "更新 ${update.entry.name}",
+            message = message,
+            positive = "更新",
+            negative = "取消",
+            positiveEnabled = update.compatible,
+            onConfirm = {
+                val base = marketBase.ifEmpty {
+                    com.hydro.link.server.market.MarketSources.bases(dataManager.loadConfig().marketSource).first()
+                }
+                com.hydro.link.server.ui.MarketInstaller.install(
+                    activity = this,
+                    client = marketClient,
+                    base = base,
+                    entry = update.entry,
+                    positiveLabel = "更新",
+                    onDone = { msg ->
+                        com.hydro.link.server.ui.MarketInstaller.toast(this, msg)
+                        refreshPlugins(forceUpdateCheck = true)
+                    },
+                )
+            },
+        )
     }
 
     private fun confirmUninstallPlugin(id: String, name: String) {
@@ -931,16 +1034,18 @@ class MainActivity : AppCompatActivity() {
 
     private fun deleteCommand(index: Int) {
         // 二次确认，别再直接删（也去掉「已删除」toast）；弹窗按引擎画，miuix 下不是 MD 框
+        // 回调显式命名给 onConfirm：写成尾随 lambda 会落到否定钮（点「取消」反而删掉）
         EngineDialog.confirm(
-            this,
-            "删除快速命令",
-            "确定删除这条快速命令？",
-            getString(R.string.delete),
-            getString(R.string.cancel),
-        ) {
-            dataManager.removeCommand(index)
-            refreshData()
-        }
+            activity = this,
+            title = "删除快速命令",
+            message = "确定删除这条快速命令？",
+            positive = getString(R.string.delete),
+            negative = getString(R.string.cancel),
+            onConfirm = {
+                dataManager.removeCommand(index)
+                refreshData()
+            },
+        )
     }
 
     /**

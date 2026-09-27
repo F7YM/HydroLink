@@ -60,6 +60,10 @@ class MiuixModel {
     // 提示一律走系统 Toast——Snackbar 会被底部 Tab 栏挡住）
     var cmdDialog by mutableStateOf<CmdEdit?>(null)
     var rootConfirm by mutableStateOf(false)
+    /** 插件更新检查：正在查（插件 Tab 的刷新按钮转圈/提示用）。 */
+    var updateChecking by mutableStateOf(false)
+    /** 市场里有新版的已装插件；为空 = 没有可更新项。 */
+    var pluginUpdates by mutableStateOf<List<com.hydro.link.server.market.PluginUpdate>>(emptyList())
     /**
      * 插件相关的确认/详情弹窗（安装确认、卸载确认、卡片详情）——由 [com.hydro.link.server.ui.
      * PluginUi] 的 miuix 引擎钩子投递进来，用 WindowDialog 渲染，替代 MD3 的
@@ -77,9 +81,12 @@ data class ConfirmDialog(
     val message: String,
     val positive: String,
     val negative: String? = null,
-    val onConfirm: (() -> Unit)? = null,
-    /** 点否定钮（如配对的「拒绝」）；单纯关窗/返回键不触发。 */
+    /** 点否定钮（如配对的「拒绝」）；单纯关窗/返回键不触发。排在 onConfirm 之前是有意的，
+     *  尾随 lambda 只能落在 onConfirm 上（EngineDialog 同一个约定）。 */
     val onNegative: (() -> Unit)? = null,
+    val onConfirm: (() -> Unit)? = null,
+    /** 肯定钮是否可点：false 时灰显（例如宿主版本太低、更新装不了）。 */
+    val positiveEnabled: Boolean = true,
 )
 
 /** 状态文案的语义色（成功/警告沿用应用自己的语义色，miuix 色板没有 success）。 */
@@ -109,6 +116,10 @@ class MiuixActions(
     val onSaveCommand: (Int?, String, String) -> Boolean,
     val onRefreshPlugins: () -> Unit,
     val onInstallPlugin: () -> Unit,
+    /** 插件市场（独立 Activity，搜索/分类/一键装）。 */
+    val onOpenMarket: () -> Unit,
+    /** 某个已装插件有新版：弹更新日志（宿主版本不够时按钮灰显）。 */
+    val onOpenUpdate: (com.hydro.link.server.market.PluginUpdate) -> Unit,
     val onPluginOpenWebUi: (PluginRow) -> Unit,
     val onPluginUninstall: (PluginRow) -> Unit,
     val onPluginDetails: (PluginRow) -> Unit,

@@ -295,14 +295,23 @@ fun MdStatusCard(
     }
 }
 
-/** 行尾图标钮（Transparent 底，24dp 图标）。 */
+/** 行尾图标钮（Transparent 底，24dp 图标）。[enabled] = false 时整体灰显（如更新装不了）。 */
 @Composable
-fun MdRowIconButton(@DrawableRes icon: Int, contentDescription: String, onClick: () -> Unit) {
-    androidx.compose.material3.IconButton(onClick = onClick) {
+fun MdRowIconButton(
+    @DrawableRes icon: Int,
+    contentDescription: String,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    androidx.compose.material3.IconButton(onClick = onClick, enabled = enabled) {
         Icon(
             painter = painterResource(icon),
             contentDescription = contentDescription,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = if (enabled) {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+            },
         )
     }
 }

@@ -139,12 +139,12 @@ object PluginUi {
             append("插件代码以本应用同等权限运行，可访问本机服务与数据目录，请只安装可信来源的插件。")
         }
         EngineDialog.confirm(
-            activity,
-            "安装 ${m.pkg.name.ifBlank { m.pkg.id }}",
-            msg,
-            "安装",
-            "取消",
-            onConfirm,
+            activity = activity,
+            title = "安装 ${m.pkg.name.ifBlank { m.pkg.id }}",
+            message = msg,
+            positive = "安装",
+            negative = "取消",
+            onConfirm = onConfirm,
         )
     }
 
@@ -168,13 +168,15 @@ object PluginUi {
 
     /** 卸载二次确认。 */
     fun confirmUninstall(activity: Activity, id: String, name: String, onResult: (String) -> Unit) {
+        // 回调显式命名给 onConfirm：写成尾随 lambda 会落到否定钮上（点「取消」反而卸载）
         EngineDialog.confirm(
-            activity,
-            "卸载 $name",
-            "确定卸载「$name」吗？\n插件的服务端存储会保留，重装后设置还在。",
-            "卸载",
-            "取消",
-        ) { uninstall(activity, id, name, onResult) }
+            activity = activity,
+            title = "卸载 $name",
+            message = "确定卸载「$name」吗？\n插件的服务端存储会保留，重装后设置还在。",
+            positive = "卸载",
+            negative = "取消",
+            onConfirm = { uninstall(activity, id, name, onResult) },
+        )
     }
 
     /** 点插件卡片时的详情弹窗：列表里放不下的信息都在这。 */

@@ -51,5 +51,7 @@ data class AppConfig(
     @SerializedName("authorizer") var authorizer: String = "none",
     @SerializedName("boot_start") var bootStart: Boolean = false,
     @SerializedName("liquid_glass") var liquidGlass: Boolean = false, // Liquid Glass 底栏（默认关）
-    @SerializedName("miuix") var miuix: Boolean = false // miuix 风格底栏（默认关）
+    @SerializedName("miuix") var miuix: Boolean = false, // miuix 风格底栏（默认关）
+    /** 插件市场来源：auto（直连 → gh-proxy → jsDelivr 依次尝试）或某个基址 URL。 */
+    @SerializedName("market_source") var marketSource: String = "auto"
 )

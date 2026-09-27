@@ -322,10 +322,13 @@ private fun toneColor(tone: Tone): Color = when (tone) {
 private fun RowActionButton(
     @DrawableRes icon: Int,
     contentDescription: String,
+    /** false = 灰显不可点（如 HydroLink 版本太低、装不了更新）。 */
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     IconButton(
         onClick = onClick,
+        enabled = enabled,
         backgroundColor = MiuixTheme.colorScheme.secondaryContainer,
         minHeight = 36.dp,
         minWidth = 36.dp,
@@ -334,7 +337,13 @@ private fun RowActionButton(
             painter = painterResource(icon),
             contentDescription = contentDescription,
             modifier = Modifier.size(20.dp),
-            tint = MiuixTheme.colorScheme.onSurface.copy(alpha = if (isSystemInDarkTheme()) 0.7f else 0.9f),
+            tint = MiuixTheme.colorScheme.onSurface.copy(
+                alpha = when {
+                    !enabled -> 0.3f
+                    isSystemInDarkTheme() -> 0.7f
+                    else -> 0.9f
+                },
+            ),
         )
     }
 }
@@ -691,6 +700,16 @@ private fun PluginsTab(padding: PaddingValues, model: MiuixModel, actions: Miuix
         overscrollEffect = null,
     ) {
         item { SmallTitle("插件") }
+        // 插件市场：独立页（搜索/分类/一键装），放在最上面当入口
+        item {
+            Card(modifier = Modifier.sectionCard()) {
+                BasicComponent(
+                    title = "插件市场",
+                    summary = "从 GitHub 索引仓浏览并安装插件",
+                    onClick = { actions.onOpenMarket() },
+                )
+            }
+        }
         item {
             Card(modifier = Modifier.sectionCard()) {
                 // 摘要行 + 刷新/安装
@@ -728,6 +747,15 @@ private fun PluginsTab(padding: PaddingValues, model: MiuixModel, actions: Miuix
                             endActions = {
                                 // 两个动作钮之间要留 8dp 间距（命令行是这么排的，这里漏了）
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    // 有新版时，升级钮排在「界面」左边；版本不够时灰显
+                                    val update = model.pluginUpdates.firstOrNull { it.entry.id == row.id }
+                                    if (update != null) {
+                                        RowActionButton(
+                                            icon = R.drawable.ic_upgrade,
+                                            contentDescription = "更新到 v${update.entry.version}",
+                                            enabled = update.compatible,
+                                        ) { actions.onOpenUpdate(update) }
+                                    }
                                     RowActionButton(
                                         icon = R.drawable.ic_plugin_ui,
                                         contentDescription = "界面",
@@ -1012,6 +1040,8 @@ private fun PluginConfirmDialog(model: MiuixModel) {
                     TextButton(
                         modifier = Modifier.weight(1f),
                         text = dialog.positive,
+                        // 灰显场景（如宿主版本太低、更新装不了）：enabled=false 走 miuix 自带的禁用色
+                        enabled = dialog.positiveEnabled,
                         onClick = {
                             val confirm = dialog.onConfirm
                             model.pluginDialog = null
