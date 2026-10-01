@@ -10,7 +10,7 @@ module.exports = {
         id: 'com.float11.tiktok.control',
         name: '抖音控制器',
         author: 'float11',
-        version: '1.0.5'
+        version: '1.0.6'
       },
       apps: [
         { id: 'main', name: '抖音控制器', icon: 'assets/icon.png' }
@@ -143,21 +143,21 @@ module.exports = {
             ]
           },
 
-          // 点赞 / 播放暂停：左右并列
-          // 注意：row 里的按钮不能用 width:'%'（wrapper 按内容定宽，百分比解析不出来，
-          // 会退化成竖条），必须给固定像素宽。
+          // 点赞 / 播放暂停：左右并列。
+          // 行内 width:'%' 依赖宿主的 wrapper 宽度上提（见 vela hydro.ux buildLeaf）；
+          // 老固件上会退化成竖条，所以宽高都用固定值兜底不现实——这里就用百分比。
           {
             type: 'row',
-            style: { justifyContent: 'center' },
+            style: { justifyContent: 'space-between' },
             children: [
               {
                 type: 'button',
                 props: { label: '点赞' },
                 events: { tap: 'like' },
                 style: {
-                  width: 150, height: 72, borderRadius: 36,
+                  width: '47%', height: 72, borderRadius: 36,
                   paddingTop: 0, paddingBottom: 0, paddingLeft: 0, paddingRight: 0,
-                  backgroundColor: '#9FA8CC', marginRight: 20
+                  backgroundColor: '#9FA8CC'
                 }
               },
               {
@@ -165,7 +165,7 @@ module.exports = {
                 props: { label: '播放/暂停' },
                 events: { tap: 'toggle' },
                 style: {
-                  width: 150, height: 72, borderRadius: 36,
+                  width: '47%', height: 72, borderRadius: 36,
                   paddingTop: 0, paddingBottom: 0, paddingLeft: 0, paddingRight: 0,
                   backgroundColor: '#9FA8CC'
                 }
