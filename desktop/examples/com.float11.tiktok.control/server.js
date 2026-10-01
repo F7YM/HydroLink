@@ -10,7 +10,7 @@ module.exports = {
         id: 'com.float11.tiktok.control',
         name: '抖音控制器',
         author: 'float11',
-        version: '1.0.7'
+        version: '1.0.8'
       },
       apps: [
         { id: 'main', name: '抖音控制器', icon: 'assets/icon.png' }
@@ -37,6 +37,11 @@ module.exports = {
     const isDesktop = screen.width >= screen.height;
     const cx = Math.floor(screen.width / 2);
     const cy = Math.floor(screen.height / 2);
+    // 滑动手势只走屏幕中段、且距离收短：以中线为中心上下各 15%（总行程 30% 屏高）。
+    // 之前是 0.76↔0.22（54% 屏高），太长——容易一次划过头、也更容易触发系统边缘手势。
+    const swipeUpFrom = Math.floor(screen.height * 0.65)
+    const swipeUpTo = Math.floor(screen.height * 0.35)
+    const SWIPE_MS = 200
 
     if (action === 'next') {
       if (isDesktop) {
@@ -44,9 +49,7 @@ module.exports = {
         await kit.input.key('down');
       } else {
         // 移动端：手指由下至上滑动（下一个视频）
-        const y1 = Math.floor(screen.height * 0.76);
-        const y2 = Math.floor(screen.height * 0.22);
-        await kit.input.swipe(cx, y1, cx, y2, 240);
+        await kit.input.swipe(cx, swipeUpFrom, cx, swipeUpTo, SWIPE_MS);
       }
     } else if (action === 'prev') {
       if (isDesktop) {
@@ -54,9 +57,7 @@ module.exports = {
         await kit.input.key('up');
       } else {
         // 移动端：手指由上至下滑动（上一个视频）
-        const y1 = Math.floor(screen.height * 0.22);
-        const y2 = Math.floor(screen.height * 0.76);
-        await kit.input.swipe(cx, y1, cx, y2, 240);
+        await kit.input.swipe(cx, swipeUpTo, cx, swipeUpFrom, SWIPE_MS);
       }
     } else if (action === 'like') {
       if (isDesktop) {
