@@ -131,11 +131,42 @@ const ICON_MAP = {
 const POSITION_KEYS = ['position', 'top', 'left', 'right', 'bottom', 'zIndex']
 
 // 无单位属性必须原样输出：补了 px 会被 Vela 当成非法值整条丢掉，
-// 于是 font-weight:700px、lines:1px、opacity:0.5px 全都静默失效
+// 于是 font-weight:700px、lines:1px、opacity:0.5px、z-index:5px 全都静默失效
 const UNITLESS_KEYS = [
   'lines', 'opacity', 'flexGrow', 'flexShrink', 'flex', 'order',
-  'weight', 'fontWeight'
+  'weight', 'fontWeight', 'zIndex'
 ]
+
+// 行容器里真正参与布局的是 wrapper（叶子在自定义组件内部，不是行的直接 flex item）。
+// 这些「item 在行里怎么摆」的属性必须上提到 wrapper：
+//   · width:'%' 相对内容宽度的 wrapper 解析不出来（退化成最小宽度、文字竖排）
+//   · margin 留在叶子上会把 width:100% 的叶子挤窄（带 margin 的按钮变竖椭圆）
+//   · flex/alignSelf 作用在叶子上对行的分配没有任何影响
+const ROW_ITEM_KEYS = [
+  'width', 'flex', 'flexGrow', 'flexShrink', 'flexBasis', 'alignSelf',
+  'margin', 'marginLeft', 'marginRight', 'marginTop', 'marginBottom'
+]
+
+// 布局类节点：即使没有 children 也不该退化成 "[row]" 这种占位文本
+const LAYOUT_TYPES = ['row', 'column', 'scroll', 'card']
+
+function liftRowItem(from, to) {
+  ROW_ITEM_KEYS.forEach((k) => {
+    if (from[k] !== undefined) { to[k] = from[k]; delete from[k] }
+  })
+}
+
+// 根节点之外还有没有 scroll 节点（用于提示"不支持嵌套滚动"）
+function findNestedScroll(node) {
+  if (!node || !node.children) return false
+  for (let i = 0; i < node.children.length; i++) {
+    const c = node.children[i]
+    if (!c) continue
+    if (c.type === 'scroll') return true
+    if (findNestedScroll(c)) return true
+  }
+  return false
+}
 
 function cssVal(key, v) {
   if (typeof v === 'number') {
@@ -199,20 +230,17 @@ function buildLeaf(n, inRow, ctx) {
       if (st[k] !== undefined) { wrapPos[k] = st[k]; delete leafSt[k] }
     })
   }
-  // 行布局：把叶子的 width 与 margin 上提到 wrapper，叶子自身改成 100% 填满。
-  // 原因：行方向的 wrapper 是按内容定宽的 flex 项，`width:'%'` 相对它解析不出来
-  // （行内百分比失效，按钮会退化成最小宽度、文字竖排）；提到 wrapper 上就有确定宽
-  // 度了。margin 必须一起提：否则叶子 width:100% + margin 会超出 wrapper 被压窄
-  // （表现为「带 margin 的那个按钮变竖椭圆」）。flex-shrink:0 保证固定宽度不被压。
-  const hasRowWidth = inRow && !isAbs && leafSt.width !== undefined
-  if (hasRowWidth) {
-    wrapPos.width = leafSt.width
-    wrapPos.flexShrink = 0
-    leafSt.width = '100%'
-    const MARGIN_KEYS = ['margin', 'marginLeft', 'marginRight', 'marginTop', 'marginBottom']
-    MARGIN_KEYS.forEach((k) => {
-      if (leafSt[k] !== undefined) { wrapPos[k] = leafSt[k]; delete leafSt[k] }
-    })
+  // 行布局：wrapper 才是行的 flex item，把宽度/flex/margin 上提到 wrapper，
+  // 叶子填满 wrapper（见 ROW_ITEM_KEYS 注释）。
+  let hasRowWidth = false
+  if (inRow && !isAbs) {
+    hasRowWidth = leafSt.width !== undefined
+    liftRowItem(leafSt, wrapPos)
+    if (hasRowWidth) {
+      // 有确定宽度才需要防挤压；只 flex-grow 的项应保持默认可收缩
+      if (wrapPos.flexShrink === undefined) wrapPos.flexShrink = 0
+      leafSt.width = '100%'
+    }
   }
   // 容器默认主题：文本未指定颜色时用白色（Vela 默认文本色是灰的）
   let s = toCssStyle(leafSt)
@@ -220,8 +248,11 @@ function buildLeaf(n, inRow, ctx) {
     s = 'color: #FFFFFF; ' + s
   }
   let ws = toCssStyle(wrapPos)
-  // 行里没显式宽度的文本自动撑满，把后面的控件顶到右侧（有宽度时按宽度来就行）
-  if (inRow && isText && !hasRowWidth) ws = ws ? ws + '; flex-grow: 1' : 'flex-grow: 1'
+  // 行里没显式宽度/flex 的文本自动撑满，把后面的控件顶到右侧
+  // （Vela 内联 justify-content 不生效，用 flex-grow 实现）
+  if (inRow && isText && !hasRowWidth && wrapPos.flexGrow === undefined && wrapPos.flex === undefined) {
+    ws = ws ? ws + '; flex-grow: 1' : 'flex-grow: 1'
+  }
   return {
     c: false,
     t: type,
@@ -269,10 +300,20 @@ function build(n, inRow, ctx) {
     const cst = resolveStyle(n, ctx)
     const cWrap = {}
     const cSt = Object.assign({}, cst)
-    if (cst && cst.position === 'absolute') {
+    const isAbs = !!(cst && cst.position === 'absolute')
+    if (isAbs) {
       POSITION_KEYS.forEach((k) => {
         if (cst[k] !== undefined) { cWrap[k] = cst[k]; delete cSt[k] }
       })
+    }
+    // 行里的容器同样是 flex item：宽度/flex/margin 上提（与 buildLeaf 同一套规则）
+    if (inRow && !isAbs) {
+      const hadWidth = cSt.width !== undefined
+      liftRowItem(cSt, cWrap)
+      if (hadWidth) {
+        if (cWrap.flexShrink === undefined) cWrap.flexShrink = 0
+        cSt.width = '100%'
+      }
     }
     return {
       c: true,
@@ -281,6 +322,14 @@ function build(n, inRow, ctx) {
       ws: toCssStyle(cWrap),
       kids: n.children.map((c) => build(c, n.type === 'row', ctx))
     }
+  }
+  // 空容器（row/column/scroll/card 但没有 children）：按空盒子渲染，别退化成
+  // "[row]" 文本占位；样式（背景/高度）照常生效
+  if (LAYOUT_TYPES.indexOf(n.type) !== -1) {
+    const empty = buildLeaf(n, inRow, ctx)
+    empty.isBox = true
+    empty.isOther = false
+    return empty
   }
   return buildLeaf(n, inRow, ctx)
 }
@@ -309,7 +358,8 @@ export default {
     _watchStore: null,
     safeClass: '',
     rootScroll: false,
-    pageStyle: ''
+    pageStyle: '',
+    _warnedNestedScroll: false
   },
 
   onInit() {
@@ -461,11 +511,22 @@ export default {
     })
     this.pageStyle = toCssStyle(pageBg)
     if (root && root.children && root.children.length) {
-      this.ui = root.children.map((c) => build(c, false, ctx))
-      this.contentStyle = toCssStyle(contentStyle)
+      // 根节点的 type 决定内容主轴：root.type:'row' 必须是横排。
+      // （`.content` 的 CSS 默认 column，这里用行内样式覆盖；root.style 里
+      //   显式写了 flexDirection 的话排在后面，优先级更高。）
+      const dir = root.type === 'row' ? 'row' : 'column'
+      const inRow = dir === 'row'
+      this.ui = root.children.map((c) => build(c, inRow, ctx))
+      this.contentStyle = 'flex-direction: ' + dir + '; ' + toCssStyle(contentStyle)
     } else {
       this.ui = root ? [build(root, false, ctx)] : []
       this.contentStyle = ''
+    }
+    // 嵌套 scroll 暂不支持（Vela 的 scroll 是页面级；模板只渲染根滚动）。
+    // 这里明确提示一次，别让插件作者以为写了 scroll 就会滚。
+    if (!this._warnedNestedScroll && root && findNestedScroll(root)) {
+      this._warnedNestedScroll = true
+      console.warn('[hydro] 暂不支持嵌套 scroll（仅根节点可滚动）:', this.plugin)
     }
     // 手表端存储写入：合并并持久化到设备本机
     this._applyWatchStore(view)
