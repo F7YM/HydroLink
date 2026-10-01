@@ -10,7 +10,7 @@ module.exports = {
         id: 'com.float11.tiktok.control',
         name: '抖音控制器',
         author: 'float11',
-        version: '1.0.2'
+        version: '1.0.3'
       },
       apps: [
         { id: 'main', name: '抖音控制器', icon: 'assets/icon.png' }
@@ -124,13 +124,21 @@ module.exports = {
                 type: 'button',
                 props: { label: '▲' },
                 events: { tap: 'prev' },
-                style: { width: 112, height: 112, borderRadius: 56, padding: 0, backgroundColor: '#9FA8CC', marginRight: 44 }
+                style: {
+                  width: 112, height: 112, borderRadius: 56,
+                  paddingTop: 0, paddingBottom: 0, paddingLeft: 0, paddingRight: 0,
+                  backgroundColor: '#9FA8CC', marginRight: 44
+                }
               },
               {
                 type: 'button',
                 props: { label: '▼' },
                 events: { tap: 'next' },
-                style: { width: 112, height: 112, borderRadius: 56, padding: 0, backgroundColor: '#BAC3FF' }
+                style: {
+                  width: 112, height: 112, borderRadius: 56,
+                  paddingTop: 0, paddingBottom: 0, paddingLeft: 0, paddingRight: 0,
+                  backgroundColor: '#BAC3FF'
+                }
               }
             ]
           },
