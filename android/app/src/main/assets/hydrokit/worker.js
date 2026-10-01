@@ -114,6 +114,39 @@
       list: function () { return remote("POST", "/api/hydro/worker/commands", { package: PKG, op: "list" }); },
       run: function (i) { return remote("POST", "/api/hydro/worker/commands", { package: PKG, op: "run", index: i }); },
     },
+    wol: {
+      wake: function (opts) {
+        var o = opts || {};
+        return remote("POST", "/api/hydro/worker/wol/wake", {
+          package: PKG,
+          mac: o.mac || "",
+          host: o.host || "255.255.255.255",
+          port: typeof o.port === "number" ? o.port : 9,
+        });
+      },
+      probe: function (opts) {
+        var o = opts || {};
+        return remote("POST", "/api/hydro/worker/wol/probe", {
+          package: PKG,
+          host: o.host || "",
+          port: typeof o.port === "number" ? o.port : undefined,
+          timeout: typeof o.timeout === "number" ? o.timeout : 1000,
+        });
+      },
+    },
+    udp: {
+      send: function (opts) {
+        var o = opts || {};
+        return remote("POST", "/api/hydro/worker/udp/send", {
+          package: PKG,
+          host: o.host || "",
+          port: o.port,
+          data: o.data || "",
+          encoding: o.encoding || "utf-8",
+          broadcast: !!o.broadcast,
+        });
+      },
+    },
     // 辅助 wasm（与「WASM 插件」不同，这是 JS 插件可选加载的算法模块）
     loadWasm: function (path) {
       return fetch(P + "/api/hydro/worker/asset?package=" + encodeURIComponent(PKG) + "&path=" + encodeURIComponent(path))
@@ -202,6 +235,8 @@
           return kit.storage.setItem(key, value);
         }
         if (op === "commands") return kit.commands.run(eff.index);
+        if (op === "wol") return kit.wol.wake(eff);
+        if (op === "udp") return kit.udp.send(eff);
         report("未知 effect: " + op);
         return null;
       });

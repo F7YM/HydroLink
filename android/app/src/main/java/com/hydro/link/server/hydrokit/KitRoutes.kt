@@ -33,6 +33,15 @@ interface KitCapabilities {
     /** 执行命令（commands 权限），返回 {success, exitCode, output}。 */
     fun runCommand(index: Int): Map<String, Any?>
 
+    /** 局域网唤醒（wol 权限）：发送 Magic Packet。 */
+    fun wolWake(mac: String, host: String?, port: Int?): Map<String, Any?>
+
+    /** 探测设备在线状态（wol 权限）：TCP 或 ICMP 探测。 */
+    fun wolProbe(host: String, port: Int?, timeout: Int?): Map<String, Any?>
+
+    /** 发送 UDP 数据报文（udp 权限）。 */
+    fun udpSend(host: String, port: Int, data: ByteArray, broadcast: Boolean): Map<String, Any?>
+
     /** 服务器基地址（形如 http://192.168.1.5:9000），供 ABI 上下文使用。 */
     fun serverBase(): String
 
@@ -46,6 +55,9 @@ interface KitCapabilities {
             override fun lock() = false
             override fun commandList(): List<Map<String, Any?>> = emptyList()
             override fun runCommand(index: Int) = mapOf<String, Any?>("success" to false, "exitCode" to -1, "output" to "无可执行能力")
+            override fun wolWake(mac: String, host: String?, port: Int?) = mapOf<String, Any?>("ok" to true)
+            override fun wolProbe(host: String, port: Int?, timeout: Int?) = mapOf<String, Any?>("online" to false, "rttMs" to -1)
+            override fun udpSend(host: String, port: Int, data: ByteArray, broadcast: Boolean) = mapOf<String, Any?>("ok" to true, "bytesSent" to data.size)
             override fun serverBase() = ""
         }
     }
@@ -77,6 +89,10 @@ class KitRoutes(
         const val PERM_COMMANDS = "commands"
         const val PERM_SYSTEM = "system"
         const val PERM_FETCH = "fetch"
+        const val PERM_WOL = "wol"
+        const val PERM_UDP = "udp"
+
+        private val MAC_REGEX = Regex("^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$")
     }
 
     /** 处理 worker 端点（path 前缀 /api/hydro/worker）；非本前缀返回 null。 */
@@ -100,6 +116,9 @@ class KitRoutes(
             "music" -> handleMusic(req)
             "lock" -> handleLock(req)
             "commands" -> handleCommands(req)
+            "wol/wake" -> handleWolWake(req)
+            "wol/probe" -> handleWolProbe(req)
+            "udp/send" -> handleUdpSend(req)
             else -> HydroHttpResponse.json("""{"error":"worker endpoint not found"}""", 404)
         }
     }
@@ -343,6 +362,87 @@ class KitRoutes(
                 HydroHttpResponse.json(gson.toJson(mapOf("returncode" to code, "output" to output)))
             }
             else -> HydroHttpResponse.json("""{"error":"未知操作: ${body.str("op")}"}""", 400)
+        }
+    }
+
+    fun handleWolWake(req: HydroHttpRequest): HydroHttpResponse {
+        if (req.method != "POST") return HydroHttpResponse.text("method not allowed", 405)
+        val body = parseJsonBody(req) ?: return HydroHttpResponse.json("""{"error":"invalid body"}""", 400)
+        val pkg = body.str("package")
+        requirePermission(pkg, PERM_WOL)?.let { return it }
+        val mac = body.str("mac").trim()
+        if (!MAC_REGEX.matches(mac)) {
+            return HydroHttpResponse.json("""{"error":"无效的 MAC 地址"}""", 400)
+        }
+        val host = body.str("host").takeIf { it.isNotBlank() } ?: "255.255.255.255"
+        val port = body.get("port")?.let { if (it.isJsonPrimitive) it.asInt else 9 } ?: 9
+        if (port !in 1..65535) {
+            return HydroHttpResponse.json("""{"error":"无效端口"}""", 400)
+        }
+        val res = caps.wolWake(mac, host, port)
+        if (res.containsKey("error")) {
+            return HydroHttpResponse.json(gson.toJson(res), 500)
+        }
+        return HydroHttpResponse.json(gson.toJson(res))
+    }
+
+    fun handleWolProbe(req: HydroHttpRequest): HydroHttpResponse {
+        if (req.method != "POST") return HydroHttpResponse.text("method not allowed", 405)
+        val body = parseJsonBody(req) ?: return HydroHttpResponse.json("""{"error":"invalid body"}""", 400)
+        val pkg = body.str("package")
+        requirePermission(pkg, PERM_WOL)?.let { return it }
+        val host = body.str("host").trim()
+        if (host.isBlank()) {
+            return HydroHttpResponse.json("""{"error":"缺少 host"}""", 400)
+        }
+        val port = body.get("port")?.let { if (it.isJsonPrimitive) it.asInt else null }
+        if (port != null && port !in 1..65535) {
+            return HydroHttpResponse.json("""{"error":"无效端口"}""", 400)
+        }
+        val timeout = body.get("timeout")?.let { if (it.isJsonPrimitive) it.asInt else 1000 }?.coerceIn(100, 10000) ?: 1000
+        val res = caps.wolProbe(host, port, timeout)
+        return HydroHttpResponse.json(gson.toJson(res))
+    }
+
+    fun handleUdpSend(req: HydroHttpRequest): HydroHttpResponse {
+        if (req.method != "POST") return HydroHttpResponse.text("method not allowed", 405)
+        val body = parseJsonBody(req) ?: return HydroHttpResponse.json("""{"error":"invalid body"}""", 400)
+        val pkg = body.str("package")
+        requirePermission(pkg, PERM_UDP)?.let { return it }
+        val host = body.str("host").trim()
+        if (host.isBlank()) {
+            return HydroHttpResponse.json("""{"error":"缺少 host"}""", 400)
+        }
+        val port = body.get("port")?.let { if (it.isJsonPrimitive) it.asInt else -1 } ?: -1
+        if (port !in 1..65535) {
+            return HydroHttpResponse.json("""{"error":"无效端口"}""", 400)
+        }
+        val rawData = body.str("data")
+        val encoding = body.str("encoding").lowercase().ifBlank { "utf-8" }
+        val bytes = try {
+            when (encoding) {
+                "utf-8", "utf8" -> rawData.toByteArray(Charsets.UTF_8)
+                "base64" -> java.util.Base64.getDecoder().decode(rawData)
+                "hex" -> hexToBytes(rawData)
+                else -> return HydroHttpResponse.json("""{"error":"不支持的编码: $encoding"}""", 400)
+            }
+        } catch (e: Exception) {
+            return HydroHttpResponse.json("""{"error":"数据解码失败"}""", 400)
+        }
+        val broadcast = body.get("broadcast")?.let { if (it.isJsonPrimitive) it.asBoolean else false }
+            ?: (host == "255.255.255.255" || host.endsWith(".255"))
+        val res = caps.udpSend(host, port, bytes, broadcast)
+        if (res.containsKey("error")) {
+            return HydroHttpResponse.json(gson.toJson(res), 500)
+        }
+        return HydroHttpResponse.json(gson.toJson(res))
+    }
+
+    private fun hexToBytes(hex: String): ByteArray {
+        val s = hex.replace(" ", "").replace(":", "")
+        require(s.length % 2 == 0) { "Hex length must be even" }
+        return ByteArray(s.length / 2) { i ->
+            s.substring(i * 2, i * 2 + 2).toInt(16).toByte()
         }
     }
 

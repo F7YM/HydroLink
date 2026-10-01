@@ -153,6 +153,93 @@ class AndroidKitCapabilities(
         return mapOf("success" to ok, "exitCode" to code, "output" to output.take(1000))
     }
 
+    override fun wolWake(mac: String, host: String?, port: Int?): Map<String, Any?> {
+        val macBytes = try {
+            val parts = mac.split(":", "-")
+            if (parts.size != 6) return mapOf("error" to "无效的 MAC 地址")
+            parts.map { it.toInt(16).toByte() }.toByteArray()
+        } catch (e: Exception) {
+            return mapOf("error" to "MAC 解析失败")
+        }
+
+        val packetBytes = ByteArray(102)
+        for (i in 0 until 6) {
+            packetBytes[i] = 0xFF.toByte()
+        }
+        for (i in 0 until 16) {
+            System.arraycopy(macBytes, 0, packetBytes, 6 + i * 6, 6)
+        }
+
+        var lock: android.net.wifi.WifiManager.MulticastLock? = null
+        return try {
+            val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+            lock = wm?.createMulticastLock("HydroLink:WOL")?.apply {
+                setReferenceCounted(true)
+                acquire()
+            }
+            val targetAddr = java.net.InetAddress.getByName(host ?: "255.255.255.255")
+            val targetPort = port ?: 9
+            val socket = java.net.DatagramSocket().apply { broadcast = true }
+            val packet = java.net.DatagramPacket(packetBytes, packetBytes.size, targetAddr, targetPort)
+            socket.send(packet)
+            socket.close()
+            mapOf("ok" to true)
+        } catch (e: Exception) {
+            mapOf("error" to (e.message ?: "发送 WOL 失败"))
+        } finally {
+            try {
+                if (lock != null && lock.isHeld) lock.release()
+            } catch (_: Exception) {}
+        }
+    }
+
+    override fun wolProbe(host: String, port: Int?, timeout: Int?): Map<String, Any?> {
+        val start = System.currentTimeMillis()
+        var online = false
+        val to = timeout ?: 1000
+        try {
+            if (port != null && port > 0) {
+                java.net.Socket().use { s ->
+                    s.connect(java.net.InetSocketAddress(host, port), to)
+                    online = true
+                }
+            } else {
+                online = java.net.InetAddress.getByName(host).isReachable(to)
+            }
+        } catch (e: Exception) {
+            online = false
+        }
+        val elapsed = System.currentTimeMillis() - start
+        return mapOf("online" to online, "rttMs" to elapsed)
+    }
+
+    override fun udpSend(host: String, port: Int, data: ByteArray, broadcast: Boolean): Map<String, Any?> {
+        var lock: android.net.wifi.WifiManager.MulticastLock? = null
+        return try {
+            if (broadcast) {
+                val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+                lock = wm?.createMulticastLock("HydroLink:UDP")?.apply {
+                    setReferenceCounted(true)
+                    acquire()
+                }
+            }
+            val targetAddr = java.net.InetAddress.getByName(host)
+            val socket = java.net.DatagramSocket().apply {
+                if (broadcast) this.broadcast = true
+            }
+            val packet = java.net.DatagramPacket(data, data.size, targetAddr, port)
+            socket.send(packet)
+            socket.close()
+            mapOf("ok" to true, "bytesSent" to data.size)
+        } catch (e: Exception) {
+            mapOf("error" to (e.message ?: "发送 UDP 失败"))
+        } finally {
+            try {
+                if (lock != null && lock.isHeld) lock.release()
+            } catch (_: Exception) {}
+        }
+    }
+
     override fun serverBase(): String = try {
         "http://${NetworkUtil.getLocalIpAddress(context)}:${port()}"
     } catch (e: Exception) {
