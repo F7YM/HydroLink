@@ -126,10 +126,9 @@
             <div if="{{ icConnected }}" class="device-card ic-active">
               <image class="card-icon" src="/common/icons/cellphone.png"></image>
               <div class="card-info">
-                <text class="card-name">{{ icDeviceName || '手机伴侣已连接' }}</text>
+                <text class="card-name">已连接 HydroLink 手机端</text>
                 <text class="card-sub">Interconnect 通讯</text>
               </div>
-              <text class="badge-done">已就绪</text>
             </div>
 
             <!-- 探测中 / 未连接：跑马灯组件展示完整文案，解决省略号截断 -->
@@ -148,8 +147,9 @@
               </div>
             </div>
 
-            <!-- 我没有安卓手机（跳过按钮） -->
+            <!-- 我没有安卓手机（跳过按钮）：连接后自动隐藏 -->
             <div
+              if="{{ !icConnected }}"
               class="ghost-btn pressable {{ pressedKey === 'skipIc' ? 'is-down press-down' : '' }} {{ releasedKey === 'skipIc' ? 'press-up' : '' }}"
               ontouchstart="pressDown('skipIc')"
               ontouchend="pressRelease('skipIc')"
@@ -675,6 +675,7 @@ export default {
 
   onDestroy() {
     if (this._timeInterval) clearInterval(this._timeInterval)
+    this.stopContinuousLanScan()
   },
 
   updateTime() {
@@ -701,9 +702,9 @@ export default {
       interconnectService.setServerInfoHandler((info) => {
         this.icConnected = true
         if (info && info.name) this.icDeviceName = info.name
-        // 发现伴侣后自动启动局域网其他设备扫描
-        if (this.step === 3 && !this.lanScanning) {
-          this.startLanScan()
+        // 发现伴侣后，若处于 Step 3 且未跳过互联，立即触发并启动局域网持续扫描
+        if (this.step === 3 && !this.skippedInterconnect) {
+          this.startContinuousLanScan()
         }
       })
       if (interconnectService.isReady()) {
@@ -728,13 +729,13 @@ export default {
     // 检查互联状态
     if (interconnectService.isReady()) {
       this.icConnected = true
-      this.startLanScan()
+      this.startContinuousLanScan()
     } else {
       interconnectService.discoverServer()
         .then((info) => {
           this.icConnected = true
           if (info && info.name) this.icDeviceName = info.name
-          this.startLanScan()
+          this.startContinuousLanScan()
         })
         .catch(() => {
           // 伴侣未就绪，保持等待态
@@ -744,14 +745,43 @@ export default {
 
   skipInterconnect() {
     this.skippedInterconnect = true
+    this.stopContinuousLanScan()
   },
 
-  async startLanScan() {
+  startContinuousLanScan() {
+    if (this._lanScanInterval) return
+    this.scanLanOnce()
+    // 持续轮询扫描：每 4.5 秒探测一次，平滑合并新设备
+    this._lanScanInterval = setInterval(() => {
+      if (this.step === 3 && !this.skippedInterconnect && !this.lanScanning) {
+        this.scanLanOnce()
+      }
+    }, 4500)
+  },
+
+  stopContinuousLanScan() {
+    if (this._lanScanInterval) {
+      clearInterval(this._lanScanInterval)
+      this._lanScanInterval = null
+    }
+  },
+
+  async scanLanOnce() {
     this.lanScanning = true
     try {
       const devices = await interconnectService.discoverLan()
       if (devices && Array.isArray(devices)) {
-        this.lanDevices = devices
+        // 合并去重：保留现有设备列表，将新探测到的设备追加进列表
+        const existingKeys = new Set(this.lanDevices.map(d => `${d.host}:${d.port}`))
+        const updated = [...this.lanDevices]
+        for (const d of devices) {
+          const key = `${d.host}:${d.port}`
+          if (!existingKeys.has(key)) {
+            existingKeys.add(key)
+            updated.push(d)
+          }
+        }
+        this.lanDevices = updated
       }
     } catch (e) {
       console.warn('[oobe] discoverLan error', e)

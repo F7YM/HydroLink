@@ -18,7 +18,6 @@ import java.net.HttpURLConnection
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.URL
-import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 
 data class DiscoveredDevice(
@@ -29,8 +28,8 @@ data class DiscoveredDevice(
 )
 
 /**
- * 局域网设备自动发现（mDNS + 快速 probe 并行）。
- * 供 Interconnect 互联通道使用：手表通过手机伴侣在局域网内寻找桌面端或其它 HydroLink 实例。
+ * 局域网设备自动发现（mDNS + 全网段 IP 探测并行）。
+ * 供 Interconnect 互联通道使用：手表通过手机伴侣在局域网内寻找 Go 桌面端或其它 HydroLink 实例。
  */
 object LanDiscovery {
 
@@ -41,15 +40,16 @@ object LanDiscovery {
 
     /**
      * 发现局域网内的 HydroLink 设备。
-     * 超时控制在 2.5 秒内，避免手表端等待过久。
+     * 超时控制在 3.5 秒内，并发探测整个子网 1..254。
      */
-    suspend fun discover(context: Context, timeoutMs: Long = 2500L): List<DiscoveredDevice> =
+    suspend fun discover(context: Context, timeoutMs: Long = 3500L): List<DiscoveredDevice> =
         withContext(Dispatchers.IO) {
             val localIp = NetworkUtil.getLocalIpAddress(context)
+            Log.d(TAG, "Starting LanDiscovery on local IP: $localIp")
             val foundDevices = ConcurrentHashMap<String, DiscoveredDevice>()
 
             coroutineScope {
-                // 1. 并发启动 mDNS 发现
+                // 1. 并发启动 mDNS 发现（适用于声明了 mDNS 的实例）
                 val mdnsJob = async {
                     runMdnsDiscovery(context, localIp, timeoutMs) { dev ->
                         val key = "${dev.host}:${dev.port}"
@@ -57,7 +57,7 @@ object LanDiscovery {
                     }
                 }
 
-                // 2. 并发启动近邻 IP Probe（针对默认 9000 端口）
+                // 2. 并发启动全子网 IP Probe（针对默认 9000 端口，覆盖 Go 桌面端）
                 val probeJob = async {
                     runSubnetProbe(localIp, DEFAULT_PORT) { dev ->
                         val key = "${dev.host}:${dev.port}"
@@ -72,7 +72,9 @@ object LanDiscovery {
                 }
             }
 
-            foundDevices.values.toList()
+            val list = foundDevices.values.toList()
+            Log.i(TAG, "LanDiscovery finished, found ${list.size} devices: $list")
+            list
         }
 
     private suspend fun runMdnsDiscovery(
@@ -104,7 +106,7 @@ object LanDiscovery {
                             }
                         })
                     } catch (e: Exception) {
-                        // resolve 频率过高时系统可能抛异常，忽略
+                        // resolve 频率过高时忽略
                     }
                 }
             }
@@ -130,7 +132,8 @@ object LanDiscovery {
     }
 
     /**
-     * 探测当前 IP 附近的子网 IP（±20 范围 + 关键网段 IP）。
+     * 并发探测当前局域网全网段 IP (1..254)。
+     * 解决非 Compose 的 Go 桌面端因未注册 mDNS 且 IP 落在 ±20 范围外导致无法被扫到的问题。
      */
     private suspend fun runSubnetProbe(
         localIp: String,
@@ -143,43 +146,51 @@ object LanDiscovery {
         val prefix = "${parts[0]}.${parts[1]}.${parts[2]}."
         val myLast = parts[3].toIntOrNull() ?: return@coroutineScope
 
-        val candidateIps = mutableSetOf<String>()
-        // 关键 IP
-        candidateIps.add("${prefix}1")
-        candidateIps.add("${prefix}2")
-        candidateIps.add("${prefix}100")
-        candidateIps.add("${prefix}101")
-        // 本机前后 20 个 IP
-        for (offset in -20..20) {
+        // 构建全子网 1..254 的所有 IP（剔除手机本机自身 IP）
+        // 优化探测顺序：先探测网关和周边 IP，再扫描剩余
+        val priorityIps = mutableListOf<String>()
+        if (myLast != 1) priorityIps.add("${prefix}1")
+        if (myLast != 2) priorityIps.add("${prefix}2")
+        for (offset in -15..15) {
             val num = myLast + offset
             if (num in 1..254 && num != myLast) {
-                candidateIps.add("$prefix$num")
+                val ip = "$prefix$num"
+                if (!priorityIps.contains(ip)) priorityIps.add(ip)
             }
         }
+        val remainingIps = (1..254)
+            .filter { it != myLast }
+            .map { "$prefix$it" }
+            .filter { !priorityIps.contains(it) }
 
-        candidateIps.map { ip ->
-            async(Dispatchers.IO) {
-                probeSingle(ip, port)?.let { onFound(it) }
-            }
-        }.awaitAll()
+        val allCandidateIps = priorityIps + remainingIps
+
+        // 采用分批（32 并发）并发探测，既保证 1~2 秒内扫完 254 个 IP，又避免打满连接数触发限流
+        allCandidateIps.chunked(32).forEach { batch ->
+            batch.map { ip ->
+                async(Dispatchers.IO) {
+                    probeSingle(ip, port)?.let { onFound(it) }
+                }
+            }.awaitAll()
+        }
     }
 
     private fun probeSingle(ip: String, port: Int): DiscoveredDevice? {
-        // 先用快速 socket connect 排除未开放端口的 IP（50ms 超时）
+        // 先用快速 socket connect 排除未开放端口的 IP（260ms 超时，兼顾无线局域网抖动）
         try {
             Socket().use { sock ->
-                sock.connect(InetSocketAddress(ip, port), 60)
+                sock.connect(InetSocketAddress(ip, port), 260)
             }
         } catch (e: Exception) {
             return null
         }
 
-        // 端口开放，发起 /api/version 请求验证是否为 HydroLink
+        // 端口开放，发起 /api/version 请求验证是否为 HydroLink 服务
         return try {
             val url = URL("http://$ip:$port/api/version")
             val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 300
-            conn.readTimeout = 300
+            conn.connectTimeout = 400
+            conn.readTimeout = 400
             conn.requestMethod = "GET"
             conn.instanceFollowRedirects = false
             if (conn.responseCode == 200) {
@@ -188,7 +199,7 @@ object LanDiscovery {
                 if (json != null && json.get("app")?.asString == "hydrolink") {
                     val name = json.get("name")?.asString
                         ?: json.get("hostname")?.asString
-                        ?: "Desktop ($ip)"
+                        ?: "HydroLink 桌面端 ($ip)"
                     DiscoveredDevice(
                         name = name,
                         host = ip,
