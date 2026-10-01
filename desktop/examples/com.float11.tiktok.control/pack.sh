@@ -10,7 +10,7 @@ import zipfile, os
 
 out = '../com.float11.tiktok.control.hpk'
 files = ['manifest.json', 'server.js']
-for d in ('web', 'assets'):
+for d in ('assets',):
     for root, _dirs, names in os.walk(d):
         for n in names:
             files.append(os.path.join(root, n))

@@ -1,7 +1,7 @@
 // HydroPlugin: 抖音控制器 (com.float11.tiktok.control)
 // 提供手表端 HydroApp 控制手机/电脑刷抖音：
-// 向上/向下滑动视频、双击点赞、播放/暂停、音量控制。
-// 使用 kit.input 执行输入模拟，使用 kit.storage 保存操作记录与配置。
+// 向上/向下滑动视频、双击点赞、播放/暂停。
+// 使用 kit.input 执行输入模拟。
 
 module.exports = {
   manifest() {
@@ -10,7 +10,7 @@ module.exports = {
         id: 'com.float11.tiktok.control',
         name: '抖音控制器',
         author: 'float11',
-        version: '1.0.1'
+        version: '1.0.2'
       },
       apps: [
         { id: 'main', name: '抖音控制器', icon: 'assets/icon.png' }
@@ -38,31 +38,25 @@ module.exports = {
     const cx = Math.floor(screen.width / 2);
     const cy = Math.floor(screen.height / 2);
 
-    let statusText = '';
-
     if (action === 'next') {
       if (isDesktop) {
         // 桌面端（网页版抖音）：Down 方向键切换下一个视频
         await kit.input.key('down');
-        statusText = '已切换下一个视频';
       } else {
         // 移动端：手指由下至上滑动（下一个视频）
         const y1 = Math.floor(screen.height * 0.76);
         const y2 = Math.floor(screen.height * 0.22);
         await kit.input.swipe(cx, y1, cx, y2, 240);
-        statusText = '已切换下一个视频';
       }
     } else if (action === 'prev') {
       if (isDesktop) {
         // 桌面端：Up 方向键切换上一个视频
         await kit.input.key('up');
-        statusText = '已返回上一个视频';
       } else {
         // 移动端：手指由上至下滑动（上一个视频）
         const y1 = Math.floor(screen.height * 0.22);
         const y2 = Math.floor(screen.height * 0.76);
         await kit.input.swipe(cx, y1, cx, y2, 240);
-        statusText = '已返回上一个视频';
       }
     } else if (action === 'like') {
       if (isDesktop) {
@@ -71,7 +65,6 @@ module.exports = {
       }
       // 屏幕中心双击点赞
       await kit.input.click({ x: cx, y: cy, count: 2 });
-      statusText = '已双击点赞';
     } else if (action === 'toggle') {
       if (isDesktop) {
         // 桌面空格暂停/播放
@@ -80,19 +73,6 @@ module.exports = {
         // 屏幕中心单击
         await kit.input.click({ x: cx, y: cy, count: 1 });
       }
-      statusText = '已切换播放 / 暂停';
-    } else if (action === 'vol_up') {
-      await kit.input.key('volume_up');
-      statusText = '音量 +';
-    } else if (action === 'vol_down') {
-      await kit.input.key('volume_down');
-      statusText = '音量 -';
-    }
-
-    if (statusText) {
-      const now = new Date();
-      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-      await kit.storage.setItem('last_action', `${statusText} (${timeStr})`);
     }
   },
 
@@ -100,18 +80,13 @@ module.exports = {
     if (req && req.trigger === 'event' && req.event && req.event.handler) {
       try {
         await this.performAction(req.event.handler);
-      } catch (err) {
-        await kit.storage.setItem('last_action', `执行失败: ${err.message || err}`);
+      } catch (e) {
+        // 静默失败：UI 不再显示操作提示
       }
     }
 
-    const lastAction = (await kit.storage.getItem('last_action')) || '就绪';
-
-    // 文案与按钮统一的 HydroLink 风格：
-    //   · 纯黑底、白色标题、次要文字 #9AA2B1
-    //   · 主色按钮沿用宿主默认的 #BAC3FF（宿主把按钮文字固定成深蓝 #00237C，
-    //     所以按钮底色必须是浅色，别再用深色背景——会看不见字）
-    //   · 全部做成整行大按钮，不搞小胶囊
+    // HydroLink 风格：纯黑底、白色标题、主色 #BAC3FF。
+    // 上下视频做成两枚大圆形箭头按钮；点赞 / 播放暂停为整行大按钮。
     return {
       root: {
         type: 'scroll',
@@ -125,48 +100,47 @@ module.exports = {
           pill: { padding: 12 }
         },
         children: [
-          // 页面返回导航
+          // 返回
           {
             type: 'nav',
             props: { action: 'back', label: '‹ 返回' },
-            style: { fontSize: 26, color: '#FFFFFF', marginBottom: 10 },
+            style: { fontSize: 26, color: '#FFFFFF', marginBottom: 18 },
             media: { circle: { width: '100%', justifyContent: 'center', fontSize: 28 } }
           },
 
-          // 标题与状态
+          // 标题
           {
             type: 'text',
             props: { text: '抖音控制器' },
-            style: { fontSize: 28, fontWeight: 700, color: '#FFFFFF', textAlign: 'center', width: '100%', marginBottom: 4 }
-          },
-          {
-            type: 'text',
-            props: { text: lastAction },
-            style: { fontSize: 20, color: '#9AA2B1', textAlign: 'center', width: '100%', marginBottom: 18 }
+            style: { fontSize: 28, fontWeight: 700, color: '#FFFFFF', textAlign: 'center', width: '100%', marginBottom: 34 }
           },
 
-          // 主操作：下一个视频（最大、最显眼）
-          // 显式给主色：不能依赖宿主 .btn 的默认底色（实测这条路径上没生效，
-          // 会变成黑底+只有一道弧线）
+          // 上下视频：两枚大圆形箭头按钮
           {
-            type: 'button',
-            props: { label: '下一个视频' },
-            events: { tap: 'next' },
-            style: { width: '100%', height: 72, borderRadius: 36, backgroundColor: '#BAC3FF', marginBottom: 14 }
+            type: 'row',
+            style: { justifyContent: 'center', alignItems: 'center', marginBottom: 40 },
+            children: [
+              {
+                type: 'button',
+                props: { label: '▲' },
+                events: { tap: 'prev' },
+                style: { width: 112, height: 112, borderRadius: 56, padding: 0, backgroundColor: '#9FA8CC', marginRight: 44 }
+              },
+              {
+                type: 'button',
+                props: { label: '▼' },
+                events: { tap: 'next' },
+                style: { width: 112, height: 112, borderRadius: 56, padding: 0, backgroundColor: '#BAC3FF' }
+              }
+            ]
           },
 
-          // 上一个视频 / 点赞
-          {
-            type: 'button',
-            props: { label: '上一个视频' },
-            events: { tap: 'prev' },
-            style: { width: '100%', height: 60, borderRadius: 30, backgroundColor: '#9FA8CC', marginBottom: 12 }
-          },
+          // 点赞
           {
             type: 'button',
             props: { label: '点赞' },
             events: { tap: 'like' },
-            style: { width: '100%', height: 60, borderRadius: 30, backgroundColor: '#9FA8CC', marginBottom: 12 }
+            style: { width: '100%', height: 72, borderRadius: 36, backgroundColor: '#9FA8CC', marginBottom: 28 }
           },
 
           // 播放 / 暂停
@@ -174,21 +148,7 @@ module.exports = {
             type: 'button',
             props: { label: '播放 / 暂停' },
             events: { tap: 'toggle' },
-            style: { width: '100%', height: 60, borderRadius: 30, backgroundColor: '#9FA8CC', marginBottom: 12 }
-          },
-
-          // 音量
-          {
-            type: 'button',
-            props: { label: '音量 −' },
-            events: { tap: 'vol_down' },
-            style: { width: '100%', height: 56, borderRadius: 28, backgroundColor: '#9FA8CC', marginBottom: 10 }
-          },
-          {
-            type: 'button',
-            props: { label: '音量 +' },
-            events: { tap: 'vol_up' },
-            style: { width: '100%', height: 56, borderRadius: 28, backgroundColor: '#9FA8CC' }
+            style: { width: '100%', height: 72, borderRadius: 36, backgroundColor: '#9FA8CC' }
           }
         ]
       }

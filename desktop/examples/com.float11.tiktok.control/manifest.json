@@ -2,7 +2,7 @@
   "id": "com.float11.tiktok.control",
   "name": "抖音控制器",
   "author": "float11",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "entry": "server.js",
   "apps": [
     {
@@ -19,7 +19,6 @@
     }
   ],
   "permissions": [
-    "input",
-    "storage"
+    "input"
   ]
 }
