@@ -342,6 +342,19 @@ export default {
     interconnectService.setServerInfoHandler(null)
   },
 
+  /**
+   * 设备列表是应用入口页（splash 用 router.replace 进来，栈里没有上一页）。
+   * 返回键直接退出应用，不要停留在空路由栈或回到启动图。
+   */
+  onBackPress() {
+    try {
+      this.$app.exit()
+    } catch (e) {
+      console.warn('[home] $app.exit 失败', e)
+    }
+    return true   // 消费返回事件，避免系统再执行默认返回
+  },
+
   onShow() {
     this.updateTime()
     this.loadDevices()

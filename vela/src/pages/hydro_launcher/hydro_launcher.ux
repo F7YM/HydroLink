@@ -47,6 +47,10 @@
           </div>
           <text class="chevron">›</text>
         </div>
+
+        <!-- 底部安全区占位（与 home/settings 同一手法）：圆屏下最后一行能滚到
+             圆心中段、不被底部弧线切；触底时留出回弹空间。 -->
+        <div class="list-bottom-space"></div>
       </div>
     </scroll>
   </div>
@@ -82,13 +86,15 @@
 .scroll-area {
   position: absolute;
   top: 90px;
+  bottom: 0;          /* 与 commandList/settings 一致：定高用 top/bottom 撑满剩余可视高度 */
   left: 0;
   right: 0;
-  /* Vela：**竖向滚动需要设置定高**（官方文档原文），只用 top/bottom 不算定高，滚不动。
-     这里直接给 466(466) - 90(头部) 的高度；矩形屏在各自的 media 块里调整。 */
-  height: 376px;
+  width: 100%;
+  flex-direction: column;
 }
-.list { width: 100%; flex-direction: column; padding: 10px 20px 30px; }
+.list { width: 100%; flex-direction: column; padding: 10px 20px 0; }
+/* 底部安全区占位：内容不足时不显眼，内容多时保证最后一行不被圆屏弧线切、并给触底回弹留空间 */
+.list-bottom-space { width: 100%; height: 40px; flex-shrink: 0; }
 .app-left { flex-direction: row; align-items: center; flex: 1; }
 .app-icon {
   width: 56px; height: 56px; border-radius: 28px;
@@ -116,10 +122,10 @@
 @keyframes PressUp { 0% { transform: scale(0.94); opacity: 0.75; } 100% { transform: scale(1); opacity: 1; } }
 
 /* 圆屏安全区：左右与容器页（hydro.ux 的 .safe-circle）取同一个值 42px，
-   否则 84px 高的胶囊行两端会被圆弧切掉；底部再留出弧线高度，
-   最后一行滚上来时也不会卡在窄区。 */
+   否则 84px 高的胶囊行两端会被圆弧切掉；底部用 .list-bottom-space 顶出弧线高度。 */
 @media (shape: circle) {
-  .list { padding-left: 42px; padding-right: 42px; padding-bottom: 120px; }
+  .list { padding-left: 42px; padding-right: 42px; }
+  .list-bottom-space { height: 150px; }
 }
 
 @media (shape: rect) {
