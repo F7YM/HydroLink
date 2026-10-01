@@ -171,18 +171,19 @@
             <div if="{{ lanDevices.length > 0 }}" class="lan-list">
               <div
                 for="{{ (index, dev) in lanDevices }}"
-                class="device-card lan-item pressable {{ pressedKey === 'lan_' + index ? 'is-down press-down' : '' }} {{ releasedKey === 'lan_' + index ? 'press-up' : '' }}"
+                class="device-card lan-item {{ dev.isAdded ? 'is-added' : 'pressable' }} {{ pressedKey === 'lan_' + index ? 'is-down press-down' : '' }} {{ releasedKey === 'lan_' + index ? 'press-up' : '' }}"
                 ontouchstart="pressDown('lan_' + index)"
                 ontouchend="pressRelease('lan_' + index)"
                 ontouchcancel="pressCancel('lan_' + index)"
                 onclick="addLanDevice(dev)"
               >
-                <image class="card-icon" src="/common/icons/desktop.png"></image>
+                <image class="card-icon {{ dev.isAdded ? 'icon-disabled' : '' }}" src="/common/icons/desktop.png"></image>
                 <div class="card-info">
-                  <text class="card-name">{{ dev.name }}</text>
-                  <text class="card-sub">{{ dev.host }}:{{ dev.port }}</text>
+                  <text class="card-name {{ dev.isAdded ? 'text-disabled' : '' }}">{{ dev.name }}</text>
+                  <text class="card-sub {{ dev.isAdded ? 'sub-disabled' : '' }}">{{ dev.host }}:{{ dev.port }}</text>
                 </div>
-                <text class="badge-add">+</text>
+                <text if="{{ !dev.isAdded }}" class="badge-add">+</text>
+                <text if="{{ dev.isAdded }}" class="badge-added">已添加</text>
               </div>
             </div>
 
@@ -465,6 +466,25 @@
   color: #bac3ff;
   margin-left: 8px;
 }
+.is-added {
+  background-color: #20232a;
+}
+.icon-disabled {
+  opacity: 0.35;
+}
+.text-disabled {
+  color: #727785;
+}
+.sub-disabled {
+  color: #4a4f5c;
+}
+.badge-added {
+  font-size: 20px;
+  font-weight: bold;
+  color: #636875;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
 
 /* Ghost Button (我没有安卓手机) */
 .ghost-btn {
@@ -648,8 +668,10 @@
 
 <script>
 import router from '@system.router'
+import prompt from '@system.prompt'
 import settingsService from '../../services/settingsService.js'
 import interconnectService from '../../services/interconnectService.js'
+import deviceService from '../../services/deviceService.js'
 
 export default {
   private: {
@@ -662,7 +684,8 @@ export default {
     icDeviceName: '',
     skippedInterconnect: false,
     lanScanning: false,
-    lanDevices: []
+    lanDevices: [],
+    savedDevices: []
   },
 
   onInit() {
@@ -670,6 +693,12 @@ export default {
     this._timeInterval = setInterval(() => this.updateTime(), 60000)
     // 预初始化 Interconnect 监听
     this.initInterconnect()
+    this.loadSavedDevices()
+  },
+
+  onShow() {
+    // 页面可见时（如配对返回），立即重新加载已添加设备
+    this.loadSavedDevices()
   },
 
   onDestroy() {
@@ -765,11 +794,31 @@ export default {
     }
   },
 
+  async loadSavedDevices() {
+    try {
+      const devices = await deviceService.getDevices()
+      this.savedDevices = devices || []
+      this.syncAddedFlags()
+    } catch (e) {
+      this.savedDevices = []
+    }
+  },
+
+  syncAddedFlags() {
+    if (!this.lanDevices || this.lanDevices.length === 0) return
+    const savedKeys = new Set((this.savedDevices || []).map(d => `${d.host}:${d.port || 9000}`))
+    this.lanDevices = this.lanDevices.map(dev => {
+      const key = `${dev.host}:${dev.port || 9000}`
+      return Object.assign({}, dev, { isAdded: savedKeys.has(key) })
+    })
+  },
+
   async scanLanOnce() {
     this.lanScanning = true
     try {
       const devices = await interconnectService.discoverLan()
       if (devices && Array.isArray(devices)) {
+        const savedKeys = new Set((this.savedDevices || []).map(d => `${d.host}:${d.port || 9000}`))
         // 合并去重：保留现有设备列表，将新探测到的设备追加进列表
         const existingKeys = new Set(this.lanDevices.map(d => `${d.host}:${d.port}`))
         const updated = [...this.lanDevices]
@@ -777,7 +826,7 @@ export default {
           const key = `${d.host}:${d.port}`
           if (!existingKeys.has(key)) {
             existingKeys.add(key)
-            updated.push(d)
+            updated.push(Object.assign({}, d, { isAdded: savedKeys.has(key) }))
           }
         }
         this.lanDevices = updated
@@ -791,6 +840,10 @@ export default {
 
   addLanDevice(dev) {
     if (!dev || !dev.host) return
+    if (dev.isAdded) {
+      prompt.showToast({ message: '该设备已在列表中' })
+      return
+    }
     router.push({
       uri: '/pages/pairing',
       params: {

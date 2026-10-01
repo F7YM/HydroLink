@@ -60,8 +60,14 @@ object LanDiscovery {
                                 }
 
                                 override fun onServiceResolved(resolved: NsdServiceInfo) {
-                                    val host = resolved.host?.hostAddress ?: return
-                                    if (host == localIp || host == "127.0.0.1") return
+                                    val inetAddr = resolved.host ?: return
+                                    // 彻底屏蔽 IPv6：仅允许 IPv4，排除任何 IPv6（含 Inet6Address 及含冒号地址）
+                                    if (inetAddr !is java.net.Inet4Address) {
+                                        Log.d(TAG, "Ignoring non-IPv4 mDNS host: $inetAddr")
+                                        return
+                                    }
+                                    val host = inetAddr.hostAddress ?: return
+                                    if (host.contains(":") || host == localIp || host == "127.0.0.1") return
                                     val port = resolved.port
                                     val actualPort = if (port in 1..65535) port else DEFAULT_PORT
                                     val devName = resolved.serviceName?.takeIf { it.isNotBlank() } ?: "HydroLink 设备"
@@ -73,7 +79,7 @@ object LanDiscovery {
                                     )
                                     val key = "$host:$actualPort"
                                     if (foundDevices.putIfAbsent(key, dev) == null) {
-                                        Log.i(TAG, "mDNS resolved new device: $dev")
+                                        Log.i(TAG, "mDNS resolved new IPv4 device: $dev")
                                     }
                                 }
                             })
