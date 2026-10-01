@@ -756,10 +756,13 @@ private fun PluginsTab(padding: PaddingValues, model: MiuixModel, actions: Miuix
                                             enabled = update.compatible,
                                         ) { actions.onOpenUpdate(update) }
                                     }
-                                    RowActionButton(
-                                        icon = R.drawable.ic_plugin_ui,
-                                        contentDescription = "界面",
-                                    ) { actions.onPluginOpenWebUi(row) }
+                                    // 只有装了 WebUI（web/index.html）的插件才显示「界面」按钮
+                                    if (row.hasWeb) {
+                                        RowActionButton(
+                                            icon = R.drawable.ic_plugin_ui,
+                                            contentDescription = "界面",
+                                        ) { actions.onPluginOpenWebUi(row) }
+                                    }
                                     RowActionButton(
                                         icon = R.drawable.ic_plugin_delete,
                                         contentDescription = "卸载",

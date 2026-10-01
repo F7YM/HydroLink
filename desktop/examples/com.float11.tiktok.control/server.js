@@ -10,7 +10,7 @@ module.exports = {
         id: 'com.float11.tiktok.control',
         name: '抖音控制器',
         author: 'float11',
-        version: '1.0.3'
+        version: '1.0.4'
       },
       apps: [
         { id: 'main', name: '抖音控制器', icon: 'assets/icon.png' }
@@ -143,20 +143,32 @@ module.exports = {
             ]
           },
 
-          // 点赞
+          // 点赞 / 播放暂停：左右并列
           {
-            type: 'button',
-            props: { label: '点赞' },
-            events: { tap: 'like' },
-            style: { width: '100%', height: 72, borderRadius: 36, backgroundColor: '#9FA8CC', marginBottom: 28 }
-          },
-
-          // 播放 / 暂停
-          {
-            type: 'button',
-            props: { label: '播放 / 暂停' },
-            events: { tap: 'toggle' },
-            style: { width: '100%', height: 72, borderRadius: 36, backgroundColor: '#9FA8CC' }
+            type: 'row',
+            style: { justifyContent: 'space-between' },
+            children: [
+              {
+                type: 'button',
+                props: { label: '点赞' },
+                events: { tap: 'like' },
+                style: {
+                  width: '47%', height: 72, borderRadius: 36,
+                  paddingLeft: 0, paddingRight: 0,
+                  backgroundColor: '#9FA8CC'
+                }
+              },
+              {
+                type: 'button',
+                props: { label: '播放 / 暂停' },
+                events: { tap: 'toggle' },
+                style: {
+                  width: '47%', height: 72, borderRadius: 36,
+                  paddingLeft: 0, paddingRight: 0,
+                  backgroundColor: '#9FA8CC'
+                }
+              }
+            ]
           }
         ]
       }

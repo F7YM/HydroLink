@@ -295,13 +295,12 @@ class AndroidKitCapabilities(
 
         val service = LockAccessibilityService.instance
         if (service != null) {
-            var success = true
-            for (i in 0 until count.coerceAtLeast(1)) {
-                if (!service.dispatchTap(targetX, targetY)) {
-                    success = false
-                    break
-                }
-                if (count > 1) Thread.sleep(60)
+            // 多击：双击用单次手势内的两次 stroke（间隔可控，见 dispatchDoubleTap），
+            // 而不是循环 dispatchTap（回调等待会让两下间隔过大，被当成单击）
+            val success = if (count >= 2) {
+                service.dispatchDoubleTap(targetX, targetY)
+            } else {
+                service.dispatchTap(targetX, targetY)
             }
             if (success) {
                 return mapOf("ok" to true, "x" to targetX, "y" to targetY, "button" to button)
@@ -309,8 +308,16 @@ class AndroidKitCapabilities(
         }
 
         // 降级使用 Shell/Root
-        val (ok, _, code) = commandRunner("input tap ${targetX.toInt()} ${targetY.toInt()}")
-        if (ok && code == 0) {
+        var shellOk = true
+        for (i in 0 until count.coerceAtLeast(1)) {
+            val (ok, _, code) = commandRunner("input tap ${targetX.toInt()} ${targetY.toInt()}")
+            if (!(ok && code == 0)) {
+                shellOk = false
+                break
+            }
+            if (count > 1) Thread.sleep(80)
+        }
+        if (shellOk) {
             return mapOf("ok" to true, "x" to targetX, "y" to targetY, "button" to button, "method" to "shell")
         }
 
