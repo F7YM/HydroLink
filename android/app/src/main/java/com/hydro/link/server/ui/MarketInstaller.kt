@@ -65,7 +65,7 @@ object MarketInstaller {
                 append("插件代码以本应用同等权限运行，可访问本机服务与数据目录，请只安装可信来源的插件。")
             }
             val dangerWarning = if (hasInput) {
-                "⚠️ 高危权限警示：该插件申请了「屏幕触控与指针模拟 (input)」高危权限，可在后台模拟点击、滑动及按键操作。请确认插件来源安全可靠！"
+                "高危权限警示：该插件申请了「屏幕触控与指针模拟 (input)」高危权限，可在后台模拟点击、滑动及按键操作。请确保你信任此插件且此插件来源安全可靠。"
             } else null
             val countdown = if (hasInput) 3 else 0
 
