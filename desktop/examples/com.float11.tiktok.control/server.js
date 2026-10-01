@@ -44,25 +44,25 @@ module.exports = {
       if (isDesktop) {
         // 桌面端（网页版抖音）：Down 方向键切换下一个视频
         await kit.input.key('down');
-        statusText = '已切换下一个视频 (Down)';
+        statusText = '已切换下一个视频';
       } else {
         // 移动端：手指由下至上滑动（下一个视频）
         const y1 = Math.floor(screen.height * 0.76);
         const y2 = Math.floor(screen.height * 0.22);
         await kit.input.swipe(cx, y1, cx, y2, 240);
-        statusText = '已切换下一个视频 ⬇️';
+        statusText = '已切换下一个视频';
       }
     } else if (action === 'prev') {
       if (isDesktop) {
         // 桌面端：Up 方向键切换上一个视频
         await kit.input.key('up');
-        statusText = '已返回上一个视频 (Up)';
+        statusText = '已返回上一个视频';
       } else {
         // 移动端：手指由上至下滑动（上一个视频）
         const y1 = Math.floor(screen.height * 0.22);
         const y2 = Math.floor(screen.height * 0.76);
         await kit.input.swipe(cx, y1, cx, y2, 240);
-        statusText = '已返回上一个视频 ⬆️';
+        statusText = '已返回上一个视频';
       }
     } else if (action === 'like') {
       if (isDesktop) {
@@ -71,7 +71,7 @@ module.exports = {
       }
       // 屏幕中心双击点赞
       await kit.input.click({ x: cx, y: cy, count: 2 });
-      statusText = '已双击点赞 ❤️';
+      statusText = '已双击点赞';
     } else if (action === 'toggle') {
       if (isDesktop) {
         // 桌面空格暂停/播放
@@ -80,13 +80,13 @@ module.exports = {
         // 屏幕中心单击
         await kit.input.click({ x: cx, y: cy, count: 1 });
       }
-      statusText = '已切换播放 / 暂停 ⏯';
+      statusText = '已切换播放 / 暂停';
     } else if (action === 'vol_up') {
       await kit.input.key('volume_up');
-      statusText = '音量 + 🔊';
+      statusText = '音量 +';
     } else if (action === 'vol_down') {
       await kit.input.key('volume_down');
-      statusText = '音量 - 🔉';
+      statusText = '音量 -';
     }
 
     if (statusText) {
@@ -105,13 +105,18 @@ module.exports = {
       }
     }
 
-    const lastAction = (await kit.storage.getItem('last_action')) || '就绪，点击下方按钮控制';
+    const lastAction = (await kit.storage.getItem('last_action')) || '就绪';
 
+    // 文案与按钮统一的 HydroLink 风格：
+    //   · 纯黑底、白色标题、次要文字 #9AA2B1
+    //   · 主色按钮沿用宿主默认的 #BAC3FF（宿主把按钮文字固定成深蓝 #00237C，
+    //     所以按钮底色必须是浅色，别再用深色背景——会看不见字）
+    //   · 全部做成整行大按钮，不搞小胶囊
     return {
       root: {
         type: 'scroll',
         style: {
-          backgroundColor: '#0F0F14',
+          backgroundColor: '#000000',
           padding: 16
         },
         media: {
@@ -123,152 +128,65 @@ module.exports = {
           // 页面返回导航
           {
             type: 'nav',
-            props: { action: 'back', label: '‹ 退出' },
-            style: { fontSize: 24, color: '#A0A5B8', marginBottom: 10 },
-            media: { circle: { width: '100%', justifyContent: 'center', fontSize: 26 } }
+            props: { action: 'back', label: '‹ 返回' },
+            style: { fontSize: 26, color: '#FFFFFF', marginBottom: 10 },
+            media: { circle: { width: '100%', justifyContent: 'center', fontSize: 28 } }
           },
 
-          // 标题与状态提示
+          // 标题与状态
           {
-            type: 'row',
-            style: { alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-            children: [
-              {
-                type: 'text',
-                props: { text: '抖音控制器' },
-                style: { fontSize: 28, fontWeight: 700, color: '#FFFFFF' }
-              }
-            ]
+            type: 'text',
+            props: { text: '抖音控制器' },
+            style: { fontSize: 28, fontWeight: 700, color: '#FFFFFF', textAlign: 'center', width: '100%', marginBottom: 4 }
           },
           {
             type: 'text',
             props: { text: lastAction },
-            style: {
-              fontSize: 18,
-              color: '#25F4EE',
-              textAlign: 'center',
-              marginBottom: 16
-            }
+            style: { fontSize: 20, color: '#9AA2B1', textAlign: 'center', width: '100%', marginBottom: 18 }
           },
 
-          // 上一个视频按钮
+          // 主操作：下一个视频（最大、最显眼）
           {
             type: 'button',
-            props: { label: '▲ 上一个视频' },
-            events: { tap: 'prev' },
-            style: {
-              backgroundColor: '#262833',
-              color: '#E0E2EC',
-              fontSize: 22,
-              fontWeight: 600,
-              height: 48,
-              borderRadius: 24,
-              marginBottom: 12
-            }
-          },
-
-          // 最核心、最大面积的「下一个视频」按钮
-          {
-            type: 'button',
-            props: { label: '▼ 下一个视频' },
+            props: { label: '下一个视频' },
             events: { tap: 'next' },
-            style: {
-              backgroundColor: '#FE2C55',
-              color: '#FFFFFF',
-              fontSize: 26,
-              fontWeight: 700,
-              height: 64,
-              borderRadius: 32,
-              marginBottom: 12
-            }
+            style: { width: '100%', height: 72, borderRadius: 36, marginBottom: 14 }
           },
 
-          // 点赞 与 暂停 快捷行
+          // 上一个视频 / 点赞
           {
-            type: 'row',
-            style: { justifyContent: 'space-between', marginBottom: 12 },
-            children: [
-              {
-                type: 'button',
-                props: { label: '❤️ 点赞' },
-                events: { tap: 'like' },
-                style: {
-                  width: '48%',
-                  backgroundColor: '#351824',
-                  color: '#FE2C55',
-                  fontSize: 20,
-                  fontWeight: 600,
-                  height: 48,
-                  borderRadius: 24
-                }
-              },
-              {
-                type: 'button',
-                props: { label: '⏯ 播放/暂停' },
-                events: { tap: 'toggle' },
-                style: {
-                  width: '48%',
-                  backgroundColor: '#16282E',
-                  color: '#25F4EE',
-                  fontSize: 20,
-                  fontWeight: 600,
-                  height: 48,
-                  borderRadius: 24
-                }
-              }
-            ]
+            type: 'button',
+            props: { label: '上一个视频' },
+            events: { tap: 'prev' },
+            style: { width: '100%', height: 60, borderRadius: 30, backgroundColor: '#9FA8CC', marginBottom: 12 }
+          },
+          {
+            type: 'button',
+            props: { label: '点赞' },
+            events: { tap: 'like' },
+            style: { width: '100%', height: 60, borderRadius: 30, backgroundColor: '#9FA8CC', marginBottom: 12 }
           },
 
-          // 音量控制行
+          // 播放 / 暂停
           {
-            type: 'row',
-            style: { justifyContent: 'space-between', marginBottom: 16 },
-            children: [
-              {
-                type: 'button',
-                props: { label: '🔉 音量 -' },
-                events: { tap: 'vol_down' },
-                style: {
-                  width: '48%',
-                  backgroundColor: '#20222B',
-                  color: '#C4C7D4',
-                  fontSize: 18,
-                  height: 42,
-                  borderRadius: 21
-                }
-              },
-              {
-                type: 'button',
-                props: { label: '🔊 音量 +' },
-                events: { tap: 'vol_up' },
-                style: {
-                  width: '48%',
-                  backgroundColor: '#20222B',
-                  color: '#C4C7D4',
-                  fontSize: 18,
-                  height: 42,
-                  borderRadius: 21
-                }
-              }
-            ]
+            type: 'button',
+            props: { label: '播放 / 暂停' },
+            events: { tap: 'toggle' },
+            style: { width: '100%', height: 60, borderRadius: 30, backgroundColor: '#9FA8CC', marginBottom: 12 }
           },
 
-          // 底部使用说明/防护提示
+          // 音量
           {
-            type: 'card',
-            style: {
-              backgroundColor: '#181A22',
-              padding: 12,
-              borderRadius: 14,
-              marginBottom: 16
-            },
-            children: [
-              {
-                type: 'text',
-                props: { text: '💡 提示：手机端需开启 HydroLink 无障碍服务；电脑端需允许输入控制。' },
-                style: { fontSize: 16, color: '#8E919E', lineHeight: 22 }
-              }
-            ]
+            type: 'button',
+            props: { label: '音量 −' },
+            events: { tap: 'vol_down' },
+            style: { width: '100%', height: 56, borderRadius: 28, backgroundColor: '#9FA8CC', marginBottom: 10 }
+          },
+          {
+            type: 'button',
+            props: { label: '音量 +' },
+            events: { tap: 'vol_up' },
+            style: { width: '100%', height: 56, borderRadius: 28, backgroundColor: '#9FA8CC' }
           }
         ]
       }
@@ -287,7 +205,7 @@ module.exports = {
       root: {
         type: 'column',
         style: {
-          backgroundColor: '#121218',
+          backgroundColor: '#000000',
           padding: 12,
           borderRadius: 20,
           justifyContent: 'center'
@@ -296,7 +214,7 @@ module.exports = {
           {
             type: 'text',
             props: { text: '抖音控制器' },
-            style: { fontSize: 18, fontWeight: 700, color: '#FE2C55', marginBottom: 8 }
+            style: { fontSize: 18, fontWeight: 700, color: '#BAC3FF', marginBottom: 8 }
           },
           {
             type: 'row',
@@ -304,30 +222,15 @@ module.exports = {
             children: [
               {
                 type: 'button',
-                props: { label: '▼ 下一条' },
+                props: { label: '下一条' },
                 events: { tap: 'next' },
-                style: {
-                  width: '62%',
-                  backgroundColor: '#FE2C55',
-                  color: '#FFFFFF',
-                  fontSize: 18,
-                  fontWeight: 700,
-                  height: 40,
-                  borderRadius: 20
-                }
+                style: { width: '62%', height: 44, borderRadius: 22 }
               },
               {
                 type: 'button',
-                props: { label: '❤️' },
+                props: { label: '点赞' },
                 events: { tap: 'like' },
-                style: {
-                  width: '32%',
-                  backgroundColor: '#351824',
-                  color: '#FE2C55',
-                  fontSize: 18,
-                  height: 40,
-                  borderRadius: 20
-                }
+                style: { width: '34%', height: 44, borderRadius: 22, backgroundColor: '#9FA8CC' }
               }
             ]
           }
