@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -103,6 +104,14 @@ func (s *Server) SetHydroHandler(h http.Handler) {
 	// list 时要解析成手表能直接取的绝对地址（局域网 IP + 本端口）。
 	hydrokit.BaseURLFor = func(r *http.Request) string {
 		return "http://" + apiBaseHost(r)
+	}
+	// 桌面 UI 靠 list 里的 web 标记决定是否显示「界面」按钮（有 web/index.html 才显示）。
+	hydrokit.HasWebFor = func(pkg string) bool {
+		if pkg == "" {
+			return false
+		}
+		info, err := os.Stat(filepath.Join(s.store.PluginsDir(), pkg, "web", "index.html"))
+		return err == nil && !info.IsDir()
 	}
 }
 

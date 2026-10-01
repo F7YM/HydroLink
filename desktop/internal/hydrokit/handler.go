@@ -35,6 +35,11 @@ const RoutePrefix = "/api/hydro/"
 // which case icons stay as-is.
 var BaseURLFor func(r *http.Request) string
 
+// HasWebFor reports whether a registered package ships a WebUI (web/index.html).
+// Wired by the API/app layer (hydrokit must not reach into store); nil means
+// "unknown" and is treated as no WebUI.
+var HasWebFor func(pkg string) bool
+
 // listForClient returns the installed plugins with every item icon that is a
 // package-relative path rewritten to an absolute, watch-reachable URL
 // (…/api/hydro/worker/asset?package=<id>&path=<icon>). The watch launcher fetches
@@ -42,6 +47,12 @@ var BaseURLFor func(r *http.Request) string
 // data: URIs pass through untouched.
 func (h *Handler) listForClient(r *http.Request) []PluginSummary {
 	list := h.rt.List()
+	// Web 与图标解析无关，先无条件填好（否则下面 base=="" 的提前返回会漏掉）
+	if HasWebFor != nil {
+		for i := range list {
+			list[i].Web = HasWebFor(list[i].Package.ID)
+		}
+	}
 	base := ""
 	if BaseURLFor != nil {
 		base = BaseURLFor(r)

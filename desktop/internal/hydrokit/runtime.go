@@ -71,6 +71,9 @@ type PluginSummary struct {
 	Package Package `json:"package"`
 	Apps    []Item  `json:"apps"`
 	Widgets []Item  `json:"widgets"`
+	// Web 标记该插件是否带 WebUI（web/index.html）。桌面 UI 用它决定是否显示
+	// 「界面」按钮；false 时省略（与 Kotlin 侧一致，见 httpParity）。
+	Web bool `json:"web,omitempty"`
 }
 
 // List returns a summary of every registered plugin (for launchers).
