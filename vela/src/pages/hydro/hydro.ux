@@ -199,15 +199,20 @@ function buildLeaf(n, inRow, ctx) {
       if (st[k] !== undefined) { wrapPos[k] = st[k]; delete leafSt[k] }
     })
   }
-  // 行布局：把叶子的 width 上提到 wrapper，叶子自身改成 100% 填满。
+  // 行布局：把叶子的 width 与 margin 上提到 wrapper，叶子自身改成 100% 填满。
   // 原因：行方向的 wrapper 是按内容定宽的 flex 项，`width:'%'` 相对它解析不出来
   // （行内百分比失效，按钮会退化成最小宽度、文字竖排）；提到 wrapper 上就有确定宽
-  // 度了。flex-shrink:0 保证固定宽度不被压。
+  // 度了。margin 必须一起提：否则叶子 width:100% + margin 会超出 wrapper 被压窄
+  // （表现为「带 margin 的那个按钮变竖椭圆」）。flex-shrink:0 保证固定宽度不被压。
   const hasRowWidth = inRow && !isAbs && leafSt.width !== undefined
   if (hasRowWidth) {
     wrapPos.width = leafSt.width
     wrapPos.flexShrink = 0
     leafSt.width = '100%'
+    const MARGIN_KEYS = ['margin', 'marginLeft', 'marginRight', 'marginTop', 'marginBottom']
+    MARGIN_KEYS.forEach((k) => {
+      if (leafSt[k] !== undefined) { wrapPos[k] = leafSt[k]; delete leafSt[k] }
+    })
   }
   // 容器默认主题：文本未指定颜色时用白色（Vela 默认文本色是灰的）
   let s = toCssStyle(leafSt)
