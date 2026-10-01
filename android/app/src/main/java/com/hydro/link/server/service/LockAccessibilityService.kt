@@ -5,10 +5,7 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
 import android.os.Build
-import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 
 class LockAccessibilityService : AccessibilityService() {
 
@@ -58,7 +55,7 @@ class LockAccessibilityService : AccessibilityService() {
         val path = Path().apply { moveTo(x, y) }
         val stroke = GestureDescription.StrokeDescription(path, 0, durationMs.coerceAtLeast(1))
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
-        return dispatchGestureSync(gesture, durationMs + 300)
+        return dispatchGestureSync(gesture)
     }
 
     /**
@@ -75,7 +72,7 @@ class LockAccessibilityService : AccessibilityService() {
         val first = GestureDescription.StrokeDescription(path1, 0, tapMs.coerceAtLeast(1))
         val second = GestureDescription.StrokeDescription(path2, tapMs + gapMs, tapMs.coerceAtLeast(1))
         val gesture = GestureDescription.Builder().addStroke(first).addStroke(second).build()
-        return dispatchGestureSync(gesture, tapMs * 2 + gapMs + 500)
+        return dispatchGestureSync(gesture)
     }
 
     /**
@@ -89,36 +86,19 @@ class LockAccessibilityService : AccessibilityService() {
         }
         val stroke = GestureDescription.StrokeDescription(path, 0, durationMs.coerceAtLeast(1))
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
-        return dispatchGestureSync(gesture, durationMs + 500)
+        return dispatchGestureSync(gesture)
     }
 
-    private fun dispatchGestureSync(gesture: GestureDescription, timeoutMs: Long): Boolean {
-        if (Looper.myLooper() == Looper.getMainLooper()) {
-            return dispatchGesture(gesture, null, null)
-        }
-        val latch = CountDownLatch(1)
-        val dispatched = dispatchGesture(gesture, object : GestureResultCallback() {
-            override fun onCompleted(gestureDescription: GestureDescription?) {
-                latch.countDown()
-            }
-            override fun onCancelled(gestureDescription: GestureDescription?) {
-                latch.countDown()
-            }
-        }, null)
-        if (!dispatched) return false
-        // 关键：dispatchGesture 返回 true 就代表手势已被系统接受、会执行。
-        // 回调可能迟来甚至不来（实测在部分机型/固件上就不来），**不能**因为回调超时
-        // 就返回 false —— 调用方会再走 shell 兜底（input tap/swipe），于是同一个
-        // 动作被执行两遍（表现为"点一下动两下、双击变三下"）。
-        val calledBack = try {
-            latch.await(timeoutMs, TimeUnit.MILLISECONDS)
-        } catch (_: Exception) {
-            false
-        }
-        if (!calledBack) {
-            android.util.Log.w("HydroLink", "dispatchGesture: 回调超时（已派发，按成功处理）")
-        }
-        return true
+    /**
+     * 派发手势并同步返回结果。
+     *
+     * **不等待回调**：`dispatchGesture` 返回 true 就代表手势已被系统接受、会执行。
+     * 回调在部分机型/固件上根本不来，之前等回调超时就返回 false，调用方会再走
+     * shell 兜底（input tap/swipe）把同一动作执行第二遍（"点一下动两下"），
+     * 而且每次点击都白等一个超时。这里只要派发成功即视为成功。
+     */
+    private fun dispatchGestureSync(gesture: GestureDescription): Boolean {
+        return dispatchGesture(gesture, null, null)
     }
 
     companion object {
