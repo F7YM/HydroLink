@@ -882,13 +882,13 @@ private fun MdSourceOptions(current: String, onPick: (String) -> Unit) {
     Column {
         MdRadioWidget(
             title = "自动",
-            description = "依次尝试 jsDelivr → GitHub Raw → Gh-Proxy",
+            description = null,
             selected = current == MarketSources.AUTO,
         ) { onPick(MarketSources.AUTO) }
-        MarketSources.candidates.forEachIndexed { index, base ->
+        MarketSources.candidates.forEach { base ->
             MdRadioWidget(
                 title = MarketSources.label(base),
-                description = base,
+                description = null,
                 selected = base == current,
             ) { onPick(base) }
         }
