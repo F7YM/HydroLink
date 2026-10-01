@@ -41,3 +41,6 @@ AGENTS.md
 
 # 桌面端重写工程（独立 git 仓库，不属于主仓）
 desktop-compose/
+
+# Go telemetry/本地构建缓存
+desktop/go/
