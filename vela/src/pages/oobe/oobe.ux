@@ -18,12 +18,23 @@
             <text class="sub-title">探索设备边界</text>
           </div>
 
-          <!-- 步进指示条：作为内容的一部分随页面滚动，不再固定悬浮 -->
+          <!-- 步进指示条：作为内容的一部分随页面滚动 -->
           <div class="indicator-row">
             <div class="dot dot-active"></div>
             <div class="dot"></div>
             <div class="dot"></div>
             <div class="dot"></div>
+          </div>
+
+          <!-- 下一步按钮：直接在内容流中居中跟随，不悬浮 -->
+          <div
+            class="arrow-fab pressable {{ pressedKey === 'next' ? 'is-down press-down' : '' }} {{ releasedKey === 'next' ? 'press-up' : '' }}"
+            ontouchstart="pressDown('next')"
+            ontouchend="pressRelease('next')"
+            ontouchcancel="pressCancel('next')"
+            onclick="nextStep"
+          >
+            <image class="arrow-icon" src="/common/icons/arrow-forward.png"></image>
           </div>
         </div>
 
@@ -54,6 +65,17 @@
             <div class="dot"></div>
             <div class="dot"></div>
           </div>
+
+          <!-- 下一步按钮 -->
+          <div
+            class="arrow-fab pressable {{ pressedKey === 'next' ? 'is-down press-down' : '' }} {{ releasedKey === 'next' ? 'press-up' : '' }}"
+            ontouchstart="pressDown('next')"
+            ontouchend="pressRelease('next')"
+            ontouchcancel="pressCancel('next')"
+            onclick="nextStep"
+          >
+            <image class="arrow-icon" src="/common/icons/arrow-forward.png"></image>
+          </div>
         </div>
 
         <!-- ==================== Step 2: 轻量扩展生态 ==================== -->
@@ -80,6 +102,17 @@
             <div class="dot"></div>
             <div class="dot dot-active"></div>
             <div class="dot"></div>
+          </div>
+
+          <!-- 下一步按钮 -->
+          <div
+            class="arrow-fab pressable {{ pressedKey === 'next' ? 'is-down press-down' : '' }} {{ releasedKey === 'next' ? 'press-up' : '' }}"
+            ontouchstart="pressDown('next')"
+            ontouchend="pressRelease('next')"
+            ontouchcancel="pressCancel('next')"
+            onclick="nextStep"
+          >
+            <image class="arrow-icon" src="/common/icons/arrow-forward.png"></image>
           </div>
         </div>
 
@@ -158,7 +191,7 @@
             </div>
           </div>
 
-          <!-- 3. 手动输入 IP 选项（纯文字，无 emoji） -->
+          <!-- 3. 手动输入 IP 选项（左右稍窄 350px，更适合圆表底部弧度） -->
           <div
             class="manual-btn pressable {{ pressedKey === 'manualIp' ? 'is-down press-down' : '' }} {{ releasedKey === 'manualIp' ? 'press-up' : '' }}"
             ontouchstart="pressDown('manualIp')"
@@ -169,7 +202,7 @@
             <text class="manual-btn-text">手动输入 IP</text>
           </div>
 
-          <!-- 4. 完成按钮（文案为“进入 HydroLink”） -->
+          <!-- 4. 完成按钮（左右稍窄 350px，文案为“进入 HydroLink”） -->
           <div
             class="finish-pill pressable {{ pressedKey === 'finish' ? 'is-down press-down' : '' }} {{ releasedKey === 'finish' ? 'press-up' : '' }}"
             ontouchstart="pressDown('finish')"
@@ -181,23 +214,10 @@
           </div>
         </div>
 
-        <!-- 底部安全区占位：Step 0~2 增加留白，确保滚到底部时不被悬浮按钮遮挡 -->
-        <div class="list-bottom-space {{ step < 3 ? 'extra-space' : '' }}"></div>
+        <!-- 底部安全区占位，确保最后一项轻松滑到圆心中段舒适点击 -->
+        <div class="list-bottom-space"></div>
       </div>
     </scroll>
-
-    <!-- 下一步按钮：仅保留大圆按钮固定悬浮在底部，小圆点已随页面内容滚动（Step 0 ~ 2 呈现） -->
-    <div if="{{ step < 3 }}" class="bottom-floating-fab">
-      <div
-        class="arrow-fab pressable {{ pressedKey === 'next' ? 'is-down press-down' : '' }} {{ releasedKey === 'next' ? 'press-up' : '' }}"
-        ontouchstart="pressDown('next')"
-        ontouchend="pressRelease('next')"
-        ontouchcancel="pressCancel('next')"
-        onclick="nextStep"
-      >
-        <image class="arrow-icon" src="/common/icons/arrow-forward.png"></image>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -264,7 +284,7 @@
   width: 100%;
   flex-direction: column;
   align-items: center;
-  margin-top: 24px;
+  margin-top: 20px;
   margin-bottom: 24px;
 }
 .welcome-logo {
@@ -315,7 +335,7 @@
   padding: 20px 24px;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 .feature-item {
   width: 100%;
@@ -348,7 +368,7 @@
   align-items: center;
   justify-content: center;
   margin-top: 4px;
-  margin-bottom: 16px;
+  margin-bottom: 24px;
 }
 .dot {
   width: 8px;
@@ -364,29 +384,19 @@
   background-color: #bac3ff;
 }
 
-/* ---- 固定悬浮下一步按钮（Step 0 ~ 2） ---- */
-.bottom-floating-fab {
-  position: absolute;
-  bottom: 24px;
-  left: 0;
-  right: 0;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-}
-
-/* Arrow FAB (固定悬浮的下一步按钮) */
+/* Arrow FAB (下一步前进圆钮：处于内容流内部，自然居中跟随) */
 .arrow-fab {
-  width: 80px;
-  height: 80px;
-  border-radius: 40px;
+  width: 84px;
+  height: 84px;
+  border-radius: 42px;
   background-color: #bac3ff;
   justify-content: center;
   align-items: center;
+  margin-bottom: 20px;
 }
 .arrow-icon {
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
 }
 
 /* ---- Step 3 样式 ---- */
@@ -511,9 +521,9 @@
   text-align: center;
 }
 
-/* Manual & Finish Buttons */
+/* Manual & Finish Buttons: 宽度收窄至 350px，左右留白均匀，更加契合圆屏弧线 */
 .manual-btn {
-  width: 390px;
+  width: 350px;
   height: 80px;
   border-radius: 40px;
   background-color: #2e323c;
@@ -529,7 +539,7 @@
 }
 
 .finish-pill {
-  width: 390px;
+  width: 350px;
   height: 88px;
   border-radius: 44px;
   background-color: #bac3ff;
@@ -544,15 +554,11 @@
   color: #00237c;
 }
 
-/* 底部防裁切安全边距 */
+/* 底部防裁切安全边距：参考 home.ux / settings.ux */
 .list-bottom-space {
   width: 100%;
-  height: 60px;
+  height: 80px;
   flex-shrink: 0;
-}
-/* Step 0~2 增加留白，确保滑到底部时内容不被悬浮的大圆按钮遮挡 */
-.extra-space {
-  height: 110px;
 }
 
 /* 转圈动画：对齐 pairing.ux 的容器转动规范，精准中心轴 (24px 24px) */
@@ -633,14 +639,8 @@
   .scroll-content {
     padding-top: 6px;
   }
-  .bottom-floating-fab {
-    bottom: 16px;
-  }
-  .extra-space {
-    height: 100px;
-  }
   .list-bottom-space {
-    height: 30px;
+    height: 40px;
   }
 }
 </style>
