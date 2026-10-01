@@ -6,8 +6,8 @@
       <text class="title">新手引导</text>
     </div>
 
-    <!-- Scroll Area: 参考设备列表页 home.ux，采用绝对定位撑满下半部，内容自然滚动不拥挤 -->
-    <scroll class="scroll-area" scroll-y="true" bounces="true">
+    <!-- Scroll Area: 全屏自适应撑满，内容自然滚动 -->
+    <scroll id="oobeScroll" class="scroll-area" scroll-y="true" bounces="true">
       <div class="scroll-content">
 
         <!-- ==================== Step 0: 欢迎页 ==================== -->
@@ -16,25 +16,6 @@
             <image class="welcome-logo" src="/common/icon.png"></image>
             <text class="app-title">HydroLink</text>
             <text class="sub-title">探索设备边界</text>
-          </div>
-
-          <!-- 步进指示器与前进按钮 -->
-          <div class="step-controls">
-            <div class="indicator-row">
-              <div class="dot dot-active"></div>
-              <div class="dot"></div>
-              <div class="dot"></div>
-              <div class="dot"></div>
-            </div>
-            <div
-              class="arrow-fab pressable {{ pressedKey === 'next' ? 'is-down press-down' : '' }} {{ releasedKey === 'next' ? 'press-up' : '' }}"
-              ontouchstart="pressDown('next')"
-              ontouchend="pressRelease('next')"
-              ontouchcancel="pressCancel('next')"
-              onclick="nextStep"
-            >
-              <image class="arrow-icon" src="/common/icons/arrow-forward.png"></image>
-            </div>
           </div>
         </div>
 
@@ -57,25 +38,6 @@
               <text class="feat-desc">Interconnect 通讯 + Wi-Fi 局域网</text>
             </div>
           </div>
-
-          <!-- 步进指示器与前进按钮 -->
-          <div class="step-controls">
-            <div class="indicator-row">
-              <div class="dot"></div>
-              <div class="dot dot-active"></div>
-              <div class="dot"></div>
-              <div class="dot"></div>
-            </div>
-            <div
-              class="arrow-fab pressable {{ pressedKey === 'next' ? 'is-down press-down' : '' }} {{ releasedKey === 'next' ? 'press-up' : '' }}"
-              ontouchstart="pressDown('next')"
-              ontouchend="pressRelease('next')"
-              ontouchcancel="pressCancel('next')"
-              onclick="nextStep"
-            >
-              <image class="arrow-icon" src="/common/icons/arrow-forward.png"></image>
-            </div>
-          </div>
         </div>
 
         <!-- ==================== Step 2: 轻量扩展生态 ==================== -->
@@ -93,25 +55,6 @@
             <div class="feature-item">
               <text class="feat-title">沙箱与能力互通</text>
               <text class="feat-desc">安全轻量隔离，腕上与设备高效交互</text>
-            </div>
-          </div>
-
-          <!-- 步进指示器与前进按钮 -->
-          <div class="step-controls">
-            <div class="indicator-row">
-              <div class="dot"></div>
-              <div class="dot"></div>
-              <div class="dot dot-active"></div>
-              <div class="dot"></div>
-            </div>
-            <div
-              class="arrow-fab pressable {{ pressedKey === 'next' ? 'is-down press-down' : '' }} {{ releasedKey === 'next' ? 'press-up' : '' }}"
-              ontouchstart="pressDown('next')"
-              ontouchend="pressRelease('next')"
-              ontouchcancel="pressCancel('next')"
-              onclick="nextStep"
-            >
-              <image class="arrow-icon" src="/common/icons/arrow-forward.png"></image>
             </div>
           </div>
         </div>
@@ -202,7 +145,7 @@
             <text class="manual-btn-text">手动输入 IP</text>
           </div>
 
-          <!-- 4. 完成按钮（文案修改为“进入 HydroLink”） -->
+          <!-- 4. 完成按钮（文案为“进入 HydroLink”） -->
           <div
             class="finish-pill pressable {{ pressedKey === 'finish' ? 'is-down press-down' : '' }} {{ releasedKey === 'finish' ? 'press-up' : '' }}"
             ontouchstart="pressDown('finish')"
@@ -214,10 +157,32 @@
           </div>
         </div>
 
-        <!-- 底部安全区占位，与 home.ux/settings.ux 一致，保证内容能完全滚到视野中间 -->
-        <div class="list-bottom-space"></div>
+        <!-- 底部安全区占位：Step 0~2 增加高度避免被底部固定悬浮按钮遮挡 -->
+        <div class="list-bottom-space {{ step < 3 ? 'extra-space' : '' }}"></div>
       </div>
     </scroll>
+
+    <!-- 下一步按钮：固定悬浮在底部（Step 0 ~ 2 呈现） -->
+    <div if="{{ step < 3 }}" class="bottom-floating-bar">
+      <!-- MD3 步进指示条 -->
+      <div class="indicator-row">
+        <div class="dot {{ step === 0 ? 'dot-active' : '' }}"></div>
+        <div class="dot {{ step === 1 ? 'dot-active' : '' }}"></div>
+        <div class="dot {{ step === 2 ? 'dot-active' : '' }}"></div>
+        <div class="dot {{ step === 3 ? 'dot-active' : '' }}"></div>
+      </div>
+
+      <!-- 下一步按钮：MD3 悬浮圆钮 -->
+      <div
+        class="arrow-fab pressable {{ pressedKey === 'next' ? 'is-down press-down' : '' }} {{ releasedKey === 'next' ? 'press-up' : '' }}"
+        ontouchstart="pressDown('next')"
+        ontouchend="pressRelease('next')"
+        ontouchcancel="pressCancel('next')"
+        onclick="nextStep"
+      >
+        <image class="arrow-icon" src="/common/icons/arrow-forward.png"></image>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -284,8 +249,8 @@
   width: 100%;
   flex-direction: column;
   align-items: center;
-  margin-top: 10px;
-  margin-bottom: 30px;
+  margin-top: 16px;
+  margin-bottom: 20px;
 }
 .welcome-logo {
   width: 140px;
@@ -335,7 +300,7 @@
   padding: 20px 24px;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 28px;
+  margin-bottom: 16px;
 }
 .feature-item {
   width: 100%;
@@ -362,19 +327,20 @@
   margin: 12px 0;
 }
 
-/* Step Controls: 包含小圆点与前进大箭头，处于可滚动内容的下方 */
-.step-controls {
-  width: 100%;
+/* ---- 固定悬浮底栏（Step 0 ~ 2） ---- */
+.bottom-floating-bar {
+  position: absolute;
+  bottom: 20px;
+  left: 0;
+  right: 0;
   flex-direction: column;
   align-items: center;
-  margin-top: 8px;
-  margin-bottom: 20px;
 }
 .indicator-row {
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
 .dot {
   width: 8px;
@@ -390,18 +356,18 @@
   background-color: #bac3ff;
 }
 
-/* Arrow FAB (前进按钮，居中呈现，方便点击) */
+/* Arrow FAB (固定悬浮的下一步按钮) */
 .arrow-fab {
-  width: 84px;
-  height: 84px;
-  border-radius: 42px;
+  width: 80px;
+  height: 80px;
+  border-radius: 40px;
   background-color: #bac3ff;
   justify-content: center;
   align-items: center;
 }
 .arrow-icon {
-  width: 44px;
-  height: 44px;
+  width: 42px;
+  height: 42px;
 }
 
 /* ---- Step 3 样式 ---- */
@@ -559,11 +525,15 @@
   color: #00237c;
 }
 
-/* 底部防裁切安全边距：参考 home.ux，确保最后一项能轻松滚到圆心中段 */
+/* 底部防裁切安全边距 */
 .list-bottom-space {
   width: 100%;
-  height: 80px;
+  height: 60px;
   flex-shrink: 0;
+}
+/* Step 0~2 增加底部占位高度，确保内容滚动到底部时不被悬浮底栏遮挡 */
+.extra-space {
+  height: 160px;
 }
 
 /* 转圈动画：对齐 pairing.ux 的容器转动规范，精准中心轴 (24px 24px) */
@@ -644,8 +614,14 @@
   .scroll-content {
     padding-top: 6px;
   }
+  .bottom-floating-bar {
+    bottom: 12px;
+  }
+  .extra-space {
+    height: 140px;
+  }
   .list-bottom-space {
-    height: 40px;
+    height: 30px;
   }
 }
 </style>
@@ -687,6 +663,19 @@ export default {
     this.currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
   },
 
+  scrollToTop() {
+    setTimeout(() => {
+      try {
+        const el = this.$element('oobeScroll')
+        if (el && typeof el.scrollTo === 'function') {
+          el.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+        }
+      } catch (e) {
+        console.warn('[oobe] scrollToTop error', e)
+      }
+    }, 20)
+  },
+
   initInterconnect() {
     try {
       interconnectService.ensureInit()
@@ -709,6 +698,7 @@ export default {
   nextStep() {
     if (this.step < 3) {
       this.step += 1
+      this.scrollToTop()
       if (this.step === 3) {
         this.onEnterStep3()
       }
