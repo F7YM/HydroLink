@@ -25,27 +25,27 @@
 
     <scroll class="scroll-area" scroll-y="true" bounces="true" show="{{ !loading && !errorText && !emptyText }}">
       <div class="list">
-        <div for="{{ (pi, plugin) in plugins }}">
-          <div
-            for="{{ (ai, app) in plugin.apps }}"
-            class="app-row pressable {{ pressedKey === 'app_' + pi + '_' + ai ? 'is-down press-down' : '' }} {{ releasedKey === 'app_' + pi + '_' + ai ? 'press-up' : '' }}"
-            ontouchstart="pressDown('app_' + pi + '_' + ai)"
-            ontouchend="pressRelease('app_' + pi + '_' + ai)"
-            ontouchcancel="pressCancel('app_' + pi + '_' + ai)"
-            onclick="openApp(plugin.package.id, app.id)"
-          >
-            <div class="app-left">
-              <!-- 有图标就显示图标（宿主已在 /api/hydro/list 里解析成可取 URL）；
-                   没有就用名字首字兜底，避免空白 -->
-              <image if="{{ app.icon }}" class="app-icon" src="{{ app.icon }}"></image>
-              <div if="{{ !app.icon }}" class="app-icon app-icon-fallback">
-                <text class="app-icon-letter">{{ app.name[0] || '?' }}</text>
-              </div>
-              <text class="app-name">{{ app.name || app.id }}</text>
+        <!-- 扁平成一层：每行都是 .list(column) 的直接子项。
+             原来两层嵌套 for，外层 div 无 class → Vela 默认 flex-direction:row，
+             同一插件的多个 App 会横向排开、互相重叠，而且纵向不增长导致滚不动。 -->
+        <div
+          for="{{ (i, item) in apps }}"
+          class="app-row pressable {{ pressedKey === 'app_' + i ? 'is-down press-down' : '' }} {{ releasedKey === 'app_' + i ? 'press-up' : '' }}"
+          ontouchstart="pressDown('app_' + i)"
+          ontouchend="pressRelease('app_' + i)"
+          ontouchcancel="pressCancel('app_' + i)"
+          onclick="openApp(item.packageId, item.app.id)"
+        >
+          <div class="app-left">
+            <!-- 有图标就显示图标（宿主已在 /api/hydro/list 里解析成可取 URL）；
+                 没有就用名字首字兜底，避免空白 -->
+            <image if="{{ item.app.icon }}" class="app-icon" src="{{ item.app.icon }}"></image>
+            <div if="{{ !item.app.icon }}" class="app-icon app-icon-fallback">
+              <text class="app-icon-letter">{{ item.app.name[0] || '?' }}</text>
             </div>
-            <text class="chevron">›</text>
+            <text class="app-name">{{ item.app.name || item.app.id }}</text>
           </div>
-
+          <text class="chevron">›</text>
         </div>
       </div>
     </scroll>
@@ -145,6 +145,9 @@ export default {
   private: {
     currentTime: '00:00',
     plugins: [],
+    // 扁平化的 HydroApp 列表：每项 { packageId, app }。
+    // 渲染成一层 row，避免嵌套 for 的外层 div 默认 row 把同插件多条 App 排成横排。
+    apps: [],
     loading: true,
     errorText: '',
     emptyText: '',
@@ -159,6 +162,7 @@ export default {
     const cached = deviceService.peekCache('pluginlist', this.host || this.deviceId)
     if (cached) {
       this.plugins = cached
+      this.apps = this.flatten(cached)
       this.loading = false
     }
     this.load()
@@ -185,10 +189,25 @@ export default {
       return
     }
     this.plugins = data.plugins.filter((p) => p.apps && p.apps.length > 0)
+    this.apps = this.flatten(this.plugins)
     deviceService.putCache('pluginlist', this.host || this.deviceId, this.plugins)
-    if (this.plugins.length === 0) {
+    if (this.apps.length === 0) {
       this.emptyText = '暂无 HydroApps'
     }
+  },
+
+  /** 把 {plugins:[{package,apps[]}]} 摊平成 [{packageId, app}]，供单层列表渲染。 */
+  flatten(plugins) {
+    const out = []
+    const list = plugins || []
+    for (let pi = 0; pi < list.length; pi++) {
+      const plugin = list[pi]
+      const apps = (plugin && plugin.apps) || []
+      for (let ai = 0; ai < apps.length; ai++) {
+        out.push({ packageId: plugin.package.id, app: apps[ai] })
+      }
+    }
+    return out
   },
 
   openApp(packageId, appId) {
