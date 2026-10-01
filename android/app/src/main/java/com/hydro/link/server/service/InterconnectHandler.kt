@@ -566,6 +566,31 @@ class InterconnectHandler(
                 }
             }
 
+            // 手表端 OOBE / 局域网设备发现：通过手机 mDNS + 局域网探测寻找桌面端等其它 HydroLink 实例
+            "discover_lan" -> {
+                val id = json.get("id")?.asString ?: ""
+                scope.launch {
+                    val devices = LanDiscovery.discover(context)
+                    val devArray = com.google.gson.JsonArray()
+                    for (d in devices) {
+                        val obj = JsonObject().apply {
+                            addProperty("name", d.name)
+                            addProperty("host", d.host)
+                            addProperty("port", d.port)
+                            addProperty("device_type", d.deviceType)
+                        }
+                        devArray.add(obj)
+                    }
+                    val response = JsonObject().apply {
+                        addProperty("type", "lan_devices")
+                        addProperty("id", id)
+                        add("devices", devArray)
+                    }
+                    sendMessage(nodeId, response.toString())
+                    Log.i(TAG, "Replied to discover_lan from $nodeId: found ${devices.size} devices")
+                }
+            }
+
             else -> Log.w(TAG, "Unknown message type '$type' from $nodeId")
         }
     }
@@ -575,7 +600,24 @@ class InterconnectHandler(
      * Device-trust checks are bypassed because the interconnect channel
      * already implies a trusted companion-app relationship.
      */
-    private fun routeApiRequest(path: String, method: String, body: JsonElement?): JsonElement {
+    private suspend fun routeApiRequest(path: String, method: String, body: JsonElement?): JsonElement {
+        if (path == "/api/discover/lan" || path == "/discover/lan") {
+            val devices = LanDiscovery.discover(context)
+            val devArray = com.google.gson.JsonArray()
+            for (d in devices) {
+                val obj = JsonObject().apply {
+                    addProperty("name", d.name)
+                    addProperty("host", d.host)
+                    addProperty("port", d.port)
+                    addProperty("device_type", d.deviceType)
+                }
+                devArray.add(obj)
+            }
+            return JsonObject().apply {
+                addProperty("status", "ok")
+                add("devices", devArray)
+            }
+        }
         return try {
             val result = server.handleInternalRequest(path, method, body)
             result ?: gson.toJsonTree(mapOf("status" to "error", "message" to "Not found: $path"))

@@ -8,7 +8,7 @@
 import file from '@system.file'
 
 const SETTINGS_FILE = 'internal://files/settings.json'
-const DEFAULTS = { forceFetch: false }
+const DEFAULTS = { forceFetch: false, keepScreenOn: false, oobeCompleted: false }
 
 function readText(uri) {
   return new Promise((resolve, reject) => {
@@ -69,5 +69,19 @@ export default {
     s.keepScreenOn = !!value
     await writeText(SETTINGS_FILE, JSON.stringify(s))
     return s.keepScreenOn
+  },
+
+  /** 开箱新手引导完成标志（默认 false）：首次启动时进入 OOBE。 */
+  async getOobeCompleted() {
+    const s = await getSettings()
+    return !!s.oobeCompleted
+  },
+
+  /** 记住 OOBE 引导完成状态。 */
+  async setOobeCompleted(value) {
+    const s = await getSettings()
+    s.oobeCompleted = !!value
+    await writeText(SETTINGS_FILE, JSON.stringify(s))
+    return s.oobeCompleted
   }
 }

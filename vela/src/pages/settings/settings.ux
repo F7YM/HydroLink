@@ -32,6 +32,18 @@
           <text class="app-chevron">›</text>
         </div>
 
+        <!-- 开箱新手引导 -->
+        <div
+          class="form-item pressable {{ pressedKey === 'oobe' ? 'is-down press-down' : '' }} {{ releasedKey === 'oobe' ? 'press-up' : '' }}"
+          ontouchstart="pressDown('oobe')"
+          ontouchend="pressRelease('oobe')"
+          ontouchcancel="pressCancel('oobe')"
+          onclick="onOpenOobe"
+        >
+          <text class="form-label">新手引导</text>
+          <text class="app-chevron">›</text>
+        </div>
+
         <!-- 屏幕常亮 -->
         <div class="form-item">
           <text class="form-label">屏幕常亮</text>
@@ -350,6 +362,10 @@ export default {
 
   onOpenVersion() {
     router.push({ uri: '/pages/version' })
+  },
+
+  onOpenOobe() {
+    router.push({ uri: '/pages/oobe' })
   },
 
   pressDown(key) {

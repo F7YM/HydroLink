@@ -242,6 +242,14 @@ const _service = {
           pending.resolve(msg.data)
         }
       }
+    } else if (msg.type === 'lan_devices') {
+      const id = msg.id
+      const pending = _pending[id]
+      if (pending) {
+        delete _pending[id]
+        if (pending.timer) clearTimeout(pending.timer)
+        pending.resolve(msg)
+      }
     }
   },
 
@@ -420,6 +428,43 @@ const _service = {
   /** Returns true when interconnect is connected and usable. */
   isReady() {
     return this._available && this._ready
+  },
+
+  /**
+   * 请求手机端在局域网内通过 mDNS + Probe 扫描其它 HydroLink 设备。
+   * @returns {Promise<Array<{name: string, host: string, port: number, device_type: string}>>}
+   */
+  discoverLan() {
+    return new Promise((resolve) => {
+      if (!this._available || !this._ready) {
+        resolve([])
+        return
+      }
+      const id = genId()
+      const entry = {
+        resolve: (data) => resolve((data && data.devices) || []),
+        reject: () => resolve([]),
+        timer: null
+      }
+      _pending[id] = entry
+      entry.timer = setTimeout(() => {
+        if (_pending[id]) {
+          delete _pending[id]
+          resolve([])
+        }
+      }, 5000)
+
+      this._rawSend({
+        type: 'discover_lan',
+        id: id
+      }).catch(() => {
+        if (_pending[id]) {
+          if (_pending[id].timer) clearTimeout(_pending[id].timer)
+          delete _pending[id]
+          resolve([])
+        }
+      })
+    })
   },
 
   /** Returns true when the interconnect feature itself is present. */

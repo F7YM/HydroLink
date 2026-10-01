@@ -93,6 +93,9 @@
       },
       "pages/hydro_launcher": {
         "component": "hydro_launcher"
+      },
+      "pages/oobe": {
+        "component": "oobe"
       }
     }
   }

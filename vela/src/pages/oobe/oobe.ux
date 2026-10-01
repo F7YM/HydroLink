@@ -1,0 +1,723 @@
+<template>
+  <div class="page-container">
+    <!-- Header: 顶部常驻，含时间与返回/跳过 -->
+    <div class="header">
+      <div class="header-left">
+        <text
+          if="{{ step > 0 }}"
+          class="nav-btn pressable {{ pressedKey === 'prev' ? 'is-down press-down' : '' }} {{ releasedKey === 'prev' ? 'press-up' : '' }}"
+          ontouchstart="pressDown('prev')"
+          ontouchend="pressRelease('prev')"
+          ontouchcancel="pressCancel('prev')"
+          onclick="prevStep"
+        >‹</text>
+      </div>
+      <text class="time-display">{{ currentTime }}</text>
+      <div class="header-right">
+        <text
+          if="{{ step < 3 }}"
+          class="skip-btn pressable {{ pressedKey === 'skip' ? 'is-down press-down' : '' }} {{ releasedKey === 'skip' ? 'press-up' : '' }}"
+          ontouchstart="pressDown('skip')"
+          ontouchend="pressRelease('skip')"
+          ontouchcancel="pressCancel('skip')"
+          onclick="skipOobe"
+        >跳过</text>
+      </div>
+    </div>
+
+    <!-- Step 0: 欢迎页（纯净克制，仅标题 + 副标题“探索设备边界”，无任何长说明） -->
+    <div if="{{ step === 0 }}" class="content-body center-flex">
+      <image class="welcome-logo" src="/common/icon.png"></image>
+      <text class="app-title">HydroLink</text>
+      <text class="sub-title">探索设备边界</text>
+    </div>
+
+    <!-- Step 1: 多平台适配 -->
+    <div if="{{ step === 1 }}" class="content-body">
+      <text class="page-title">多平台适配</text>
+      <div class="platforms-row">
+        <image class="plat-icon" src="/common/icons/gauge-custom.png"></image>
+        <image class="plat-icon" src="/common/icons/cellphone.png"></image>
+        <image class="plat-icon" src="/common/icons/desktop.png"></image>
+      </div>
+      <div class="feature-card">
+        <div class="feature-item">
+          <text class="feat-title">跨端协同</text>
+          <text class="feat-desc">手表、手机与桌面无缝互联</text>
+        </div>
+        <div class="feature-divider"></div>
+        <div class="feature-item">
+          <text class="feat-title">双通道链路</text>
+          <text class="feat-desc">近场蓝牙伴侣 + Wi-Fi 局域网</text>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: 轻量扩展生态（抽象平台化，不提具体插件名） -->
+    <div if="{{ step === 2 }}" class="content-body">
+      <text class="page-title">轻量扩展生态</text>
+      <div class="platforms-row">
+        <image class="plat-icon" src="/common/icons/apps.png"></image>
+      </div>
+      <div class="feature-card">
+        <div class="feature-item">
+          <text class="feat-title">声明式视图</text>
+          <text class="feat-desc">端侧动态下发，随需随用无需固件升级</text>
+        </div>
+        <div class="feature-divider"></div>
+        <div class="feature-item">
+          <text class="feat-title">沙箱与能力互通</text>
+          <text class="feat-desc">安全轻量隔离，腕上与设备高效交互</text>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: 配对设备（核心连接流：interconnect 优先、可跳过、mDNS 自动发现、手动 IP） -->
+    <div if="{{ step === 3 }}" class="content-body step3-body">
+      <scroll class="step3-scroll" scroll-y="true" bounces="true">
+        <text class="page-title">配对新设备</text>
+
+        <!-- 1. Interconnect 互联卡片（优先） -->
+        <div if="{{ !skippedInterconnect }}" class="ic-section">
+          <!-- 已连接伴侣 -->
+          <div if="{{ icConnected }}" class="device-card ic-active">
+            <image class="card-icon" src="/common/icons/cellphone.png"></image>
+            <div class="card-info">
+              <text class="card-name">{{ icDeviceName || '手机伴侣已连接' }}</text>
+              <text class="card-sub">Interconnect 蓝牙直连</text>
+            </div>
+            <text class="badge-done">已就绪</text>
+          </div>
+
+          <!-- 探测中 / 未连接 -->
+          <div if="{{ !icConnected }}" class="device-card ic-pending">
+            <image class="card-icon spin" src="/common/icons/progress-activity.png"></image>
+            <div class="card-info">
+              <text class="card-name">正在等待手机伴侣...</text>
+              <text class="card-sub">请确保手机运行 HydroLink</text>
+            </div>
+          </div>
+
+          <!-- 我没有安卓手机（跳过按钮） -->
+          <div
+            class="ghost-btn pressable {{ pressedKey === 'skipIc' ? 'is-down press-down' : '' }} {{ releasedKey === 'skipIc' ? 'press-up' : '' }}"
+            ontouchstart="pressDown('skipIc')"
+            ontouchend="pressRelease('skipIc')"
+            ontouchcancel="pressCancel('skipIc')"
+            onclick="skipInterconnect"
+          >
+            <text class="ghost-btn-text">我没有安卓手机 ›</text>
+          </div>
+        </div>
+
+        <!-- 2. 局域网发现其他设备（走已连手机的 mDNS + Probe） -->
+        <div class="lan-section">
+          <div class="section-header">
+            <text class="section-title">局域网发现设备</text>
+            <text if="{{ lanScanning }}" class="scanning-text">扫描中...</text>
+          </div>
+
+          <!-- 发现的设备列表 -->
+          <div if="{{ lanDevices.length > 0 }}" class="lan-list">
+            <div
+              for="{{ (index, dev) in lanDevices }}"
+              class="device-card lan-item pressable {{ pressedKey === 'lan_' + index ? 'is-down press-down' : '' }} {{ releasedKey === 'lan_' + index ? 'press-up' : '' }}"
+              ontouchstart="pressDown('lan_' + index)"
+              ontouchend="pressRelease('lan_' + index)"
+              ontouchcancel="pressCancel('lan_' + index)"
+              onclick="addLanDevice(dev)"
+            >
+              <image class="card-icon" src="/common/icons/desktop.png"></image>
+              <div class="card-info">
+                <text class="card-name">{{ dev.name }}</text>
+                <text class="card-sub">{{ dev.host }}:{{ dev.port }}</text>
+              </div>
+              <text class="badge-add">+</text>
+            </div>
+          </div>
+
+          <div if="{{ lanDevices.length === 0 && !lanScanning }}" class="empty-lan">
+            <text class="empty-tip">未发现局域网设备</text>
+          </div>
+        </div>
+
+        <!-- 3. 手动输入 IP 选项 -->
+        <div
+          class="manual-btn pressable {{ pressedKey === 'manualIp' ? 'is-down press-down' : '' }} {{ releasedKey === 'manualIp' ? 'press-up' : '' }}"
+          ontouchstart="pressDown('manualIp')"
+          ontouchend="pressRelease('manualIp')"
+          ontouchcancel="pressCancel('manualIp')"
+          onclick="openManualPair"
+        >
+          <text class="manual-btn-text">⌨️ 手动输入 IP</text>
+        </div>
+
+        <!-- 完成进入主页按钮 -->
+        <div
+          class="finish-pill pressable {{ pressedKey === 'finish' ? 'is-down press-down' : '' }} {{ releasedKey === 'finish' ? 'press-up' : '' }}"
+          ontouchstart="pressDown('finish')"
+          ontouchend="pressRelease('finish')"
+          ontouchcancel="pressCancel('finish')"
+          onclick="finishOobe"
+        >
+          <text class="finish-pill-text">完成，进入 HydroLink</text>
+        </div>
+
+        <div class="scroll-bottom-space"></div>
+      </scroll>
+    </div>
+
+    <!-- 底部控制栏：指示器 + 单个箭头按钮（Step 0 ~ 2 统一呈现） -->
+    <div if="{{ step < 3 }}" class="bottom-bar">
+      <!-- MD3 步进指示条 -->
+      <div class="indicator-row">
+        <div class="dot {{ step === 0 ? 'dot-active' : '' }}"></div>
+        <div class="dot {{ step === 1 ? 'dot-active' : '' }}"></div>
+        <div class="dot {{ step === 2 ? 'dot-active' : '' }}"></div>
+        <div class="dot {{ step === 3 ? 'dot-active' : '' }}"></div>
+      </div>
+
+      <!-- 下一步按钮：仅一个箭头（MD3 圆钮） -->
+      <div
+        class="arrow-fab pressable {{ pressedKey === 'next' ? 'is-down press-down' : '' }} {{ releasedKey === 'next' ? 'press-up' : '' }}"
+        ontouchstart="pressDown('next')"
+        ontouchend="pressRelease('next')"
+        ontouchcancel="pressCancel('next')"
+        onclick="nextStep"
+      >
+        <image class="arrow-icon" src="/common/icons/arrow-forward.png"></image>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style>
+.page-container {
+  width: 100%;
+  height: 100%;
+  background-color: #000000;
+  position: relative;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Header */
+.header {
+  width: 100%;
+  height: 80px;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 28px;
+}
+.header-left, .header-right {
+  width: 80px;
+  height: 80px;
+  justify-content: center;
+  align-items: center;
+}
+.nav-btn {
+  font-size: 40px;
+  color: #bac3ff;
+  font-weight: bold;
+}
+.skip-btn {
+  font-size: 22px;
+  color: #888888;
+  font-weight: bold;
+}
+.time-display {
+  font-size: 26px;
+  font-weight: bold;
+  color: #ffffff;
+}
+
+/* Content Body */
+.content-body {
+  width: 410px;
+  height: 275px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.center-flex {
+  justify-content: center;
+  align-items: center;
+}
+
+/* Step 0 */
+.welcome-logo {
+  width: 120px;
+  height: 120px;
+  margin-bottom: 12px;
+}
+.app-title {
+  font-size: 36px;
+  font-weight: bold;
+  color: #ffffff;
+  text-align: center;
+}
+.sub-title {
+  font-size: 24px;
+  font-weight: bold;
+  color: #bac3ff;
+  margin-top: 6px;
+  text-align: center;
+}
+
+/* Common Titles */
+.page-title {
+  font-size: 28px;
+  font-weight: bold;
+  color: #ffffff;
+  text-align: center;
+  margin-bottom: 12px;
+}
+.platforms-row {
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.plat-icon {
+  width: 42px;
+  height: 42px;
+  margin: 0 12px;
+}
+
+/* Feature Cards (Step 1 & 2) */
+.feature-card {
+  width: 390px;
+  background-color: #2e323c;
+  border-radius: 36px;
+  padding: 14px 20px;
+  flex-direction: column;
+  align-items: center;
+}
+.feature-item {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 0;
+}
+.feat-title {
+  font-size: 24px;
+  font-weight: bold;
+  color: #bac3ff;
+  text-align: center;
+}
+.feat-desc {
+  font-size: 20px;
+  color: #ffffff;
+  text-align: center;
+  margin-top: 2px;
+}
+.feature-divider {
+  width: 90%;
+  height: 1px;
+  background-color: #5a6270;
+  margin: 6px 0;
+}
+
+/* Step 3 (Scrollable) */
+.step3-body {
+  height: 380px;
+  width: 100%;
+}
+.step3-scroll {
+  width: 100%;
+  height: 380px;
+  flex-direction: column;
+  align-items: center;
+}
+.ic-section {
+  width: 390px;
+  flex-direction: column;
+  align-items: center;
+}
+.device-card {
+  width: 390px;
+  height: 96px;
+  background-color: #2e323c;
+  border-radius: 48px;
+  padding: 0 18px;
+  flex-direction: row;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.ic-active {
+  background-color: #1e3a5f;
+}
+.ic-pending {
+  background-color: #242832;
+}
+.card-icon {
+  width: 40px;
+  height: 40px;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+.card-info {
+  flex-grow: 1;
+  flex-direction: column;
+  justify-content: center;
+}
+.card-name {
+  font-size: 22px;
+  font-weight: bold;
+  color: #ffffff;
+  lines: 1;
+  text-overflow: ellipsis;
+}
+.card-sub {
+  font-size: 18px;
+  color: #888888;
+  margin-top: 2px;
+}
+.badge-done {
+  font-size: 20px;
+  font-weight: bold;
+  color: #bac3ff;
+  margin-left: 8px;
+}
+.badge-add {
+  font-size: 28px;
+  font-weight: bold;
+  color: #bac3ff;
+  margin-left: 8px;
+}
+
+/* Ghost Button (我没有安卓手机) */
+.ghost-btn {
+  padding: 8px 18px;
+  border-radius: 24px;
+  border-width: 1px;
+  border-style: solid;
+  border-color: #5a6270;
+  margin-bottom: 14px;
+}
+.ghost-btn-text {
+  font-size: 20px;
+  color: #bac3ff;
+}
+
+/* LAN Section */
+.lan-section {
+  width: 390px;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 4px;
+}
+.section-header {
+  width: 100%;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 10px;
+  margin-bottom: 8px;
+}
+.section-title {
+  font-size: 22px;
+  font-weight: bold;
+  color: #888888;
+}
+.scanning-text {
+  font-size: 18px;
+  color: #bac3ff;
+}
+.lan-list {
+  width: 100%;
+  flex-direction: column;
+}
+.lan-item {
+  margin-bottom: 8px;
+}
+.empty-lan {
+  padding: 10px 0;
+}
+.empty-tip {
+  font-size: 20px;
+  color: #666666;
+  text-align: center;
+}
+
+/* Manual & Finish Buttons */
+.manual-btn {
+  width: 380px;
+  height: 70px;
+  border-radius: 35px;
+  background-color: #2e323c;
+  justify-content: center;
+  align-items: center;
+  margin-top: 10px;
+  margin-bottom: 12px;
+}
+.manual-btn-text {
+  font-size: 22px;
+  font-weight: bold;
+  color: #bac3ff;
+}
+
+.finish-pill {
+  width: 380px;
+  height: 80px;
+  border-radius: 40px;
+  background-color: #bac3ff;
+  justify-content: center;
+  align-items: center;
+  margin-top: 8px;
+}
+.finish-pill-text {
+  font-size: 24px;
+  font-weight: bold;
+  color: #00237c;
+}
+.scroll-bottom-space {
+  width: 100%;
+  height: 120px;
+  flex-shrink: 0;
+}
+
+/* Bottom Bar (Step 0 ~ 2) */
+.bottom-bar {
+  position: absolute;
+  bottom: 16px;
+  left: 0;
+  right: 0;
+  flex-direction: column;
+  align-items: center;
+}
+.indicator-row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background-color: #5a6270;
+  margin: 0 4px;
+}
+.dot-active {
+  width: 24px;
+  height: 8px;
+  border-radius: 4px;
+  background-color: #bac3ff;
+}
+
+/* Arrow FAB (仅一个箭头) */
+.arrow-fab {
+  width: 72px;
+  height: 72px;
+  border-radius: 36px;
+  background-color: #bac3ff;
+  justify-content: center;
+  align-items: center;
+}
+.arrow-icon {
+  width: 36px;
+  height: 36px;
+}
+
+/* Spin animation */
+.spin {
+  animation-name: leaf-spin;
+  animation-duration: 900ms;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+@keyframes leaf-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Pressable feedback */
+.pressable {
+  transform-origin: 50% 50%;
+  transform: scale(1);
+  opacity: 1;
+}
+.is-down {
+  opacity: 0.75;
+}
+.press-down {
+  animation-name: PressDown;
+  animation-duration: 80ms;
+  animation-timing-function: ease-out;
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+.press-up {
+  animation-name: PressUp;
+  animation-duration: 140ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+@keyframes PressDown {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.94); opacity: 0.75; }
+}
+@keyframes PressUp {
+  0% { transform: scale(0.94); opacity: 0.75; }
+  100% { transform: scale(1); opacity: 1; }
+}
+</style>
+
+<script>
+import router from '@system.router'
+import prompt from '@system.prompt'
+import settingsService from '../../services/settingsService.js'
+import interconnectService from '../../services/interconnectService.js'
+import deviceService from '../../services/deviceService.js'
+
+export default {
+  private: {
+    step: 0,
+    currentTime: '00:00',
+    pressedKey: '',
+    releasedKey: '',
+    // Step 3 states
+    icConnected: false,
+    icDeviceName: '',
+    skippedInterconnect: false,
+    lanScanning: false,
+    lanDevices: []
+  },
+
+  onInit() {
+    this.updateTime()
+    this._timeInterval = setInterval(() => this.updateTime(), 60000)
+    // 预初始化 Interconnect 监听
+    this.initInterconnect()
+  },
+
+  onDestroy() {
+    if (this._timeInterval) clearInterval(this._timeInterval)
+  },
+
+  updateTime() {
+    const now = new Date()
+    this.currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  },
+
+  initInterconnect() {
+    try {
+      interconnectService.ensureInit()
+      interconnectService.setServerInfoHandler((info) => {
+        this.icConnected = true
+        if (info && info.name) this.icDeviceName = info.name
+        // 发现伴侣后自动启动局域网其他设备扫描
+        if (this.step === 3 && !this.lanScanning) {
+          this.startLanScan()
+        }
+      })
+      if (interconnectService.isReady()) {
+        this.icConnected = true
+      }
+    } catch (e) {
+      console.warn('[oobe] initInterconnect failed', e)
+    }
+  },
+
+  nextStep() {
+    if (this.step < 3) {
+      this.step += 1
+      if (this.step === 3) {
+        this.onEnterStep3()
+      }
+    }
+  },
+
+  prevStep() {
+    if (this.step > 0) {
+      this.step -= 1
+    }
+  },
+
+  async skipOobe() {
+    await settingsService.setOobeCompleted(true)
+    router.replace({ uri: '/pages/home' })
+  },
+
+  onEnterStep3() {
+    // 检查互联状态
+    if (interconnectService.isReady()) {
+      this.icConnected = true
+      this.startLanScan()
+    } else {
+      interconnectService.discoverServer()
+        .then((info) => {
+          this.icConnected = true
+          if (info && info.name) this.icDeviceName = info.name
+          this.startLanScan()
+        })
+        .catch(() => {
+          // 伴侣未就绪，保持等待态
+        })
+    }
+  },
+
+  skipInterconnect() {
+    this.skippedInterconnect = true
+  },
+
+  async startLanScan() {
+    this.lanScanning = true
+    try {
+      const devices = await interconnectService.discoverLan()
+      if (devices && Array.isArray(devices)) {
+        this.lanDevices = devices
+      }
+    } catch (e) {
+      console.warn('[oobe] discoverLan error', e)
+    } finally {
+      this.lanScanning = false
+    }
+  },
+
+  async addLanDevice(dev) {
+    if (!dev) return
+    try {
+      await deviceService.addDevice({
+        name: dev.name,
+        host: dev.host,
+        port: dev.port || 9000,
+        deviceType: dev.device_type || 'desktop'
+      })
+      prompt.showToast({ message: `已添加 ${dev.name}` })
+    } catch (e) {
+      prompt.showToast({ message: '添加失败' })
+    }
+  },
+
+  openManualPair() {
+    router.push({ uri: '/pages/pair' })
+  },
+
+  async finishOobe() {
+    await settingsService.setOobeCompleted(true)
+    router.replace({ uri: '/pages/home' })
+  },
+
+  pressDown(key) {
+    this.releasedKey = ''
+    this.pressedKey = key
+  },
+
+  pressRelease(key) {
+    this.pressedKey = ''
+    this.releasedKey = key
+    setTimeout(() => {
+      if (this.releasedKey === key) this.releasedKey = ''
+    }, 160)
+  },
+
+  pressCancel(key) {
+    if (this.pressedKey === key) this.pressedKey = ''
+    if (this.releasedKey === key) this.releasedKey = ''
+  }
+}
+</script>
