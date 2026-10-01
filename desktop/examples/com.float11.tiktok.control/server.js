@@ -10,7 +10,7 @@ module.exports = {
         id: 'com.float11.tiktok.control',
         name: '抖音控制器',
         author: 'float11',
-        version: '1.0.4'
+        version: '1.0.5'
       },
       apps: [
         { id: 'main', name: '抖音控制器', icon: 'assets/icon.png' }
@@ -144,27 +144,29 @@ module.exports = {
           },
 
           // 点赞 / 播放暂停：左右并列
+          // 注意：row 里的按钮不能用 width:'%'（wrapper 按内容定宽，百分比解析不出来，
+          // 会退化成竖条），必须给固定像素宽。
           {
             type: 'row',
-            style: { justifyContent: 'space-between' },
+            style: { justifyContent: 'center' },
             children: [
               {
                 type: 'button',
                 props: { label: '点赞' },
                 events: { tap: 'like' },
                 style: {
-                  width: '47%', height: 72, borderRadius: 36,
-                  paddingLeft: 0, paddingRight: 0,
-                  backgroundColor: '#9FA8CC'
+                  width: 150, height: 72, borderRadius: 36,
+                  paddingTop: 0, paddingBottom: 0, paddingLeft: 0, paddingRight: 0,
+                  backgroundColor: '#9FA8CC', marginRight: 20
                 }
               },
               {
                 type: 'button',
-                props: { label: '播放 / 暂停' },
+                props: { label: '播放/暂停' },
                 events: { tap: 'toggle' },
                 style: {
-                  width: '47%', height: 72, borderRadius: 36,
-                  paddingLeft: 0, paddingRight: 0,
+                  width: 150, height: 72, borderRadius: 36,
+                  paddingTop: 0, paddingBottom: 0, paddingLeft: 0, paddingRight: 0,
                   backgroundColor: '#9FA8CC'
                 }
               }
