@@ -17,6 +17,14 @@
             <text class="app-title">HydroLink</text>
             <text class="sub-title">探索设备边界</text>
           </div>
+
+          <!-- 步进指示条：作为内容的一部分随页面滚动，不再固定悬浮 -->
+          <div class="indicator-row">
+            <div class="dot dot-active"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+          </div>
         </div>
 
         <!-- ==================== Step 1: 多平台适配 ==================== -->
@@ -38,6 +46,14 @@
               <text class="feat-desc">Interconnect 通讯 + Wi-Fi 局域网</text>
             </div>
           </div>
+
+          <!-- 步进指示条 -->
+          <div class="indicator-row">
+            <div class="dot"></div>
+            <div class="dot dot-active"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+          </div>
         </div>
 
         <!-- ==================== Step 2: 轻量扩展生态 ==================== -->
@@ -56,6 +72,14 @@
               <text class="feat-title">沙箱与能力互通</text>
               <text class="feat-desc">安全轻量隔离，腕上与设备高效交互</text>
             </div>
+          </div>
+
+          <!-- 步进指示条 -->
+          <div class="indicator-row">
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot dot-active"></div>
+            <div class="dot"></div>
           </div>
         </div>
 
@@ -157,22 +181,13 @@
           </div>
         </div>
 
-        <!-- 底部安全区占位：Step 0~2 增加高度避免被底部固定悬浮按钮遮挡 -->
+        <!-- 底部安全区占位：Step 0~2 增加留白，确保滚到底部时不被悬浮按钮遮挡 -->
         <div class="list-bottom-space {{ step < 3 ? 'extra-space' : '' }}"></div>
       </div>
     </scroll>
 
-    <!-- 下一步按钮：固定悬浮在底部（Step 0 ~ 2 呈现） -->
-    <div if="{{ step < 3 }}" class="bottom-floating-bar">
-      <!-- MD3 步进指示条 -->
-      <div class="indicator-row">
-        <div class="dot {{ step === 0 ? 'dot-active' : '' }}"></div>
-        <div class="dot {{ step === 1 ? 'dot-active' : '' }}"></div>
-        <div class="dot {{ step === 2 ? 'dot-active' : '' }}"></div>
-        <div class="dot {{ step === 3 ? 'dot-active' : '' }}"></div>
-      </div>
-
-      <!-- 下一步按钮：MD3 悬浮圆钮 -->
+    <!-- 下一步按钮：仅保留大圆按钮固定悬浮在底部，小圆点已随页面内容滚动（Step 0 ~ 2 呈现） -->
+    <div if="{{ step < 3 }}" class="bottom-floating-fab">
       <div
         class="arrow-fab pressable {{ pressedKey === 'next' ? 'is-down press-down' : '' }} {{ releasedKey === 'next' ? 'press-up' : '' }}"
         ontouchstart="pressDown('next')"
@@ -249,8 +264,8 @@
   width: 100%;
   flex-direction: column;
   align-items: center;
-  margin-top: 16px;
-  margin-bottom: 20px;
+  margin-top: 24px;
+  margin-bottom: 24px;
 }
 .welcome-logo {
   width: 140px;
@@ -300,7 +315,7 @@
   padding: 20px 24px;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 .feature-item {
   width: 100%;
@@ -327,20 +342,13 @@
   margin: 12px 0;
 }
 
-/* ---- 固定悬浮底栏（Step 0 ~ 2） ---- */
-.bottom-floating-bar {
-  position: absolute;
-  bottom: 20px;
-  left: 0;
-  right: 0;
-  flex-direction: column;
-  align-items: center;
-}
+/* 步进指示小圆点：随内容自然滚动 */
 .indicator-row {
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  margin-bottom: 14px;
+  margin-top: 4px;
+  margin-bottom: 16px;
 }
 .dot {
   width: 8px;
@@ -354,6 +362,17 @@
   height: 8px;
   border-radius: 4px;
   background-color: #bac3ff;
+}
+
+/* ---- 固定悬浮下一步按钮（Step 0 ~ 2） ---- */
+.bottom-floating-fab {
+  position: absolute;
+  bottom: 24px;
+  left: 0;
+  right: 0;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
 }
 
 /* Arrow FAB (固定悬浮的下一步按钮) */
@@ -531,9 +550,9 @@
   height: 60px;
   flex-shrink: 0;
 }
-/* Step 0~2 增加底部占位高度，确保内容滚动到底部时不被悬浮底栏遮挡 */
+/* Step 0~2 增加留白，确保滑到底部时内容不被悬浮的大圆按钮遮挡 */
 .extra-space {
-  height: 160px;
+  height: 110px;
 }
 
 /* 转圈动画：对齐 pairing.ux 的容器转动规范，精准中心轴 (24px 24px) */
@@ -614,11 +633,11 @@
   .scroll-content {
     padding-top: 6px;
   }
-  .bottom-floating-bar {
-    bottom: 12px;
+  .bottom-floating-fab {
+    bottom: 16px;
   }
   .extra-space {
-    height: 140px;
+    height: 100px;
   }
   .list-bottom-space {
     height: 30px;
