@@ -27,13 +27,17 @@ import settingsService from '../../services/settingsService.js'
 export default {
   onInit() {
     (async () => {
-      await deviceService.readDevices()
-      const oobeDone = await settingsService.getOobeCompleted()
-      const devices = deviceService.getDevices()
+      try {
+        const devices = await deviceService.readDevices()
+        const oobeDone = await settingsService.getOobeCompleted()
 
-      if (!oobeDone && (!devices || devices.length === 0)) {
-        router.replace({ uri: '/pages/oobe' })
-      } else {
+        if (!oobeDone && (!devices || devices.length === 0)) {
+          router.replace({ uri: '/pages/oobe' })
+        } else {
+          router.replace({ uri: '/pages/home' })
+        }
+      } catch (e) {
+        console.error('[splash] error during init', e)
         router.replace({ uri: '/pages/home' })
       }
     })()

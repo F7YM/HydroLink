@@ -201,6 +201,10 @@ export default {
     }
   },
 
+  async getDevices() {
+    return this.readDevices()
+  },
+
   async writeDevices(devices) {
     try {
       await writeText(DEVICES_FILE, JSON.stringify(devices))
