@@ -10,7 +10,7 @@ module.exports = {
         id: 'com.float11.tiktok.control',
         name: '抖音控制器',
         author: 'float11',
-        version: '1.0.0'
+        version: '1.0.1'
       },
       apps: [
         { id: 'main', name: '抖音控制器', icon: 'assets/icon.png' }
@@ -146,11 +146,13 @@ module.exports = {
           },
 
           // 主操作：下一个视频（最大、最显眼）
+          // 显式给主色：不能依赖宿主 .btn 的默认底色（实测这条路径上没生效，
+          // 会变成黑底+只有一道弧线）
           {
             type: 'button',
             props: { label: '下一个视频' },
             events: { tap: 'next' },
-            style: { width: '100%', height: 72, borderRadius: 36, marginBottom: 14 }
+            style: { width: '100%', height: 72, borderRadius: 36, backgroundColor: '#BAC3FF', marginBottom: 14 }
           },
 
           // 上一个视频 / 点赞
@@ -224,7 +226,7 @@ module.exports = {
                 type: 'button',
                 props: { label: '下一条' },
                 events: { tap: 'next' },
-                style: { width: '62%', height: 44, borderRadius: 22 }
+                style: { width: '62%', height: 44, borderRadius: 22, backgroundColor: '#BAC3FF' }
               },
               {
                 type: 'button',
