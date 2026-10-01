@@ -106,13 +106,10 @@
 .scroll-area {
   position: absolute;
   top: 90px;
+  bottom: 0;
   left: 0;
   right: 0;
   width: 100%;
-  /* Vela：竖向滚动需要**定高**（官方文档）。另外照抄设备列表的写法：
-     flex-direction + align-items 一起给，内容容器**不定高** → 内容随自身高度增长，
-     超过视口就能滚。 */
-  height: 376px;
   flex-direction: column;
   align-items: center;
 }
@@ -261,9 +258,9 @@
     margin-right: 12px;
   }
   .scroll-area {
-    /* 矩形屏：头部 65px。这里按 432x514 的矩形表算（449 = 514 - 65）；换设备只改这个数 */
+    /* 矩形屏：头部 65px，使用 bottom: 0 撑满剩余可视高度，自适应不同手环/手表屏幕长宽比 */
     top: 65px;
-    height: 449px;
+    bottom: 0;
   }
   .form-list {
     padding-top: 10px;

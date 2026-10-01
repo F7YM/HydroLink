@@ -6,58 +6,119 @@
       <text class="title">新手引导</text>
     </div>
 
-    <!-- Step 0: 欢迎页（纯净克制，仅标题 + 副标题“探索设备边界”，无任何多余说明） -->
-    <div if="{{ step === 0 }}" class="step-wrapper center-flex">
-      <image class="welcome-logo" src="/common/icon.png"></image>
-      <text class="app-title">HydroLink</text>
-      <text class="sub-title">探索设备边界</text>
-    </div>
+    <!-- Scroll Area: 参考设备列表页 home.ux，采用绝对定位撑满下半部，内容自然滚动不拥挤 -->
+    <scroll class="scroll-area" scroll-y="true" bounces="true">
+      <div class="scroll-content">
 
-    <!-- Step 1: 多平台适配 -->
-    <div if="{{ step === 1 }}" class="step-wrapper center-flex">
-      <text class="page-title">多平台适配</text>
-      <div class="platforms-row">
-        <image class="plat-icon" src="/common/icons/gauge-custom.png"></image>
-        <image class="plat-icon" src="/common/icons/cellphone.png"></image>
-        <image class="plat-icon" src="/common/icons/desktop.png"></image>
-      </div>
-      <div class="feature-card">
-        <div class="feature-item">
-          <text class="feat-title">跨端协同</text>
-          <text class="feat-desc">手表、手机与桌面无缝互联</text>
-        </div>
-        <div class="feature-divider"></div>
-        <div class="feature-item">
-          <text class="feat-title">双通道链路</text>
-          <text class="feat-desc">近场蓝牙伴侣 + Wi-Fi 局域网</text>
-        </div>
-      </div>
-    </div>
+        <!-- ==================== Step 0: 欢迎页 ==================== -->
+        <div if="{{ step === 0 }}" class="step-flow">
+          <div class="welcome-box">
+            <image class="welcome-logo" src="/common/icon.png"></image>
+            <text class="app-title">HydroLink</text>
+            <text class="sub-title">探索设备边界</text>
+          </div>
 
-    <!-- Step 2: 轻量扩展生态（抽象平台化，不提具体插件名） -->
-    <div if="{{ step === 2 }}" class="step-wrapper center-flex">
-      <text class="page-title">轻量扩展生态</text>
-      <div class="platforms-row">
-        <image class="plat-icon" src="/common/icons/apps.png"></image>
-      </div>
-      <div class="feature-card">
-        <div class="feature-item">
-          <text class="feat-title">声明式视图</text>
-          <text class="feat-desc">端侧动态下发，随需随用无需升级</text>
+          <!-- 步进指示器与前进按钮 -->
+          <div class="step-controls">
+            <div class="indicator-row">
+              <div class="dot dot-active"></div>
+              <div class="dot"></div>
+              <div class="dot"></div>
+              <div class="dot"></div>
+            </div>
+            <div
+              class="arrow-fab pressable {{ pressedKey === 'next' ? 'is-down press-down' : '' }} {{ releasedKey === 'next' ? 'press-up' : '' }}"
+              ontouchstart="pressDown('next')"
+              ontouchend="pressRelease('next')"
+              ontouchcancel="pressCancel('next')"
+              onclick="nextStep"
+            >
+              <image class="arrow-icon" src="/common/icons/arrow-forward.png"></image>
+            </div>
+          </div>
         </div>
-        <div class="feature-divider"></div>
-        <div class="feature-item">
-          <text class="feat-title">沙箱与能力互通</text>
-          <text class="feat-desc">安全轻量隔离，腕上与设备高效交互</text>
-        </div>
-      </div>
-    </div>
 
-    <!-- Step 3: 配对设备（核心连接流：interconnect 优先、可跳过、mDNS 自动发现、手动 IP） -->
-    <div if="{{ step === 3 }}" class="scroll-area">
-      <scroll class="scroll-view" scroll-y="true" bounces="true">
-        <div class="scroll-content">
-          <text class="page-title step3-title">配对新设备</text>
+        <!-- ==================== Step 1: 多平台适配 ==================== -->
+        <div if="{{ step === 1 }}" class="step-flow">
+          <text class="step-title">多平台适配</text>
+          <div class="platforms-row">
+            <image class="plat-icon" src="/common/icons/gauge-custom.png"></image>
+            <image class="plat-icon" src="/common/icons/cellphone.png"></image>
+            <image class="plat-icon" src="/common/icons/desktop.png"></image>
+          </div>
+          <div class="feature-card">
+            <div class="feature-item">
+              <text class="feat-title">跨端协同</text>
+              <text class="feat-desc">手表、手机与桌面无缝互联</text>
+            </div>
+            <div class="feature-divider"></div>
+            <div class="feature-item">
+              <text class="feat-title">双通道链路</text>
+              <text class="feat-desc">Interconnect 通讯 + Wi-Fi 局域网</text>
+            </div>
+          </div>
+
+          <!-- 步进指示器与前进按钮 -->
+          <div class="step-controls">
+            <div class="indicator-row">
+              <div class="dot"></div>
+              <div class="dot dot-active"></div>
+              <div class="dot"></div>
+              <div class="dot"></div>
+            </div>
+            <div
+              class="arrow-fab pressable {{ pressedKey === 'next' ? 'is-down press-down' : '' }} {{ releasedKey === 'next' ? 'press-up' : '' }}"
+              ontouchstart="pressDown('next')"
+              ontouchend="pressRelease('next')"
+              ontouchcancel="pressCancel('next')"
+              onclick="nextStep"
+            >
+              <image class="arrow-icon" src="/common/icons/arrow-forward.png"></image>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== Step 2: 轻量扩展生态 ==================== -->
+        <div if="{{ step === 2 }}" class="step-flow">
+          <text class="step-title">轻量扩展生态</text>
+          <div class="platforms-row">
+            <image class="plat-icon" src="/common/icons/apps.png"></image>
+          </div>
+          <div class="feature-card">
+            <div class="feature-item">
+              <text class="feat-title">声明式视图</text>
+              <text class="feat-desc">端侧动态下发，随需随用无需升级</text>
+            </div>
+            <div class="feature-divider"></div>
+            <div class="feature-item">
+              <text class="feat-title">沙箱与能力互通</text>
+              <text class="feat-desc">安全轻量隔离，腕上与设备高效交互</text>
+            </div>
+          </div>
+
+          <!-- 步进指示器与前进按钮 -->
+          <div class="step-controls">
+            <div class="indicator-row">
+              <div class="dot"></div>
+              <div class="dot"></div>
+              <div class="dot dot-active"></div>
+              <div class="dot"></div>
+            </div>
+            <div
+              class="arrow-fab pressable {{ pressedKey === 'next' ? 'is-down press-down' : '' }} {{ releasedKey === 'next' ? 'press-up' : '' }}"
+              ontouchstart="pressDown('next')"
+              ontouchend="pressRelease('next')"
+              ontouchcancel="pressCancel('next')"
+              onclick="nextStep"
+            >
+              <image class="arrow-icon" src="/common/icons/arrow-forward.png"></image>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== Step 3: 配对设备 ==================== -->
+        <div if="{{ step === 3 }}" class="step-flow">
+          <text class="step-title">配对新设备</text>
 
           <!-- 1. Interconnect 互联卡片（优先） -->
           <div if="{{ !skippedInterconnect }}" class="ic-section">
@@ -66,7 +127,7 @@
               <image class="card-icon" src="/common/icons/cellphone.png"></image>
               <div class="card-info">
                 <text class="card-name">{{ icDeviceName || '手机伴侣已连接' }}</text>
-                <text class="card-sub">Interconnect 蓝牙直连</text>
+                <text class="card-sub">Interconnect 通讯</text>
               </div>
               <text class="badge-done">已就绪</text>
             </div>
@@ -99,8 +160,8 @@
             </div>
           </div>
 
-          <!-- 2. 局域网发现其他设备（走已连手机的 mDNS + Probe） -->
-          <div class="lan-section">
+          <!-- 2. 局域网发现其他设备：选择“我没有安卓手机”后自动隐藏此区域 -->
+          <div if="{{ !skippedInterconnect }}" class="lan-section">
             <div class="section-header">
               <text class="section-title">局域网发现设备</text>
               <text if="{{ lanScanning }}" class="scanning-text">扫描中...</text>
@@ -141,7 +202,7 @@
             <text class="manual-btn-text">手动输入 IP</text>
           </div>
 
-          <!-- 4. 完成按钮（文案修改为“完成”，可完整滑到底部） -->
+          <!-- 4. 完成按钮（文案修改为“进入 HydroLink”） -->
           <div
             class="finish-pill pressable {{ pressedKey === 'finish' ? 'is-down press-down' : '' }} {{ releasedKey === 'finish' ? 'press-up' : '' }}"
             ontouchstart="pressDown('finish')"
@@ -149,36 +210,14 @@
             ontouchcancel="pressCancel('finish')"
             onclick="finishOobe"
           >
-            <text class="finish-pill-text">完成</text>
+            <text class="finish-pill-text">进入 HydroLink</text>
           </div>
-
-          <!-- 底部安全间距，防止圆表边缘裁切 -->
-          <div class="scroll-bottom-space"></div>
         </div>
-      </scroll>
-    </div>
 
-    <!-- 底部控制栏：指示器 + 单个箭头按钮（Step 0 ~ 2 统一呈现） -->
-    <div if="{{ step < 3 }}" class="bottom-bar">
-      <!-- MD3 步进指示条 -->
-      <div class="indicator-row">
-        <div class="dot {{ step === 0 ? 'dot-active' : '' }}"></div>
-        <div class="dot {{ step === 1 ? 'dot-active' : '' }}"></div>
-        <div class="dot {{ step === 2 ? 'dot-active' : '' }}"></div>
-        <div class="dot {{ step === 3 ? 'dot-active' : '' }}"></div>
+        <!-- 底部安全区占位，与 home.ux/settings.ux 一致，保证内容能完全滚到视野中间 -->
+        <div class="list-bottom-space"></div>
       </div>
-
-      <!-- 下一步按钮：仅一个箭头（MD3 圆钮） -->
-      <div
-        class="arrow-fab pressable {{ pressedKey === 'next' ? 'is-down press-down' : '' }} {{ releasedKey === 'next' ? 'press-up' : '' }}"
-        ontouchstart="pressDown('next')"
-        ontouchend="pressRelease('next')"
-        ontouchcancel="pressCancel('next')"
-        onclick="nextStep"
-      >
-        <image class="arrow-icon" src="/common/icons/arrow-forward.png"></image>
-      </div>
-    </div>
+    </scroll>
   </div>
 </template>
 
@@ -215,8 +254,8 @@
   text-align: center;
 }
 
-/* Step 0 ~ 2: 占满剩余视口（bottom: 0），内容垂直居中，绝不出现多余黑空脱节 */
-.step-wrapper {
+/* ---- Scroll Area: 参考 home.ux 设备列表 ---- */
+.scroll-area {
   position: absolute;
   top: 90px;
   bottom: 0;
@@ -225,18 +264,32 @@
   width: 100%;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding-bottom: 120px;
 }
-.center-flex {
-  justify-content: center;
+.scroll-content {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 10px;
+}
+
+/* 单步流式容器 */
+.step-flow {
+  width: 100%;
+  flex-direction: column;
   align-items: center;
 }
 
 /* Step 0 */
+.welcome-box {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 10px;
+  margin-bottom: 30px;
+}
 .welcome-logo {
-  width: 144px;
-  height: 144px;
+  width: 140px;
+  height: 140px;
   margin-bottom: 16px;
 }
 .app-title {
@@ -253,19 +306,20 @@
   text-align: center;
 }
 
-/* Common Titles */
-.page-title {
+/* Step 1 & 2 标题与平台图标 */
+.step-title {
   font-size: 34px;
   font-weight: bold;
   color: #ffffff;
   text-align: center;
+  margin-top: 6px;
   margin-bottom: 16px;
 }
 .platforms-row {
   flex-direction: row;
   justify-content: center;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 .plat-icon {
   width: 52px;
@@ -273,14 +327,15 @@
   margin: 0 16px;
 }
 
-/* Feature Cards (Step 1 & 2) */
+/* Feature Cards (Step 1 & 2) 舒展自然，不再紧缩 */
 .feature-card {
   width: 400px;
   background-color: #2e323c;
   border-radius: 40px;
-  padding: 18px 24px;
+  padding: 20px 24px;
   flex-direction: column;
   align-items: center;
+  margin-bottom: 28px;
 }
 .feature-item {
   width: 100%;
@@ -304,38 +359,52 @@
   width: 90%;
   height: 1px;
   background-color: #5a6270;
-  margin: 10px 0;
+  margin: 12px 0;
 }
 
-/* ---- Step 3 滚动区域：采用 bottom: 0 撑满所有可用视口，彻底杜绝腰斩截断与多余黑底 ---- */
-.scroll-area {
-  position: absolute;
-  top: 90px;
-  bottom: 0;
-  left: 0;
-  right: 0;
+/* Step Controls: 包含小圆点与前进大箭头，处于可滚动内容的下方 */
+.step-controls {
   width: 100%;
   flex-direction: column;
   align-items: center;
+  margin-top: 8px;
+  margin-bottom: 20px;
 }
-.scroll-view {
-  width: 100%;
-  height: 100%;
-  flex-direction: column;
+.indicator-row {
+  flex-direction: row;
   align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
 }
-.scroll-content {
-  width: 100%;
-  flex-direction: column;
-  align-items: center;
-  padding-top: 10px;
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background-color: #5a6270;
+  margin: 0 6px;
 }
-.step3-title {
-  margin-top: 4px;
-  margin-bottom: 14px;
+.dot-active {
+  width: 24px;
+  height: 8px;
+  border-radius: 4px;
+  background-color: #bac3ff;
 }
 
-/* Interconnect Section */
+/* Arrow FAB (前进按钮，居中呈现，方便点击) */
+.arrow-fab {
+  width: 84px;
+  height: 84px;
+  border-radius: 42px;
+  background-color: #bac3ff;
+  justify-content: center;
+  align-items: center;
+}
+.arrow-icon {
+  width: 44px;
+  height: 44px;
+}
+
+/* ---- Step 3 样式 ---- */
 .ic-section {
   width: 400px;
   flex-direction: column;
@@ -375,7 +444,6 @@
   lines: 1;
   text-overflow: ellipsis;
 }
-/* 跑马灯：定宽 290px，无限平滑滚动，不被省略号截断 */
 .card-name-marquee {
   width: 290px;
   font-size: 26px;
@@ -410,7 +478,7 @@
   border-style: solid;
   border-color: #5a6270;
   margin-top: 4px;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 .ghost-btn-text {
   font-size: 24px;
@@ -483,6 +551,7 @@
   justify-content: center;
   align-items: center;
   margin-top: 6px;
+  margin-bottom: 10px;
 }
 .finish-pill-text {
   font-size: 30px;
@@ -490,54 +559,11 @@
   color: #00237c;
 }
 
-/* 底部防裁切安全边距：让完成按钮完整浮出，不被弧线咬掉 */
-.scroll-bottom-space {
+/* 底部防裁切安全边距：参考 home.ux，确保最后一项能轻松滚到圆心中段 */
+.list-bottom-space {
   width: 100%;
-  height: 60px;
-  flex-shrink: 0;
-}
-
-/* Bottom Bar (Step 0 ~ 2) 固定在底栏 */
-.bottom-bar {
-  position: absolute;
-  bottom: 24px;
-  left: 0;
-  right: 0;
-  flex-direction: column;
-  align-items: center;
-}
-.indicator-row {
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 14px;
-}
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 4px;
-  background-color: #5a6270;
-  margin: 0 4px;
-}
-.dot-active {
-  width: 24px;
-  height: 8px;
-  border-radius: 4px;
-  background-color: #bac3ff;
-}
-
-/* Arrow FAB (仅一个箭头，MD3 圆钮) */
-.arrow-fab {
-  width: 80px;
   height: 80px;
-  border-radius: 40px;
-  background-color: #bac3ff;
-  justify-content: center;
-  align-items: center;
-}
-.arrow-icon {
-  width: 42px;
-  height: 42px;
+  flex-shrink: 0;
 }
 
 /* 转圈动画：对齐 pairing.ux 的容器转动规范，精准中心轴 (24px 24px) */
@@ -611,11 +637,6 @@
   .time-display {
     margin-right: 12px;
   }
-  .step-wrapper {
-    top: 65px;
-    bottom: 0;
-    padding-bottom: 90px;
-  }
   .scroll-area {
     top: 65px;
     bottom: 0;
@@ -623,11 +644,8 @@
   .scroll-content {
     padding-top: 6px;
   }
-  .bottom-bar {
-    bottom: 16px;
-  }
-  .scroll-bottom-space {
-    height: 30px;
+  .list-bottom-space {
+    height: 40px;
   }
 }
 </style>
