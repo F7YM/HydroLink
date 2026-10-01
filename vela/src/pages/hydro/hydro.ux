@@ -199,13 +199,24 @@ function buildLeaf(n, inRow, ctx) {
       if (st[k] !== undefined) { wrapPos[k] = st[k]; delete leafSt[k] }
     })
   }
+  // 行布局：把叶子的 width 上提到 wrapper，叶子自身改成 100% 填满。
+  // 原因：行方向的 wrapper 是按内容定宽的 flex 项，`width:'%'` 相对它解析不出来
+  // （行内百分比失效，按钮会退化成最小宽度、文字竖排）；提到 wrapper 上就有确定宽
+  // 度了。flex-shrink:0 保证固定宽度不被压。
+  const hasRowWidth = inRow && !isAbs && leafSt.width !== undefined
+  if (hasRowWidth) {
+    wrapPos.width = leafSt.width
+    wrapPos.flexShrink = 0
+    leafSt.width = '100%'
+  }
   // 容器默认主题：文本未指定颜色时用白色（Vela 默认文本色是灰的）
   let s = toCssStyle(leafSt)
   if (isText && !(leafSt && typeof leafSt.color === 'string')) {
     s = 'color: #FFFFFF; ' + s
   }
   let ws = toCssStyle(wrapPos)
-  if (inRow && isText) ws = ws ? ws + '; flex-grow: 1' : 'flex-grow: 1'
+  // 行里没显式宽度的文本自动撑满，把后面的控件顶到右侧（有宽度时按宽度来就行）
+  if (inRow && isText && !hasRowWidth) ws = ws ? ws + '; flex-grow: 1' : 'flex-grow: 1'
   return {
     c: false,
     t: type,
