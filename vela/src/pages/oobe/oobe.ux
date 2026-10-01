@@ -1,39 +1,20 @@
 <template>
   <div class="page-container">
-    <!-- Header: 顶部常驻，含时间与返回/跳过 -->
+    <!-- Header: 完全对齐 settings.ux，固定死，无返回与跳过按钮 -->
     <div class="header">
-      <div class="header-left">
-        <text
-          if="{{ step > 0 }}"
-          class="nav-btn pressable {{ pressedKey === 'prev' ? 'is-down press-down' : '' }} {{ releasedKey === 'prev' ? 'press-up' : '' }}"
-          ontouchstart="pressDown('prev')"
-          ontouchend="pressRelease('prev')"
-          ontouchcancel="pressCancel('prev')"
-          onclick="prevStep"
-        >‹</text>
-      </div>
       <text class="time-display">{{ currentTime }}</text>
-      <div class="header-right">
-        <text
-          if="{{ step < 3 }}"
-          class="skip-btn pressable {{ pressedKey === 'skip' ? 'is-down press-down' : '' }} {{ releasedKey === 'skip' ? 'press-up' : '' }}"
-          ontouchstart="pressDown('skip')"
-          ontouchend="pressRelease('skip')"
-          ontouchcancel="pressCancel('skip')"
-          onclick="skipOobe"
-        >跳过</text>
-      </div>
+      <text class="title">新手引导</text>
     </div>
 
     <!-- Step 0: 欢迎页（纯净克制，仅标题 + 副标题“探索设备边界”，无任何多余说明） -->
-    <div if="{{ step === 0 }}" class="content-body center-flex">
+    <div if="{{ step === 0 }}" class="step-wrapper center-flex">
       <image class="welcome-logo" src="/common/icon.png"></image>
       <text class="app-title">HydroLink</text>
       <text class="sub-title">探索设备边界</text>
     </div>
 
     <!-- Step 1: 多平台适配 -->
-    <div if="{{ step === 1 }}" class="content-body">
+    <div if="{{ step === 1 }}" class="step-wrapper center-flex">
       <text class="page-title">多平台适配</text>
       <div class="platforms-row">
         <image class="plat-icon" src="/common/icons/gauge-custom.png"></image>
@@ -54,7 +35,7 @@
     </div>
 
     <!-- Step 2: 轻量扩展生态（抽象平台化，不提具体插件名） -->
-    <div if="{{ step === 2 }}" class="content-body">
+    <div if="{{ step === 2 }}" class="step-wrapper center-flex">
       <text class="page-title">轻量扩展生态</text>
       <div class="platforms-row">
         <image class="plat-icon" src="/common/icons/apps.png"></image>
@@ -73,99 +54,107 @@
     </div>
 
     <!-- Step 3: 配对设备（核心连接流：interconnect 优先、可跳过、mDNS 自动发现、手动 IP） -->
-    <div if="{{ step === 3 }}" class="step3-wrapper">
-      <scroll class="step3-scroll" scroll-y="true" bounces="true">
-        <text class="page-title step3-title">配对新设备</text>
+    <div if="{{ step === 3 }}" class="scroll-area">
+      <scroll class="scroll-view" scroll-y="true" bounces="true">
+        <div class="scroll-content">
+          <text class="page-title step3-title">配对新设备</text>
 
-        <!-- 1. Interconnect 互联卡片（优先） -->
-        <div if="{{ !skippedInterconnect }}" class="ic-section">
-          <!-- 已连接伴侣 -->
-          <div if="{{ icConnected }}" class="device-card ic-active">
-            <image class="card-icon" src="/common/icons/cellphone.png"></image>
-            <div class="card-info">
-              <text class="card-name">{{ icDeviceName || '手机伴侣已连接' }}</text>
-              <text class="card-sub">Interconnect 蓝牙直连</text>
-            </div>
-            <text class="badge-done">已就绪</text>
-          </div>
-
-          <!-- 探测中 / 未连接 -->
-          <div if="{{ !icConnected }}" class="device-card ic-pending">
-            <div class="spinner">
-              <image class="spinner-img" src="/common/icons/progress-activity.png"></image>
-            </div>
-            <div class="card-info">
-              <text class="card-name">正在等待手机端 HydroLink 连接</text>
-              <text class="card-sub">请连接小米运动健康并打开 HydroLink 安卓端</text>
-            </div>
-          </div>
-
-          <!-- 我没有安卓手机（跳过按钮） -->
-          <div
-            class="ghost-btn pressable {{ pressedKey === 'skipIc' ? 'is-down press-down' : '' }} {{ releasedKey === 'skipIc' ? 'press-up' : '' }}"
-            ontouchstart="pressDown('skipIc')"
-            ontouchend="pressRelease('skipIc')"
-            ontouchcancel="pressCancel('skipIc')"
-            onclick="skipInterconnect"
-          >
-            <text class="ghost-btn-text">我没有安卓手机 ›</text>
-          </div>
-        </div>
-
-        <!-- 2. 局域网发现其他设备（走已连手机的 mDNS + Probe） -->
-        <div class="lan-section">
-          <div class="section-header">
-            <text class="section-title">局域网发现设备</text>
-            <text if="{{ lanScanning }}" class="scanning-text">扫描中...</text>
-          </div>
-
-          <!-- 发现的设备列表 -->
-          <div if="{{ lanDevices.length > 0 }}" class="lan-list">
-            <div
-              for="{{ (index, dev) in lanDevices }}"
-              class="device-card lan-item pressable {{ pressedKey === 'lan_' + index ? 'is-down press-down' : '' }} {{ releasedKey === 'lan_' + index ? 'press-up' : '' }}"
-              ontouchstart="pressDown('lan_' + index)"
-              ontouchend="pressRelease('lan_' + index)"
-              ontouchcancel="pressCancel('lan_' + index)"
-              onclick="addLanDevice(dev)"
-            >
-              <image class="card-icon" src="/common/icons/desktop.png"></image>
+          <!-- 1. Interconnect 互联卡片（优先） -->
+          <div if="{{ !skippedInterconnect }}" class="ic-section">
+            <!-- 已连接伴侣 -->
+            <div if="{{ icConnected }}" class="device-card ic-active">
+              <image class="card-icon" src="/common/icons/cellphone.png"></image>
               <div class="card-info">
-                <text class="card-name">{{ dev.name }}</text>
-                <text class="card-sub">{{ dev.host }}:{{ dev.port }}</text>
+                <text class="card-name">{{ icDeviceName || '手机伴侣已连接' }}</text>
+                <text class="card-sub">Interconnect 蓝牙直连</text>
               </div>
-              <text class="badge-add">+</text>
+              <text class="badge-done">已就绪</text>
+            </div>
+
+            <!-- 探测中 / 未连接：跑马灯组件展示完整文案，解决省略号截断 -->
+            <div if="{{ !icConnected }}" class="device-card ic-pending">
+              <div class="spinner">
+                <image class="spinner-img" src="/common/icons/progress-activity.png"></image>
+              </div>
+              <div class="card-info">
+                <marquee
+                  id="waitingMarquee"
+                  class="card-name-marquee"
+                  scrollamount="{{ 6 }}"
+                  loop="{{ -1 }}"
+                >正在等待手机端 HydroLink 连接</marquee>
+                <text class="card-sub">请连接小米运动健康并打开 HydroLink 安卓端</text>
+              </div>
+            </div>
+
+            <!-- 我没有安卓手机（跳过按钮） -->
+            <div
+              class="ghost-btn pressable {{ pressedKey === 'skipIc' ? 'is-down press-down' : '' }} {{ releasedKey === 'skipIc' ? 'press-up' : '' }}"
+              ontouchstart="pressDown('skipIc')"
+              ontouchend="pressRelease('skipIc')"
+              ontouchcancel="pressCancel('skipIc')"
+              onclick="skipInterconnect"
+            >
+              <text class="ghost-btn-text">我没有安卓手机 ›</text>
             </div>
           </div>
 
-          <div if="{{ lanDevices.length === 0 && !lanScanning }}" class="empty-lan">
-            <text class="empty-tip">未发现其他设备</text>
+          <!-- 2. 局域网发现其他设备（走已连手机的 mDNS + Probe） -->
+          <div class="lan-section">
+            <div class="section-header">
+              <text class="section-title">局域网发现设备</text>
+              <text if="{{ lanScanning }}" class="scanning-text">扫描中...</text>
+            </div>
+
+            <!-- 发现的设备列表 -->
+            <div if="{{ lanDevices.length > 0 }}" class="lan-list">
+              <div
+                for="{{ (index, dev) in lanDevices }}"
+                class="device-card lan-item pressable {{ pressedKey === 'lan_' + index ? 'is-down press-down' : '' }} {{ releasedKey === 'lan_' + index ? 'press-up' : '' }}"
+                ontouchstart="pressDown('lan_' + index)"
+                ontouchend="pressRelease('lan_' + index)"
+                ontouchcancel="pressCancel('lan_' + index)"
+                onclick="addLanDevice(dev)"
+              >
+                <image class="card-icon" src="/common/icons/desktop.png"></image>
+                <div class="card-info">
+                  <text class="card-name">{{ dev.name }}</text>
+                  <text class="card-sub">{{ dev.host }}:{{ dev.port }}</text>
+                </div>
+                <text class="badge-add">+</text>
+              </div>
+            </div>
+
+            <div if="{{ lanDevices.length === 0 && !lanScanning }}" class="empty-lan">
+              <text class="empty-tip">未发现其他设备</text>
+            </div>
           </div>
-        </div>
 
-        <!-- 3. 手动输入 IP 选项（纯文字，无 emoji） -->
-        <div
-          class="manual-btn pressable {{ pressedKey === 'manualIp' ? 'is-down press-down' : '' }} {{ releasedKey === 'manualIp' ? 'press-up' : '' }}"
-          ontouchstart="pressDown('manualIp')"
-          ontouchend="pressRelease('manualIp')"
-          ontouchcancel="pressCancel('manualIp')"
-          onclick="openManualPair"
-        >
-          <text class="manual-btn-text">手动输入 IP</text>
-        </div>
+          <!-- 3. 手动输入 IP 选项（纯文字，无 emoji） -->
+          <div
+            class="manual-btn pressable {{ pressedKey === 'manualIp' ? 'is-down press-down' : '' }} {{ releasedKey === 'manualIp' ? 'press-up' : '' }}"
+            ontouchstart="pressDown('manualIp')"
+            ontouchend="pressRelease('manualIp')"
+            ontouchcancel="pressCancel('manualIp')"
+            onclick="openManualPair"
+          >
+            <text class="manual-btn-text">手动输入 IP</text>
+          </div>
 
-        <!-- 完成按钮（改成“完成”） -->
-        <div
-          class="finish-pill pressable {{ pressedKey === 'finish' ? 'is-down press-down' : '' }} {{ releasedKey === 'finish' ? 'press-up' : '' }}"
-          ontouchstart="pressDown('finish')"
-          ontouchend="pressRelease('finish')"
-          ontouchcancel="pressCancel('finish')"
-          onclick="finishOobe"
-        >
-          <text class="finish-pill-text">完成</text>
-        </div>
+          <!-- 4. 完成按钮（文案修改为“完成”，可完整滑到底部） -->
+          <div
+            class="finish-pill pressable {{ pressedKey === 'finish' ? 'is-down press-down' : '' }} {{ releasedKey === 'finish' ? 'press-up' : '' }}"
+            ontouchstart="pressDown('finish')"
+            ontouchend="pressRelease('finish')"
+            ontouchcancel="pressCancel('finish')"
+            onclick="finishOobe"
+          >
+            <text class="finish-pill-text">完成</text>
+          </div>
 
-        <div class="scroll-bottom-space"></div>
+          <!-- 底部安全间距，防止圆表边缘裁切 -->
+          <div class="scroll-bottom-space"></div>
+        </div>
       </scroll>
     </div>
 
@@ -203,45 +192,41 @@
   align-items: center;
 }
 
-/* Header: 顶部常驻栏 */
+/* ---- Header: 完全照搬 settings.ux ---- */
 .header {
   width: 100%;
-  height: 86px;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 20px;
-}
-.header-left, .header-right {
-  width: 80px;
-  height: 80px;
+  height: 90px;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
-}
-.nav-btn {
-  font-size: 48px;
-  color: #bac3ff;
-  font-weight: bold;
-}
-.skip-btn {
-  font-size: 26px;
-  color: #888888;
-  font-weight: bold;
+  background-color: #000000;
 }
 .time-display {
   font-size: 28px;
   font-weight: bold;
   color: #ffffff;
+  padding-top: 5px;
+  text-align: center;
+}
+.title {
+  font-size: 32px;
+  font-weight: bold;
+  color: #ffffff;
+  text-align: center;
 }
 
-/* Content Body (Step 0 ~ 2) 居中饱满，避免底部多余黑空 */
-.content-body {
-  width: 420px;
-  flex-grow: 1;
+/* Step 0 ~ 2: 占满剩余视口（bottom: 0），内容垂直居中，绝不出现多余黑空脱节 */
+.step-wrapper {
+  position: absolute;
+  top: 90px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding-bottom: 110px;
+  padding-bottom: 120px;
 }
 .center-flex {
   justify-content: center;
@@ -288,7 +273,7 @@
   margin: 0 16px;
 }
 
-/* Feature Cards (Step 1 & 2) 尺寸加大，字号更大更易阅读 */
+/* Feature Cards (Step 1 & 2) */
 .feature-card {
   width: 400px;
   background-color: #2e323c;
@@ -322,27 +307,35 @@
   margin: 10px 0;
 }
 
-/* Step 3 (Scrollable) 竖向滚动定高，与 home.ux/settings.ux 对齐 */
-.step3-wrapper {
+/* ---- Step 3 滚动区域：采用 bottom: 0 撑满所有可用视口，彻底杜绝腰斩截断与多余黑底 ---- */
+.scroll-area {
   position: absolute;
-  top: 86px;
+  top: 90px;
+  bottom: 0;
   left: 0;
   right: 0;
-  height: 380px;
   width: 100%;
   flex-direction: column;
   align-items: center;
 }
-.step3-scroll {
+.scroll-view {
   width: 100%;
   height: 100%;
   flex-direction: column;
   align-items: center;
 }
+.scroll-content {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 10px;
+}
 .step3-title {
-  margin-top: 6px;
+  margin-top: 4px;
   margin-bottom: 14px;
 }
+
+/* Interconnect Section */
 .ic-section {
   width: 400px;
   flex-direction: column;
@@ -381,6 +374,13 @@
   color: #ffffff;
   lines: 1;
   text-overflow: ellipsis;
+}
+/* 跑马灯：定宽 290px，无限平滑滚动，不被省略号截断 */
+.card-name-marquee {
+  width: 290px;
+  font-size: 26px;
+  font-weight: bold;
+  color: #ffffff;
 }
 .card-sub {
   font-size: 22px;
@@ -490,17 +490,17 @@
   color: #00237c;
 }
 
-/* 底部防裁切安全边距：控制在 40px，避免多余黑空 */
+/* 底部防裁切安全边距：让完成按钮完整浮出，不被弧线咬掉 */
 .scroll-bottom-space {
   width: 100%;
-  height: 40px;
+  height: 60px;
   flex-shrink: 0;
 }
 
 /* Bottom Bar (Step 0 ~ 2) 固定在底栏 */
 .bottom-bar {
   position: absolute;
-  bottom: 22px;
+  bottom: 24px;
   left: 0;
   right: 0;
   flex-direction: column;
@@ -596,7 +596,7 @@
   100% { transform: scale(1); opacity: 1; }
 }
 
-/* ---- Rect screen adaptation (方屏幕顶栏参考 settings.ux/pair.ux) ---- */
+/* ---- Rect screen adaptation: 完全对齐 settings.ux ---- */
 @media (shape: rect) {
   .header {
     height: 65px;
@@ -605,27 +605,29 @@
     align-items: center;
     padding: 0 48px;
   }
+  .title {
+    margin-left: 12px;
+  }
   .time-display {
     margin-right: 12px;
   }
-  .skip-btn {
-    margin-left: 12px;
-  }
-  .nav-btn {
-    margin-right: 12px;
-  }
-  .step3-wrapper {
+  .step-wrapper {
     top: 65px;
-    height: 449px;
+    bottom: 0;
+    padding-bottom: 90px;
   }
-  .content-body {
-    padding-bottom: 80px;
+  .scroll-area {
+    top: 65px;
+    bottom: 0;
+  }
+  .scroll-content {
+    padding-top: 6px;
   }
   .bottom-bar {
-    bottom: 14px;
+    bottom: 16px;
   }
   .scroll-bottom-space {
-    height: 20px;
+    height: 30px;
   }
 }
 </style>
@@ -693,17 +695,6 @@ export default {
         this.onEnterStep3()
       }
     }
-  },
-
-  prevStep() {
-    if (this.step > 0) {
-      this.step -= 1
-    }
-  },
-
-  async skipOobe() {
-    await settingsService.setOobeCompleted(true)
-    router.replace({ uri: '/pages/home' })
   },
 
   onEnterStep3() {
