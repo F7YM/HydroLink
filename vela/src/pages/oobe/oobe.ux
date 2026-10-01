@@ -42,7 +42,7 @@
         <div if="{{ step === 1 }}" class="step-flow">
           <text class="step-title">多平台适配</text>
           <div class="platforms-row">
-            <image class="plat-icon" src="/common/icons/gauge-custom.png"></image>
+            <image class="plat-icon" src="/common/icons/watch.png"></image>
             <image class="plat-icon" src="/common/icons/cellphone.png"></image>
             <image class="plat-icon" src="/common/icons/desktop.png"></image>
           </div>
