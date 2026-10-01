@@ -42,6 +42,36 @@ interface KitCapabilities {
     /** 发送 UDP 数据报文（udp 权限）。 */
     fun udpSend(host: String, port: Int, data: ByteArray, broadcast: Boolean): Map<String, Any?>
 
+    /** 获取屏幕尺寸与分辨率信息（input 权限）。 */
+    fun inputScreen(): Map<String, Any?>
+
+    /** 获取当前光标/虚拟指针坐标（input 权限）。 */
+    fun inputCursor(): Map<String, Any?>
+
+    /** 绝对移动光标/指针到 (x, y)（input 权限）。 */
+    fun inputMove(x: Float, y: Float): Map<String, Any?>
+
+    /** 相对位移光标/指针 (dx, dy)（input 权限）。 */
+    fun inputMoveBy(dx: Float, dy: Float): Map<String, Any?>
+
+    /** 在指定位置或当前位置点击（input 权限）。 */
+    fun inputClick(x: Float?, y: Float?, button: String, count: Int): Map<String, Any?>
+
+    /** 拖拽/手势滑动（input 权限）。 */
+    fun inputDrag(x1: Float, y1: Float, x2: Float, y2: Float, durationMs: Long): Map<String, Any?>
+
+    /** 滚轮滚动（input 权限）。 */
+    fun inputScroll(dx: Float, dy: Float): Map<String, Any?>
+
+    /** 单键触发（input 权限）。 */
+    fun inputKey(key: String): Map<String, Any?>
+
+    /** 组合快捷键（input 权限）。 */
+    fun inputShortcut(keys: List<String>): Map<String, Any?>
+
+    /** 文本键入（input 权限）。 */
+    fun inputText(text: String): Map<String, Any?>
+
     /** 服务器基地址（形如 http://192.168.1.5:9000），供 ABI 上下文使用。 */
     fun serverBase(): String
 
@@ -58,6 +88,16 @@ interface KitCapabilities {
             override fun wolWake(mac: String, host: String?, port: Int?) = mapOf<String, Any?>("ok" to true)
             override fun wolProbe(host: String, port: Int?, timeout: Int?) = mapOf<String, Any?>("online" to false, "rttMs" to -1)
             override fun udpSend(host: String, port: Int, data: ByteArray, broadcast: Boolean) = mapOf<String, Any?>("ok" to true, "bytesSent" to data.size)
+            override fun inputScreen() = mapOf<String, Any?>("width" to 1920, "height" to 1080, "dpr" to 1.0)
+            override fun inputCursor() = mapOf<String, Any?>("x" to 0.0, "y" to 0.0)
+            override fun inputMove(x: Float, y: Float) = mapOf<String, Any?>("ok" to true, "x" to x, "y" to y)
+            override fun inputMoveBy(dx: Float, dy: Float) = mapOf<String, Any?>("ok" to true, "dx" to dx, "dy" to dy)
+            override fun inputClick(x: Float?, y: Float?, button: String, count: Int) = mapOf<String, Any?>("ok" to true)
+            override fun inputDrag(x1: Float, y1: Float, x2: Float, y2: Float, durationMs: Long) = mapOf<String, Any?>("ok" to true)
+            override fun inputScroll(dx: Float, dy: Float) = mapOf<String, Any?>("ok" to true)
+            override fun inputKey(key: String) = mapOf<String, Any?>("ok" to true)
+            override fun inputShortcut(keys: List<String>) = mapOf<String, Any?>("ok" to true)
+            override fun inputText(text: String) = mapOf<String, Any?>("ok" to true)
             override fun serverBase() = ""
         }
     }
@@ -91,6 +131,7 @@ class KitRoutes(
         const val PERM_FETCH = "fetch"
         const val PERM_WOL = "wol"
         const val PERM_UDP = "udp"
+        const val PERM_INPUT = "input"
 
         private val MAC_REGEX = Regex("^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$")
     }
@@ -119,6 +160,7 @@ class KitRoutes(
             "wol/wake" -> handleWolWake(req)
             "wol/probe" -> handleWolProbe(req)
             "udp/send" -> handleUdpSend(req)
+            "input" -> handleInput(req)
             else -> HydroHttpResponse.json("""{"error":"worker endpoint not found"}""", 404)
         }
     }
@@ -432,6 +474,76 @@ class KitRoutes(
         val broadcast = body.get("broadcast")?.let { if (it.isJsonPrimitive) it.asBoolean else false }
             ?: (host == "255.255.255.255" || host.endsWith(".255"))
         val res = caps.udpSend(host, port, bytes, broadcast)
+        if (res.containsKey("error")) {
+            return HydroHttpResponse.json(gson.toJson(res), 500)
+        }
+        return HydroHttpResponse.json(gson.toJson(res))
+    }
+
+    fun handleInput(req: HydroHttpRequest): HydroHttpResponse {
+        if (req.method != "POST") return HydroHttpResponse.text("method not allowed", 405)
+        val body = parseJsonBody(req) ?: return HydroHttpResponse.json("""{"error":"invalid body"}""", 400)
+        val pkg = body.str("package")
+        requirePermission(pkg, PERM_INPUT)?.let { return it }
+
+        val op = body.str("op")
+        val res = when (op) {
+            "screen" -> caps.inputScreen()
+            "cursor" -> caps.inputCursor()
+            "move" -> {
+                val x = body.get("x")?.takeIf { it.isJsonPrimitive }?.asFloat
+                    ?: return HydroHttpResponse.json("""{"error":"缺少 x 坐标"}""", 400)
+                val y = body.get("y")?.takeIf { it.isJsonPrimitive }?.asFloat
+                    ?: return HydroHttpResponse.json("""{"error":"缺少 y 坐标"}""", 400)
+                caps.inputMove(x, y)
+            }
+            "move_by" -> {
+                val dx = body.get("dx")?.takeIf { it.isJsonPrimitive }?.asFloat ?: 0f
+                val dy = body.get("dy")?.takeIf { it.isJsonPrimitive }?.asFloat ?: 0f
+                caps.inputMoveBy(dx, dy)
+            }
+            "click", "tap" -> {
+                val x = body.get("x")?.takeIf { it.isJsonPrimitive }?.asFloat
+                val y = body.get("y")?.takeIf { it.isJsonPrimitive }?.asFloat
+                val button = body.str("button").ifBlank { "left" }
+                val count = body.get("count")?.takeIf { it.isJsonPrimitive }?.asInt ?: 1
+                caps.inputClick(x, y, button, count)
+            }
+            "drag", "swipe" -> {
+                val x1 = body.get("x1")?.takeIf { it.isJsonPrimitive }?.asFloat
+                    ?: return HydroHttpResponse.json("""{"error":"缺少 x1 坐标"}""", 400)
+                val y1 = body.get("y1")?.takeIf { it.isJsonPrimitive }?.asFloat
+                    ?: return HydroHttpResponse.json("""{"error":"缺少 y1 坐标"}""", 400)
+                val x2 = body.get("x2")?.takeIf { it.isJsonPrimitive }?.asFloat
+                    ?: return HydroHttpResponse.json("""{"error":"缺少 x2 坐标"}""", 400)
+                val y2 = body.get("y2")?.takeIf { it.isJsonPrimitive }?.asFloat
+                    ?: return HydroHttpResponse.json("""{"error":"缺少 y2 坐标"}""", 400)
+                val duration = body.get("duration")?.takeIf { it.isJsonPrimitive }?.asLong ?: 300L
+                caps.inputDrag(x1, y1, x2, y2, duration.coerceIn(10L, 10000L))
+            }
+            "scroll" -> {
+                val dx = body.get("dx")?.takeIf { it.isJsonPrimitive }?.asFloat ?: 0f
+                val dy = body.get("dy")?.takeIf { it.isJsonPrimitive }?.asFloat ?: 0f
+                caps.inputScroll(dx, dy)
+            }
+            "key" -> {
+                val key = body.str("key")
+                if (key.isBlank()) return HydroHttpResponse.json("""{"error":"缺少 key"}""", 400)
+                caps.inputKey(key)
+            }
+            "shortcut" -> {
+                val arr = body.getAsJsonArray("keys")
+                if (arr == null || arr.isEmpty) return HydroHttpResponse.json("""{"error":"缺少 keys"}""", 400)
+                val keys = arr.mapNotNull { if (it.isJsonPrimitive) it.asString else null }
+                caps.inputShortcut(keys)
+            }
+            "text" -> {
+                val text = body.str("text")
+                caps.inputText(text)
+            }
+            else -> return HydroHttpResponse.json("""{"error":"未知操作: $op"}""", 400)
+        }
+
         if (res.containsKey("error")) {
             return HydroHttpResponse.json(gson.toJson(res), 500)
         }

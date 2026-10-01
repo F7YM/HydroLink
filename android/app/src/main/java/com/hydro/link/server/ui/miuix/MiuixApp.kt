@@ -1010,12 +1010,30 @@ private fun PluginConfirmDialog(model: MiuixModel) {
     var last by remember { mutableStateOf<ConfirmDialog?>(null) }
     if (current != null) last = current
     val dialog = current ?: last ?: return
+    var remaining by remember(dialog) { mutableStateOf(dialog.countdownSeconds) }
+    LaunchedEffect(dialog) {
+        if (dialog.countdownSeconds > 0) {
+            remaining = dialog.countdownSeconds
+            while (remaining > 0) {
+                kotlinx.coroutines.delay(1000)
+                remaining--
+            }
+        }
+    }
     WindowDialog(
         show = current != null,
         onDismissRequest = { model.pluginDialog = null },
         title = dialog.title,
         content = {
             Column {
+                if (!dialog.dangerWarning.isNullOrBlank()) {
+                    Text(
+                        text = dialog.dangerWarning,
+                        color = Color(0xFFE53935),
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 12.dp),
+                    )
+                }
                 Text(
                     text = dialog.message,
                     color = MiuixTheme.colorScheme.onSurface,
@@ -1037,11 +1055,12 @@ private fun PluginConfirmDialog(model: MiuixModel) {
                             },
                         )
                     }
+                    val posText = if (remaining > 0) "${dialog.positive} (${remaining}s)" else dialog.positive
                     TextButton(
                         modifier = Modifier.weight(1f),
-                        text = dialog.positive,
-                        // 灰显场景（如宿主版本太低、更新装不了）：enabled=false 走 miuix 自带的禁用色
-                        enabled = dialog.positiveEnabled,
+                        text = posText,
+                        // 灰显场景（如宿主版本太低、更新装不了，或正在倒计时）：enabled=false 走 miuix 自带的禁用色
+                        enabled = dialog.positiveEnabled && remaining <= 0,
                         onClick = {
                             val confirm = dialog.onConfirm
                             model.pluginDialog = null

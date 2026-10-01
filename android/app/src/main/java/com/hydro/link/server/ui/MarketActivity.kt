@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -77,6 +78,7 @@ import com.hydro.link.server.ui.material.HydroMaterialTheme
 import com.hydro.link.server.ui.miuix.ConfirmDialog
 import com.hydro.link.server.util.DataManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.ButtonDefaults as MiuixButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card as MiuixCard
@@ -111,7 +113,7 @@ class MarketActivity : AppCompatActivity() {
 
     private val ui = mutableStateOf(MarketUi())
     private lateinit var client: MarketClient
-    private var prevWindowDialog: ((String, String, String, String?, (() -> Unit)?, (() -> Unit)?, Boolean) -> Boolean)? = null
+    private var prevWindowDialog: ((String, String, String, String?, (() -> Unit)?, (() -> Unit)?, Boolean, Int, String?) -> Boolean)? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -125,7 +127,7 @@ class MarketActivity : AppCompatActivity() {
             // 确认弹窗借 EngineDialog 的 miuix 钩子（由本页的 WindowDialog 渲染）；
             // 记住上一个（MainActivity 的）并在销毁时还回去，别把人家的钩子吞了。
             prevWindowDialog = EngineDialog.window
-            EngineDialog.window = { title, message, positive, negative, onNegative, onConfirm, positiveEnabled ->
+            EngineDialog.window = { title, message, positive, negative, onNegative, onConfirm, positiveEnabled, countdownSeconds, dangerWarning ->
                 ui.value = ui.value.copy(
                     dialog = ConfirmDialog(
                         title = title,
@@ -135,6 +137,8 @@ class MarketActivity : AppCompatActivity() {
                         onNegative = onNegative,
                         onConfirm = onConfirm,
                         positiveEnabled = positiveEnabled,
+                        countdownSeconds = countdownSeconds,
+                        dangerWarning = dangerWarning,
                     )
                 )
                 true
@@ -778,12 +782,30 @@ private fun MiuixConfirmHost(dialog: ConfirmDialog?, onDismiss: () -> Unit) {
     var last by remember { mutableStateOf<ConfirmDialog?>(null) }
     if (dialog != null) last = dialog
     val shown = last ?: return
+    var remaining by remember(shown) { mutableStateOf(shown.countdownSeconds) }
+    LaunchedEffect(shown) {
+        if (shown.countdownSeconds > 0) {
+            remaining = shown.countdownSeconds
+            while (remaining > 0) {
+                delay(1000)
+                remaining--
+            }
+        }
+    }
     WindowDialog(
         show = dialog != null,
         onDismissRequest = onDismiss,
         title = shown.title,
         content = {
             Column {
+                if (!shown.dangerWarning.isNullOrBlank()) {
+                    Text(
+                        text = shown.dangerWarning,
+                        color = Color(0xFFE53935),
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 12.dp),
+                    )
+                }
                 Text(
                     text = shown.message,
                     color = MiuixTheme.colorScheme.onSurface,
@@ -802,10 +824,11 @@ private fun MiuixConfirmHost(dialog: ConfirmDialog?, onDismiss: () -> Unit) {
                             },
                         )
                     }
+                    val posText = if (remaining > 0) "${shown.positive} (${remaining}s)" else shown.positive
                     MiuixTextButton(
                         modifier = Modifier.weight(1f),
-                        text = shown.positive,
-                        enabled = shown.positiveEnabled,
+                        text = posText,
+                        enabled = shown.positiveEnabled && remaining <= 0,
                         onClick = {
                             val cb = shown.onConfirm
                             onDismiss()
@@ -822,16 +845,42 @@ private fun MiuixConfirmHost(dialog: ConfirmDialog?, onDismiss: () -> Unit) {
 @Composable
 private fun MdConfirmHost(dialog: ConfirmDialog?, onDismiss: () -> Unit) {
     if (dialog == null) return
+    var remaining by remember(dialog) { mutableStateOf(dialog.countdownSeconds) }
+    LaunchedEffect(dialog) {
+        if (dialog.countdownSeconds > 0) {
+            remaining = dialog.countdownSeconds
+            while (remaining > 0) {
+                delay(1000)
+                remaining--
+            }
+        }
+    }
+    val posText = if (remaining > 0) "${dialog.positive} (${remaining}s)" else dialog.positive
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(dialog.title) },
-        text = { Text(dialog.message) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                if (!dialog.dangerWarning.isNullOrBlank()) {
+                    Text(
+                        text = dialog.dangerWarning,
+                        color = Color(0xFFE53935),
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 12.dp),
+                    )
+                }
+                Text(dialog.message)
+            }
+        },
         confirmButton = {
-            TextButton(enabled = dialog.positiveEnabled, onClick = {
-                val cb = dialog.onConfirm
-                onDismiss()
-                cb?.invoke()
-            }) { Text(dialog.positive) }
+            TextButton(
+                enabled = dialog.positiveEnabled && remaining <= 0,
+                onClick = {
+                    val cb = dialog.onConfirm
+                    onDismiss()
+                    cb?.invoke()
+                }
+            ) { Text(posText) }
         },
         dismissButton = if (dialog.negative != null) {
             {

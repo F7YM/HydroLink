@@ -204,8 +204,10 @@ class MainActivity : AppCompatActivity() {
             onNegative: (() -> Unit)?,
             onConfirm: (() -> Unit)?,
             positiveEnabled: Boolean,
+            countdownSeconds: Int,
+            dangerWarning: String?,
         ) -> Boolean =
-        { title, message, positive, negative, onNegative, onConfirm, positiveEnabled ->
+        { title, message, positive, negative, onNegative, onConfirm, positiveEnabled, countdownSeconds, dangerWarning ->
             if (miuixOn.value) {
                 miuixModel.pluginDialog = com.hydro.link.server.ui.miuix.ConfirmDialog(
                     title = title,
@@ -215,6 +217,8 @@ class MainActivity : AppCompatActivity() {
                     onNegative = onNegative,
                     onConfirm = onConfirm,
                     positiveEnabled = positiveEnabled,
+                    countdownSeconds = countdownSeconds,
+                    dangerWarning = dangerWarning,
                 )
                 true
             } else {

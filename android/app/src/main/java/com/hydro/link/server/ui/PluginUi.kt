@@ -123,6 +123,7 @@ object PluginUi {
 
     /** 安装确认弹窗：清单摘要 + 权限 + 安全提醒。 */
     private fun showInstallConfirm(activity: Activity, m: Manifest, onConfirm: () -> Unit) {
+        val hasInput = m.permissions.any { it.equals("input", ignoreCase = true) }
         val perms = if (m.permissions.isEmpty()) "未申请任何权限" else m.permissions.joinToString(", ")
         val items = buildString {
             m.apps.forEach { append("应用 ").append(it.name.ifBlank { it.id }).append("  ") }
@@ -138,6 +139,11 @@ object PluginUi {
             append('\n')
             append("插件代码以本应用同等权限运行，可访问本机服务与数据目录，请只安装可信来源的插件。")
         }
+        val dangerWarning = if (hasInput) {
+            "⚠️ 高危权限警示：该插件申请了「屏幕触控与指针模拟 (input)」高危权限，可在后台模拟点击、滑动及按键操作。请确认插件来源安全可靠！"
+        } else null
+        val countdown = if (hasInput) 3 else 0
+
         EngineDialog.confirm(
             activity = activity,
             title = "安装 ${m.pkg.name.ifBlank { m.pkg.id }}",
@@ -145,6 +151,8 @@ object PluginUi {
             positive = "安装",
             negative = "取消",
             onConfirm = onConfirm,
+            countdownSeconds = countdown,
+            dangerWarning = dangerWarning,
         )
     }
 

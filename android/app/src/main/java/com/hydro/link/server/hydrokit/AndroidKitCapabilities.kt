@@ -240,6 +240,194 @@ class AndroidKitCapabilities(
         }
     }
 
+    // ---- 屏幕触控与指针模拟能力（input 权限） ----
+
+    @Volatile
+    private var virtualCursorX: Float = -1f
+    @Volatile
+    private var virtualCursorY: Float = -1f
+
+    private fun ensureVirtualCursor(): Pair<Float, Float> {
+        val dm = context.resources.displayMetrics
+        if (virtualCursorX < 0f || virtualCursorY < 0f) {
+            virtualCursorX = dm.widthPixels / 2f
+            virtualCursorY = dm.heightPixels / 2f
+        }
+        return virtualCursorX to virtualCursorY
+    }
+
+    override fun inputScreen(): Map<String, Any?> {
+        val dm = context.resources.displayMetrics
+        return mapOf(
+            "width" to dm.widthPixels,
+            "height" to dm.heightPixels,
+            "density" to dm.density,
+            "dpr" to dm.density,
+        )
+    }
+
+    override fun inputCursor(): Map<String, Any?> {
+        val (x, y) = ensureVirtualCursor()
+        return mapOf("x" to x, "y" to y)
+    }
+
+    override fun inputMove(x: Float, y: Float): Map<String, Any?> {
+        val dm = context.resources.displayMetrics
+        virtualCursorX = x.coerceIn(0f, dm.widthPixels.toFloat())
+        virtualCursorY = y.coerceIn(0f, dm.heightPixels.toFloat())
+        return mapOf("ok" to true, "x" to virtualCursorX, "y" to virtualCursorY)
+    }
+
+    override fun inputMoveBy(dx: Float, dy: Float): Map<String, Any?> {
+        val dm = context.resources.displayMetrics
+        val (curX, curY) = ensureVirtualCursor()
+        virtualCursorX = (curX + dx).coerceIn(0f, dm.widthPixels.toFloat())
+        virtualCursorY = (curY + dy).coerceIn(0f, dm.heightPixels.toFloat())
+        return mapOf("ok" to true, "x" to virtualCursorX, "y" to virtualCursorY, "dx" to dx, "dy" to dy)
+    }
+
+    override fun inputClick(x: Float?, y: Float?, button: String, count: Int): Map<String, Any?> {
+        val dm = context.resources.displayMetrics
+        val targetX = x?.coerceIn(0f, dm.widthPixels.toFloat()) ?: run { ensureVirtualCursor().first }
+        val targetY = y?.coerceIn(0f, dm.heightPixels.toFloat()) ?: run { ensureVirtualCursor().second }
+        virtualCursorX = targetX
+        virtualCursorY = targetY
+
+        val service = LockAccessibilityService.instance
+        if (service != null) {
+            var success = true
+            for (i in 0 until count.coerceAtLeast(1)) {
+                if (!service.dispatchTap(targetX, targetY)) {
+                    success = false
+                    break
+                }
+                if (count > 1) Thread.sleep(60)
+            }
+            if (success) {
+                return mapOf("ok" to true, "x" to targetX, "y" to targetY, "button" to button)
+            }
+        }
+
+        // 降级使用 Shell/Root
+        val (ok, _, code) = commandRunner("input tap ${targetX.toInt()} ${targetY.toInt()}")
+        if (ok && code == 0) {
+            return mapOf("ok" to true, "x" to targetX, "y" to targetY, "button" to button, "method" to "shell")
+        }
+
+        return mapOf("error" to "点击失败：无障碍服务未启用或手势被取消，且无 Root 权限")
+    }
+
+    override fun inputDrag(x1: Float, y1: Float, x2: Float, y2: Float, durationMs: Long): Map<String, Any?> {
+        val dm = context.resources.displayMetrics
+        val clampedX1 = x1.coerceIn(0f, dm.widthPixels.toFloat())
+        val clampedY1 = y1.coerceIn(0f, dm.heightPixels.toFloat())
+        val clampedX2 = x2.coerceIn(0f, dm.widthPixels.toFloat())
+        val clampedY2 = y2.coerceIn(0f, dm.heightPixels.toFloat())
+        virtualCursorX = clampedX2
+        virtualCursorY = clampedY2
+
+        val service = LockAccessibilityService.instance
+        if (service != null && service.dispatchSwipe(clampedX1, clampedY1, clampedX2, clampedY2, durationMs)) {
+            return mapOf("ok" to true)
+        }
+
+        // 降级使用 Shell/Root
+        val (ok, _, code) = commandRunner("input swipe ${clampedX1.toInt()} ${clampedY1.toInt()} ${clampedX2.toInt()} ${clampedY2.toInt()} $durationMs")
+        if (ok && code == 0) {
+            return mapOf("ok" to true, "method" to "shell")
+        }
+
+        return mapOf("error" to "滑动失败：无障碍服务未启用或手势被取消，且无 Root 权限")
+    }
+
+    override fun inputScroll(dx: Float, dy: Float): Map<String, Any?> {
+        val dm = context.resources.displayMetrics
+        val midX = dm.widthPixels / 2f
+        val midY = dm.heightPixels / 2f
+        val factor = dm.density * 50f
+        val endX = (midX - dx * factor).coerceIn(0f, dm.widthPixels.toFloat())
+        val endY = (midY - dy * factor).coerceIn(0f, dm.heightPixels.toFloat())
+        return inputDrag(midX, midY, endX, endY, 200L)
+    }
+
+    override fun inputKey(key: String): Map<String, Any?> {
+        val k = key.trim().lowercase()
+        val service = LockAccessibilityService.instance
+
+        when (k) {
+            "back" -> {
+                if (service?.performGlobal(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK) == true) {
+                    return mapOf("ok" to true, "key" to key)
+                }
+            }
+            "home" -> {
+                if (service?.performGlobal(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME) == true) {
+                    return mapOf("ok" to true, "key" to key)
+                }
+            }
+            "recents", "app_switch" -> {
+                if (service?.performGlobal(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_RECENTS) == true) {
+                    return mapOf("ok" to true, "key" to key)
+                }
+            }
+            "notifications" -> {
+                if (service?.performGlobal(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS) == true) {
+                    return mapOf("ok" to true, "key" to key)
+                }
+            }
+        }
+
+        val keyCode = when (k) {
+            "back" -> 4
+            "home" -> 3
+            "recents", "app_switch" -> 187
+            "enter" -> 66
+            "space" -> 62
+            "escape" -> 111
+            "tab" -> 61
+            "up", "arrowup" -> 19
+            "down", "arrowdown" -> 20
+            "left", "arrowleft" -> 21
+            "right", "arrowright" -> 22
+            "volume_up" -> 24
+            "volume_down" -> 25
+            "power" -> 26
+            else -> k.toIntOrNull()
+        }
+
+        if (keyCode != null) {
+            val (ok, _, code) = commandRunner("input keyevent $keyCode")
+            if (ok && code == 0) {
+                return mapOf("ok" to true, "key" to key, "keyCode" to keyCode)
+            }
+        }
+
+        return if (service != null) {
+            mapOf("error" to "不支持的按键: $key")
+        } else {
+            mapOf("error" to "按键执行失败：无障碍服务未启用且无 Root 权限")
+        }
+    }
+
+    override fun inputShortcut(keys: List<String>): Map<String, Any?> {
+        val (ok, _, code) = commandRunner("input keyevent " + keys.joinToString(" "))
+        return if (ok && code == 0) {
+            mapOf("ok" to true, "keys" to keys)
+        } else {
+            mapOf("error" to "快捷键执行失败")
+        }
+    }
+
+    override fun inputText(text: String): Map<String, Any?> {
+        val escaped = text.replace(" ", "%s").replace("'", "\\'")
+        val (ok, _, code) = commandRunner("input text '$escaped'")
+        return if (ok && code == 0) {
+            mapOf("ok" to true, "text" to text)
+        } else {
+            mapOf("error" to "文本输入失败：需要 Root/Shizuku 权限")
+        }
+    }
+
     override fun serverBase(): String = try {
         "http://${NetworkUtil.getLocalIpAddress(context)}:${port()}"
     } catch (e: Exception) {

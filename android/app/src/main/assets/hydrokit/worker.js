@@ -147,6 +147,102 @@
         });
       },
     },
+    input: {
+      screen: function () {
+        return remote("POST", "/api/hydro/worker/input", { package: PKG, op: "screen" });
+      },
+      cursor: function () {
+        return remote("POST", "/api/hydro/worker/input", { package: PKG, op: "cursor" });
+      },
+      move: function (x, y) {
+        return remote("POST", "/api/hydro/worker/input", { package: PKG, op: "move", x: x, y: y });
+      },
+      moveBy: function (dx, dy) {
+        return remote("POST", "/api/hydro/worker/input", { package: PKG, op: "move_by", dx: dx, dy: dy });
+      },
+      click: function (arg1, arg2, button, count) {
+        if (typeof arg1 === "object" && arg1 !== null) {
+          return remote("POST", "/api/hydro/worker/input", {
+            package: PKG,
+            op: "click",
+            x: arg1.x,
+            y: arg1.y,
+            button: arg1.button || "left",
+            count: typeof arg1.count === "number" ? arg1.count : 1,
+          });
+        }
+        return remote("POST", "/api/hydro/worker/input", {
+          package: PKG,
+          op: "click",
+          x: arg1,
+          y: arg2,
+          button: button || "left",
+          count: typeof count === "number" ? count : 1,
+        });
+      },
+      drag: function (arg1, y1, x2, y2, duration) {
+        if (typeof arg1 === "object" && arg1 !== null) {
+          return remote("POST", "/api/hydro/worker/input", {
+            package: PKG,
+            op: "drag",
+            x1: arg1.x1,
+            y1: arg1.y1,
+            x2: arg1.x2,
+            y2: arg1.y2,
+            duration: arg1.duration,
+          });
+        }
+        return remote("POST", "/api/hydro/worker/input", {
+          package: PKG,
+          op: "drag",
+          x1: arg1,
+          y1: y1,
+          x2: x2,
+          y2: y2,
+          duration: duration,
+        });
+      },
+      swipe: function (x1, y1, x2, y2, duration) {
+        return this.drag(x1, y1, x2, y2, duration);
+      },
+      scroll: function (arg1, arg2) {
+        if (typeof arg1 === "object" && arg1 !== null) {
+          return remote("POST", "/api/hydro/worker/input", {
+            package: PKG,
+            op: "scroll",
+            dx: arg1.dx || 0,
+            dy: arg1.dy || 0,
+          });
+        }
+        if (arg2 === undefined) {
+          return remote("POST", "/api/hydro/worker/input", {
+            package: PKG,
+            op: "scroll",
+            dx: 0,
+            dy: arg1 || 0,
+          });
+        }
+        return remote("POST", "/api/hydro/worker/input", {
+          package: PKG,
+          op: "scroll",
+          dx: arg1 || 0,
+          dy: arg2 || 0,
+        });
+      },
+      key: function (k) {
+        return remote("POST", "/api/hydro/worker/input", { package: PKG, op: "key", key: k });
+      },
+      shortcut: function (keys) {
+        return remote("POST", "/api/hydro/worker/input", {
+          package: PKG,
+          op: "shortcut",
+          keys: Array.isArray(keys) ? keys : [keys],
+        });
+      },
+      text: function (str) {
+        return remote("POST", "/api/hydro/worker/input", { package: PKG, op: "text", text: str });
+      },
+    },
     // 辅助 wasm（与「WASM 插件」不同，这是 JS 插件可选加载的算法模块）
     loadWasm: function (path) {
       return fetch(P + "/api/hydro/worker/asset?package=" + encodeURIComponent(PKG) + "&path=" + encodeURIComponent(path))
@@ -237,6 +333,20 @@
         if (op === "commands") return kit.commands.run(eff.index);
         if (op === "wol") return kit.wol.wake(eff);
         if (op === "udp") return kit.udp.send(eff);
+        if (op === "input") {
+          var action = eff.action || eff.type || eff.inputOp || "click";
+          if (action === "screen") return kit.input.screen();
+          if (action === "cursor") return kit.input.cursor();
+          if (action === "move") return kit.input.move(eff.x, eff.y);
+          if (action === "move_by" || action === "moveBy") return kit.input.moveBy(eff.dx, eff.dy);
+          if (action === "click" || action === "tap") return kit.input.click(eff);
+          if (action === "drag" || action === "swipe") return kit.input.drag(eff);
+          if (action === "scroll") return kit.input.scroll(eff);
+          if (action === "key") return kit.input.key(eff.key);
+          if (action === "shortcut") return kit.input.shortcut(eff.keys);
+          if (action === "text") return kit.input.text(eff.text);
+          return remote("POST", "/api/hydro/worker/input", Object.assign({ package: PKG }, eff));
+        }
         report("未知 effect: " + op);
         return null;
       });

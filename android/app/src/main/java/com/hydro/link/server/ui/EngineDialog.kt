@@ -33,6 +33,8 @@ object EngineDialog {
             onNegative: (() -> Unit)?,
             onConfirm: (() -> Unit)?,
             positiveEnabled: Boolean,
+            countdownSeconds: Int,
+            dangerWarning: String?,
         ) -> Boolean
     )? = null
 
@@ -43,7 +45,9 @@ object EngineDialog {
      * - [onNegative] = 点否定钮（配对那种「允许/拒绝」都要落库的才需要）；返回键/点外面
      *   关窗不触发；
      * - [onConfirm] = 点肯定钮；
-     * - [positiveEnabled] = false 时肯定钮灰显（版本不够、装不了）。
+     * - [positiveEnabled] = false 时肯定钮灰显（版本不够、装不了）；
+     * - [countdownSeconds] = 倒计时秒数（高危权限安装强制等待）：> 0 时肯定钮禁用并显示倒计时；
+     * - [dangerWarning] = 高危警示文案（红字突出显示）。
      */
     fun confirm(
         activity: Activity,
@@ -54,19 +58,80 @@ object EngineDialog {
         onNegative: (() -> Unit)? = null,
         onConfirm: (() -> Unit)? = null,
         positiveEnabled: Boolean = true,
+        countdownSeconds: Int = 0,
+        dangerWarning: String? = null,
     ) {
         val handler = window
-        if (handler != null && handler(title, message, positive, negative, onNegative, onConfirm, positiveEnabled)) {
+        if (handler != null && handler(title, message, positive, negative, onNegative, onConfirm, positiveEnabled, countdownSeconds, dangerWarning)) {
             return
         }
+        val fullMessage: CharSequence = if (dangerWarning != null) {
+            val ssb = android.text.SpannableStringBuilder()
+            val start = ssb.length
+            ssb.append(dangerWarning).append("\n\n")
+            ssb.setSpan(
+                android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor("#E53935")),
+                start,
+                ssb.length,
+                android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+            ssb.setSpan(
+                android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
+                start,
+                ssb.length,
+                android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+            ssb.append(message)
+            ssb
+        } else {
+            message
+        }
+
         val builder = MaterialAlertDialogBuilder(activity)
             .setTitle(title)
-            .setMessage(message)
+            .setMessage(fullMessage)
         if (negative != null) {
             builder.setNegativeButton(negative) { _, _ -> onNegative?.invoke() }
         }
-        if (onConfirm != null && positiveEnabled) builder.setPositiveButton(positive) { _, _ -> onConfirm() }
-        else builder.setPositiveButton(positive, null)
-        builder.show()
+        val initialText = if (countdownSeconds > 0) "$positive (${countdownSeconds}s)" else positive
+        builder.setPositiveButton(initialText, null)
+        val dialog = builder.create()
+        dialog.show()
+
+        val posBtn = dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE)
+        if (countdownSeconds > 0) {
+            posBtn.isEnabled = false
+            val handlerThread = android.os.Handler(android.os.Looper.getMainLooper())
+            var remaining = countdownSeconds
+            val runnable = object : Runnable {
+                override fun run() {
+                    remaining--
+                    if (dialog.isShowing) {
+                        if (remaining > 0) {
+                            posBtn.text = "$positive (${remaining}s)"
+                            handlerThread.postDelayed(this, 1000)
+                        } else {
+                            posBtn.text = positive
+                            if (positiveEnabled) {
+                                posBtn.isEnabled = true
+                                posBtn.setOnClickListener {
+                                    dialog.dismiss()
+                                    onConfirm?.invoke()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            handlerThread.postDelayed(runnable, 1000)
+        } else {
+            posBtn.isEnabled = positiveEnabled
+            if (positiveEnabled) {
+                posBtn.setOnClickListener {
+                    dialog.dismiss()
+                    onConfirm?.invoke()
+                }
+            }
+        }
     }
 }

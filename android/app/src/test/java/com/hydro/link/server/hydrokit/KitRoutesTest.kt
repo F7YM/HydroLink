@@ -54,6 +54,50 @@ class KitRoutesTest {
             lastUdpSend = Triple(host, port, data)
             return if (udpResult) mapOf("ok" to true, "bytesSent" to data.size) else mapOf("error" to "UDP 发送失败")
         }
+        var lastInputMove: Pair<Float, Float>? = null
+        var lastInputMoveBy: Pair<Float, Float>? = null
+        var lastInputClick: Triple<Float?, Float?, String>? = null
+        var lastInputDrag: List<Any>? = null
+        var lastInputScroll: Pair<Float, Float>? = null
+        var lastInputKey: String? = null
+        var lastInputShortcut: List<String>? = null
+        var lastInputText: String? = null
+        var inputResult = true
+
+        override fun inputScreen() = mapOf<String, Any?>("width" to 1080, "height" to 2400, "dpr" to 2.75)
+        override fun inputCursor() = mapOf<String, Any?>("x" to 540.0, "y" to 1200.0)
+        override fun inputMove(x: Float, y: Float): Map<String, Any?> {
+            lastInputMove = x to y
+            return if (inputResult) mapOf("ok" to true, "x" to x, "y" to y) else mapOf("error" to "移动失败")
+        }
+        override fun inputMoveBy(dx: Float, dy: Float): Map<String, Any?> {
+            lastInputMoveBy = dx to dy
+            return if (inputResult) mapOf("ok" to true, "dx" to dx, "dy" to dy) else mapOf("error" to "位移失败")
+        }
+        override fun inputClick(x: Float?, y: Float?, button: String, count: Int): Map<String, Any?> {
+            lastInputClick = Triple(x, y, button)
+            return if (inputResult) mapOf("ok" to true, "x" to x, "y" to y, "button" to button) else mapOf("error" to "点击失败")
+        }
+        override fun inputDrag(x1: Float, y1: Float, x2: Float, y2: Float, durationMs: Long): Map<String, Any?> {
+            lastInputDrag = listOf(x1, y1, x2, y2, durationMs)
+            return if (inputResult) mapOf("ok" to true) else mapOf("error" to "拖拽失败")
+        }
+        override fun inputScroll(dx: Float, dy: Float): Map<String, Any?> {
+            lastInputScroll = dx to dy
+            return if (inputResult) mapOf("ok" to true) else mapOf("error" to "滚轮失败")
+        }
+        override fun inputKey(key: String): Map<String, Any?> {
+            lastInputKey = key
+            return if (inputResult) mapOf("ok" to true, "key" to key) else mapOf("error" to "按键失败")
+        }
+        override fun inputShortcut(keys: List<String>): Map<String, Any?> {
+            lastInputShortcut = keys
+            return if (inputResult) mapOf("ok" to true, "keys" to keys) else mapOf("error" to "快捷键失败")
+        }
+        override fun inputText(text: String): Map<String, Any?> {
+            lastInputText = text
+            return if (inputResult) mapOf("ok" to true, "text" to text) else mapOf("error" to "文本输入失败")
+        }
         override fun serverBase() = "http://192.168.1.5:9000"
     }
 
@@ -402,5 +446,71 @@ class KitRoutesTest {
         val fail = f.routes.handle(post("/api/hydro/worker/udp/send", """{"package":"com.demo.weather","host":"127.0.0.1","port":9000,"data":"x"}"""))!!
         assertEquals(500, fail.status)
         assertTrue(fail.body.contains("UDP 发送失败"))
+    }
+
+    // ---- input 能力测试 ----
+
+    @Test
+    fun inputPermissionGateAndOperations() {
+        val fNoPerm = fixture(listOf("storage"))
+        val unauth = fNoPerm.routes.handle(post("/api/hydro/worker/input", """{"package":"com.demo.weather","op":"click"}"""))!!
+        assertEquals(403, unauth.status)
+        assertTrue(unauth.body.contains("权限不足: input"))
+
+        val f = fixture(listOf("input"))
+        // 未知操作
+        assertEquals(400, f.routes.handle(post("/api/hydro/worker/input", """{"package":"com.demo.weather","op":"unknown"}"""))!!.status)
+
+        // screen & cursor
+        val scr = json(f.routes.handle(post("/api/hydro/worker/input", """{"package":"com.demo.weather","op":"screen"}"""))!!.body)
+        assertEquals(1080, scr.get("width").asInt)
+        assertEquals(2400, scr.get("height").asInt)
+
+        val cur = json(f.routes.handle(post("/api/hydro/worker/input", """{"package":"com.demo.weather","op":"cursor"}"""))!!.body)
+        assertEquals(540, cur.get("x").asInt)
+        assertEquals(1200, cur.get("y").asInt)
+
+        // move & move_by
+        val move = f.routes.handle(post("/api/hydro/worker/input", """{"package":"com.demo.weather","op":"move","x":800,"y":600}"""))!!
+        assertEquals(200, move.status)
+        assertEquals(800f to 600f, f.caps.lastInputMove)
+
+        val moveBy = f.routes.handle(post("/api/hydro/worker/input", """{"package":"com.demo.weather","op":"move_by","dx":15,"dy":-10}"""))!!
+        assertEquals(200, moveBy.status)
+        assertEquals(15f to -10f, f.caps.lastInputMoveBy)
+
+        // click & tap
+        val click = f.routes.handle(post("/api/hydro/worker/input", """{"package":"com.demo.weather","op":"click","x":500,"y":300,"button":"right"}"""))!!
+        assertEquals(200, click.status)
+        assertEquals(Triple(500f, 300f, "right"), f.caps.lastInputClick)
+
+        // drag & swipe
+        val drag = f.routes.handle(post("/api/hydro/worker/input", """{"package":"com.demo.weather","op":"drag","x1":100,"y1":200,"x2":300,"y2":400,"duration":250}"""))!!
+        assertEquals(200, drag.status)
+        assertEquals(listOf(100f, 200f, 300f, 400f, 250L), f.caps.lastInputDrag)
+
+        // scroll
+        val scroll = f.routes.handle(post("/api/hydro/worker/input", """{"package":"com.demo.weather","op":"scroll","dy":-5}"""))!!
+        assertEquals(200, scroll.status)
+        assertEquals(0f to -5f, f.caps.lastInputScroll)
+
+        // key & shortcut & text
+        val key = f.routes.handle(post("/api/hydro/worker/input", """{"package":"com.demo.weather","op":"key","key":"back"}"""))!!
+        assertEquals(200, key.status)
+        assertEquals("back", f.caps.lastInputKey)
+
+        val shortcut = f.routes.handle(post("/api/hydro/worker/input", """{"package":"com.demo.weather","op":"shortcut","keys":["Control","c"]}"""))!!
+        assertEquals(200, shortcut.status)
+        assertEquals(listOf("Control", "c"), f.caps.lastInputShortcut)
+
+        val text = f.routes.handle(post("/api/hydro/worker/input", """{"package":"com.demo.weather","op":"text","text":"hello"}"""))!!
+        assertEquals(200, text.status)
+        assertEquals("hello", f.caps.lastInputText)
+
+        // 错误分支
+        f.caps.inputResult = false
+        val fail = f.routes.handle(post("/api/hydro/worker/input", """{"package":"com.demo.weather","op":"click"}"""))!!
+        assertEquals(500, fail.status)
+        assertTrue(fail.body.contains("点击失败"))
     }
 }

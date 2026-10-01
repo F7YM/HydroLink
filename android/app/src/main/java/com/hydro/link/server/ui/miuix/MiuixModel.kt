@@ -87,6 +87,10 @@ data class ConfirmDialog(
     val onConfirm: (() -> Unit)? = null,
     /** 肯定钮是否可点：false 时灰显（例如宿主版本太低、更新装不了）。 */
     val positiveEnabled: Boolean = true,
+    /** 倒计时秒数（高危权限安装强制等待）：> 0 时肯定钮禁用并显示倒计时。 */
+    val countdownSeconds: Int = 0,
+    /** 高危警示文案（红字突出显示）。 */
+    val dangerWarning: String? = null,
 )
 
 /** 状态文案的语义色（成功/警告沿用应用自己的语义色，miuix 色板没有 success）。 */
