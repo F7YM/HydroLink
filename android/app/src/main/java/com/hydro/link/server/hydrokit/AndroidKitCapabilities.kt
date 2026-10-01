@@ -25,9 +25,24 @@ class AndroidKitCapabilities(
     private val port: () -> Int,
     private val dataManagerProvider: () -> com.hydro.link.server.util.DataManager? = { null },
     private val commandRunner: (String) -> Triple<Boolean, String, Int> = { Triple(false, "命令执行能力不可用", -1) },
+    /** 无障碍与 Root/Shell 都不可用时回调一次（宿主用来在手机端 Toast 提示）。 */
+    private val onInputUnavailable: () -> Unit = {},
 ) : KitCapabilities {
 
     private val music = MusicController(context)
+
+    /** 输入不可用的提示做节流，避免连点刷屏。 */
+    private var lastInputUnavailableAt = 0L
+
+    private fun notifyInputUnavailable() {
+        val now = System.currentTimeMillis()
+        if (now - lastInputUnavailableAt < 1500L) return
+        lastInputUnavailableAt = now
+        try {
+            onInputUnavailable()
+        } catch (_: Exception) {
+        }
+    }
 
     override fun perf(): Map<String, Any?> {
         return try {
@@ -321,6 +336,7 @@ class AndroidKitCapabilities(
             return mapOf("ok" to true, "x" to targetX, "y" to targetY, "button" to button, "method" to "shell")
         }
 
+        notifyInputUnavailable()
         return mapOf("error" to "点击失败：无障碍服务未启用或手势被取消，且无 Root 权限")
     }
 
@@ -344,6 +360,7 @@ class AndroidKitCapabilities(
             return mapOf("ok" to true, "method" to "shell")
         }
 
+        notifyInputUnavailable()
         return mapOf("error" to "滑动失败：无障碍服务未启用或手势被取消，且无 Root 权限")
     }
 
@@ -412,6 +429,7 @@ class AndroidKitCapabilities(
         return if (service != null) {
             mapOf("error" to "不支持的按键: $key")
         } else {
+            notifyInputUnavailable()
             mapOf("error" to "按键执行失败：无障碍服务未启用且无 Root 权限")
         }
     }
@@ -421,6 +439,7 @@ class AndroidKitCapabilities(
         return if (ok && code == 0) {
             mapOf("ok" to true, "keys" to keys)
         } else {
+            notifyInputUnavailable()
             mapOf("error" to "快捷键执行失败")
         }
     }
@@ -431,6 +450,7 @@ class AndroidKitCapabilities(
         return if (ok && code == 0) {
             mapOf("ok" to true, "text" to text)
         } else {
+            notifyInputUnavailable()
             mapOf("error" to "文本输入失败：需要 Root/Shizuku 权限")
         }
     }

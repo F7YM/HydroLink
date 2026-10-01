@@ -39,6 +39,19 @@ class HydroHttpServer(
                 port = { currentPort },
                 dataManagerProvider = { dataManager },
                 commandRunner = { cmd -> runCommandForPlugins(cmd) },
+                onInputUnavailable = {
+                    // 无障碍与 Root/Shell 都不可用：插件请求控制设备时在手机端提示一次
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        try {
+                            android.widget.Toast.makeText(
+                                context.applicationContext,
+                                "无可用权限，无法控制设备",
+                                android.widget.Toast.LENGTH_SHORT,
+                            ).show()
+                        } catch (_: Exception) {
+                        }
+                    }
+                },
             ),
             hostAssets = com.hydro.link.server.hydrokit.HostAssetProvider { name ->
                 try { context.assets.open("hydrokit/$name").use { it.readBytes() } } catch (e: Exception) { null }
