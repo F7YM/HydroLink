@@ -215,6 +215,22 @@ class HydroHttpServer(
                                                 "version" to VERSION
                     ))
 
+                // LAN Discovery (HTTP 直接探测)
+                (cleanUri == "/api/discover/lan" || cleanUri == "/discover/lan") && method == Method.GET -> {
+                    val devices = kotlinx.coroutines.runBlocking {
+                        com.hydro.link.server.service.LanDiscovery.discover(context)
+                    }
+                    val devList = devices.map { d ->
+                        mapOf(
+                            "name" to d.name,
+                            "host" to d.host,
+                            "port" to d.port,
+                            "device_type" to d.deviceType
+                        )
+                    }
+                    jsonResp(mapOf("status" to "ok", "devices" to devList))
+                }
+
                 // PID
                 (cleanUri == "/api/pid" || cleanUri == "/pid") && method == Method.GET ->
                     jsonResp(mapOf(

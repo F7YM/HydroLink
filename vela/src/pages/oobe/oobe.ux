@@ -126,7 +126,7 @@
             <div if="{{ icConnected }}" class="device-card ic-active">
               <image class="card-icon" src="/common/icons/cellphone.png"></image>
               <div class="card-info">
-                <text class="card-name">已连接 HydroLink 手机端</text>
+                <text class="card-name">已连接</text>
                 <text class="card-sub">Interconnect 通讯</text>
               </div>
             </div>
@@ -186,8 +186,9 @@
               </div>
             </div>
 
-            <div if="{{ lanDevices.length === 0 && !lanScanning }}" class="empty-lan">
-              <text class="empty-tip">未发现其他设备</text>
+            <!-- 空状态提示：容器常驻占位，绝不因扫描状态来回销毁闪烁 -->
+            <div if="{{ lanDevices.length === 0 }}" class="empty-lan">
+              <text class="empty-tip">{{ lanScanning ? '正在探测局域网设备...' : '未发现其他设备' }}</text>
             </div>
           </div>
 
@@ -647,10 +648,8 @@
 
 <script>
 import router from '@system.router'
-import prompt from '@system.prompt'
 import settingsService from '../../services/settingsService.js'
 import interconnectService from '../../services/interconnectService.js'
-import deviceService from '../../services/deviceService.js'
 
 export default {
   private: {
@@ -790,19 +789,16 @@ export default {
     }
   },
 
-  async addLanDevice(dev) {
-    if (!dev) return
-    try {
-      await deviceService.addDevice({
-        name: dev.name,
-        host: dev.host,
-        port: dev.port || 9000,
-        deviceType: dev.device_type || 'desktop'
-      })
-      prompt.showToast({ message: `已添加 ${dev.name}` })
-    } catch (e) {
-      prompt.showToast({ message: '添加失败' })
-    }
+  addLanDevice(dev) {
+    if (!dev || !dev.host) return
+    router.push({
+      uri: '/pages/pairing',
+      params: {
+        serverIp: (dev.host || '').trim(),
+        serverPort: String(dev.port || 9000),
+        deviceName: (dev.name || '').trim()
+      }
+    })
   },
 
   openManualPair() {
