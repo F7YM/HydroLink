@@ -97,24 +97,28 @@ class LockAccessibilityService : AccessibilityService() {
             return dispatchGesture(gesture, null, null)
         }
         val latch = CountDownLatch(1)
-        var success = false
         val dispatched = dispatchGesture(gesture, object : GestureResultCallback() {
             override fun onCompleted(gestureDescription: GestureDescription?) {
-                success = true
                 latch.countDown()
             }
             override fun onCancelled(gestureDescription: GestureDescription?) {
-                success = false
                 latch.countDown()
             }
         }, null)
         if (!dispatched) return false
-        return try {
+        // 关键：dispatchGesture 返回 true 就代表手势已被系统接受、会执行。
+        // 回调可能迟来甚至不来（实测在部分机型/固件上就不来），**不能**因为回调超时
+        // 就返回 false —— 调用方会再走 shell 兜底（input tap/swipe），于是同一个
+        // 动作被执行两遍（表现为"点一下动两下、双击变三下"）。
+        val calledBack = try {
             latch.await(timeoutMs, TimeUnit.MILLISECONDS)
-            success
         } catch (_: Exception) {
             false
         }
+        if (!calledBack) {
+            android.util.Log.w("HydroLink", "dispatchGesture: 回调超时（已派发，按成功处理）")
+        }
+        return true
     }
 
     companion object {
