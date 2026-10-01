@@ -24,37 +24,40 @@ object MarketSources {
 
     private const val RAW = "https://raw.githubusercontent.com/$REPO/main"
 
+    /** 统一默认使用 Gh-Proxy */
+    val GH_PROXY = "https://gh-proxy.com/$RAW"
+    val DEFAULT = GH_PROXY
+
     /**
-     * 依次尝试：**jsDelivr → 直连 raw → gh-proxy**。
-     *
-     * 首选 jsDelivr：raw.githubusercontent 在国内经常连不上，jsDelivr 走自己的 CDN 稳；
-     * 直连排第二（网络好时更快），gh-proxy 兜底。
+     * 镜像源候选表：**GitHub Raw 始终排在第一个**，接着是 Gh-Proxy，然后是 jsDelivr。
      */
     val candidates: List<String> = listOf(
-        "https://cdn.jsdelivr.net/gh/$REPO@main",
         RAW,
-        "https://gh-proxy.org/$RAW",
+        GH_PROXY,
+        "https://cdn.jsdelivr.net/gh/$REPO@main",
     )
 
     /** 每个候选在「市场来源」弹窗里的短名，顺序与 [candidates] 严格一致。 */
-    private val LABELS = listOf("jsDelivr", "GitHub Raw", "Gh-Proxy")
+    private val LABELS = listOf("GitHub Raw", "Gh-Proxy", "jsDelivr")
 
-    /** 配置值 → 实际要试的基址列表。空/auto → 候选表；否则就它自己（用户自填反代）。 */
+    /** 配置值 → 实际要试的基址列表。空时统一默认使用 Gh-Proxy 开头；auto 时按优先级依次尝试。 */
     fun bases(setting: String?): List<String> {
         val s = setting?.trim().orEmpty()
-        if (s.isEmpty() || s == AUTO) return candidates
+        if (s.isEmpty() || s == GH_PROXY) return listOf(GH_PROXY, RAW, "https://cdn.jsdelivr.net/gh/$REPO@main")
+        if (s == AUTO) return listOf(GH_PROXY, RAW, "https://cdn.jsdelivr.net/gh/$REPO@main")
         return listOf(s.trimEnd('/'))
     }
 
     fun join(base: String, path: String): String = base.trimEnd('/') + "/" + path.trimStart('/')
 
     /**
-     * 来源在「市场来源」弹窗里显示的名字。别把一长串 URL 甩给用户看：
-     * 自动 / jsDelivr / GitHub Raw / Gh-Proxy；填了别的地址就原样显示。
+     * 来源在「市场来源」弹窗里显示的名字。
+     * 默认显示 Gh-Proxy；自动 / GitHub Raw / Gh-Proxy / jsDelivr；填了别的地址就原样显示。
      */
     fun label(setting: String?): String {
         val s = setting?.trim().orEmpty()
-        if (s.isEmpty() || s == AUTO) return "自动"
+        if (s.isEmpty()) return "Gh-Proxy"
+        if (s == AUTO) return "自动"
         val hit = candidates.indexOfFirst { it == s || it.trimEnd('/') == s.trimEnd('/') }
         if (hit >= 0) return LABELS[hit]
         return s

@@ -52,6 +52,6 @@ data class AppConfig(
     @SerializedName("boot_start") var bootStart: Boolean = false,
     @SerializedName("liquid_glass") var liquidGlass: Boolean = false, // Liquid Glass 底栏（默认关）
     @SerializedName("miuix") var miuix: Boolean = false, // miuix 风格底栏（默认关）
-    /** 插件市场来源：auto（直连 → gh-proxy → jsDelivr 依次尝试）或某个基址 URL。 */
-    @SerializedName("market_source") var marketSource: String = "auto"
+    /** 插件市场来源：统一默认 Gh-Proxy。 */
+    @SerializedName("market_source") var marketSource: String = "https://gh-proxy.com/https://raw.githubusercontent.com/F7YM/hydromarket-index/main"
 )

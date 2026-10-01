@@ -164,9 +164,10 @@ class MarketClientTest {
 
     @Test
     fun `auto 走候选表 自定义只走自己 尾斜杠去掉`() {
-        assertEquals(MarketSources.candidates, MarketSources.bases(MarketSources.AUTO))
-        assertEquals(MarketSources.candidates, MarketSources.bases(""))
-        assertEquals(MarketSources.candidates, MarketSources.bases(null))
+        val expectedBases = listOf(MarketSources.GH_PROXY, "https://raw.githubusercontent.com/${MarketSources.REPO}/main", "https://cdn.jsdelivr.net/gh/${MarketSources.REPO}@main")
+        assertEquals(expectedBases, MarketSources.bases(MarketSources.AUTO))
+        assertEquals(expectedBases, MarketSources.bases(""))
+        assertEquals(expectedBases, MarketSources.bases(null))
         assertEquals(listOf("https://my.mirror/x"), MarketSources.bases("https://my.mirror/x/"))
         assertEquals(3, MarketSources.candidates.size)
     }
@@ -185,17 +186,17 @@ class MarketClientTest {
 
     @Test
     fun `来源名用短名而不是甩一串URL`() {
-        assertEquals("自动", MarketSources.label(null))
-        assertEquals("自动", MarketSources.label(""))
+        assertEquals("Gh-Proxy", MarketSources.label(null))
+        assertEquals("Gh-Proxy", MarketSources.label(""))
         assertEquals("自动", MarketSources.label(MarketSources.AUTO))
-        // 默认首选 jsDelivr（raw 在国内经常连不上），短名与候选顺序严格对应
-        assertTrue(MarketSources.candidates[0].contains("jsdelivr"))
+        // GitHub Raw 始终排在第一个，短名与候选顺序严格对应
+        assertTrue(MarketSources.candidates[0].contains("raw.githubusercontent.com"))
         assertEquals(
-            listOf("jsDelivr", "GitHub Raw", "Gh-Proxy"),
+            listOf("GitHub Raw", "Gh-Proxy", "jsDelivr"),
             MarketSources.candidates.map { MarketSources.label(it) },
         )
         // 尾斜杠也算同一个
-        assertEquals("jsDelivr", MarketSources.label(MarketSources.candidates[0] + "/"))
+        assertEquals("GitHub Raw", MarketSources.label(MarketSources.candidates[0] + "/"))
         // 自定义地址原样显示
         assertEquals("https://my.mirror/x", MarketSources.label("https://my.mirror/x"))
     }
