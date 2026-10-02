@@ -8,12 +8,130 @@
         ontouchstart="pressDown('back')"
         ontouchend="pressRelease('back')"
         ontouchcancel="pressCancel('back')"
-        onclick="goBack"
-      >‹配对新设备</text>
+        onclick="onHeaderBack"
+      >{{ viewMode === 'choose' ? '‹添加设备' : (viewMode === 'scan' ? '‹扫描设备' : '‹配对新设备') }}</text>
     </div>
 
-    <!-- Form area -->
-    <div class="form-area">
+    <!-- ================= 模式 1: 选择添加方式 (连接着 interconnect) ================= -->
+    <div if="{{ viewMode === 'choose' }}" class="choose-area">
+      <div class="choose-list">
+        <!-- 选项一：尝试自动扫描设备 -->
+        <div
+          class="option-card pressable {{ pressedKey === 'opt_scan' ? 'is-down press-down' : '' }} {{ releasedKey === 'opt_scan' ? 'press-up' : '' }}"
+          ontouchstart="pressDown('opt_scan')"
+          ontouchend="pressRelease('opt_scan')"
+          ontouchcancel="pressCancel('opt_scan')"
+          onclick="chooseScan"
+        >
+          <div class="option-icon-box">
+            <image class="option-icon" src="/common/icons/desktop.png"></image>
+          </div>
+          <div class="option-info">
+            <text class="option-title">尝试自动扫描设备</text>
+            <text class="option-desc">自动发现局域网内的设备</text>
+          </div>
+          <text class="option-chevron">›</text>
+        </div>
+
+        <!-- 选项二：通过 IP 地址手动添加设备 -->
+        <div
+          class="option-card pressable {{ pressedKey === 'opt_manual' ? 'is-down press-down' : '' }} {{ releasedKey === 'opt_manual' ? 'press-up' : '' }}"
+          ontouchstart="pressDown('opt_manual')"
+          ontouchend="pressRelease('opt_manual')"
+          ontouchcancel="pressCancel('opt_manual')"
+          onclick="chooseManual"
+        >
+          <div class="option-icon-box">
+            <image class="option-icon" src="/common/icons/arrow-forward.png"></image>
+          </div>
+          <div class="option-info">
+            <text class="option-title">通过 IP 地址手动添加设备</text>
+            <text class="option-desc">手动输入 IP 地址与端口</text>
+          </div>
+          <text class="option-chevron">›</text>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= 模式 2: 自动扫描设备 ================= -->
+    <scroll if="{{ viewMode === 'scan' }}" class="scan-scroll" scroll-y="true" bounces="true">
+      <div class="scan-content">
+        <!-- 正在扫描中状态 -->
+        <div if="{{ lanScanning }}" class="scanning-box">
+          <div class="spinner">
+            <image class="spinner-img" src="/common/icons/progress-activity.png"></image>
+          </div>
+          <text class="scanning-tip">正在扫描局域网设备...</text>
+        </div>
+
+        <!-- 扫描完成：发现设备列表 -->
+        <div if="{{ !lanScanning && lanDevices.length > 0 }}" class="lan-section">
+          <div class="section-header">
+            <text class="section-title">发现局域网设备 ({{ lanDevices.length }})</text>
+            <div
+              class="rescan-btn pressable {{ pressedKey === 'rescan' ? 'is-down press-down' : '' }} {{ releasedKey === 'rescan' ? 'press-up' : '' }}"
+              ontouchstart="pressDown('rescan')"
+              ontouchend="pressRelease('rescan')"
+              ontouchcancel="pressCancel('rescan')"
+              onclick="startScan"
+            >
+              <text class="rescan-btn-text">重新扫描</text>
+            </div>
+          </div>
+
+          <div class="lan-list">
+            <div
+              for="{{ (index, dev) in lanDevices }}"
+              class="device-card {{ dev.isAdded ? 'is-added' : 'pressable' }} {{ pressedKey === 'lan_' + index ? 'is-down press-down' : '' }} {{ releasedKey === 'lan_' + index ? 'press-up' : '' }}"
+              ontouchstart="pressDown('lan_' + index)"
+              ontouchend="pressRelease('lan_' + index)"
+              ontouchcancel="pressCancel('lan_' + index)"
+              onclick="addLanDevice(dev)"
+            >
+              <image class="card-icon {{ dev.isAdded ? 'icon-disabled' : '' }}" src="/common/icons/{{ dev.device_type === 'cellphone' ? 'cellphone' : (dev.device_type === 'laptop' ? 'laptop' : 'desktop') }}.png"></image>
+              <div class="card-info">
+                <text class="card-name {{ dev.isAdded ? 'text-disabled' : '' }}">{{ dev.name }}</text>
+                <text class="card-sub {{ dev.isAdded ? 'sub-disabled' : '' }}">{{ dev.host }}:{{ dev.port }}</text>
+              </div>
+              <text if="{{ !dev.isAdded }}" class="badge-add">+</text>
+              <text if="{{ dev.isAdded }}" class="badge-added">已添加</text>
+            </div>
+          </div>
+        </div>
+
+        <!-- 扫描完成：未发现设备 -->
+        <div if="{{ !lanScanning && lanDevices.length === 0 }}" class="empty-box">
+          <text class="empty-title">未发现局域网设备</text>
+          <text class="empty-sub">请确保设备已启动并在同一网络</text>
+          <div
+            class="action-btn pressable {{ pressedKey === 'rescan_empty' ? 'is-down press-down' : '' }} {{ releasedKey === 'rescan_empty' ? 'press-up' : '' }}"
+            ontouchstart="pressDown('rescan_empty')"
+            ontouchend="pressRelease('rescan_empty')"
+            ontouchcancel="pressCancel('rescan_empty')"
+            onclick="startScan"
+          >
+            <text class="action-btn-text">重新扫描</text>
+          </div>
+        </div>
+
+        <!-- 底部切换到手动输入 -->
+        <div
+          class="manual-switch-btn pressable {{ pressedKey === 'switch_manual' ? 'is-down press-down' : '' }} {{ releasedKey === 'switch_manual' ? 'press-up' : '' }}"
+          ontouchstart="pressDown('switch_manual')"
+          ontouchend="pressRelease('switch_manual')"
+          ontouchcancel="pressCancel('switch_manual')"
+          onclick="chooseManual"
+        >
+          <text class="manual-switch-text">通过 IP 地址手动添加设备 ›</text>
+        </div>
+
+        <!-- 底部安全区占位 -->
+        <div class="list-bottom-space"></div>
+      </div>
+    </scroll>
+
+    <!-- ================= 模式 3: 手动输入 IP ================= -->
+    <div if="{{ viewMode === 'manual' }}" class="form-area">
       <div class="form-list">
         <!-- Server IP -->
         <div
@@ -52,9 +170,7 @@
         </div>
       </div>
 
-      <!-- 表单校验错误（页内显示，不弹 toast） -->
-
-      <!-- Pair button: 箭头图标按钮，点击进入「正在配对」页 -->
+      <!-- Pair button -->
       <div class="button-wrapper">
         <div
           class="pair-go pressable {{ pressedKey === 'pairGo' ? 'is-down press-down' : '' }} {{ releasedKey === 'pairGo' ? 'press-up' : '' }}"
@@ -101,7 +217,244 @@
   text-align: center;
 }
 
-/* ---- Form ---- */
+/* ---- Choose mode ---- */
+.choose-area {
+  position: absolute;
+  top: 90px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.choose-list {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.option-card {
+  width: 420px;
+  height: 126px;
+  margin: 12px 0;
+  padding: 0 24px;
+  background-color: #2e323c;
+  border-radius: 48px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+.option-icon-box {
+  width: 60px;
+  height: 60px;
+  border-radius: 30px;
+  background-color: #3b404d;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  margin-right: 18px;
+  flex-shrink: 0;
+}
+.option-icon {
+  width: 34px;
+  height: 34px;
+}
+.option-info {
+  flex-grow: 1;
+  flex-direction: column;
+  justify-content: center;
+}
+.option-title {
+  font-size: 24px;
+  font-weight: bold;
+  color: #ffffff;
+  lines: 1;
+  text-overflow: ellipsis;
+}
+.option-desc {
+  font-size: 20px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 4px;
+  lines: 1;
+  text-overflow: ellipsis;
+}
+.option-chevron {
+  font-size: 32px;
+  font-weight: bold;
+  color: #888888;
+  margin-left: 10px;
+  flex-shrink: 0;
+}
+
+/* ---- Scan mode ---- */
+.scan-scroll {
+  position: absolute;
+  top: 90px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+}
+.scan-content {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 10px;
+}
+.scanning-box {
+  width: 100%;
+  height: 240px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.scanning-tip {
+  font-size: 24px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 16px;
+}
+.lan-section {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+}
+.section-header {
+  width: 400px;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 0 8px;
+}
+.section-title {
+  font-size: 22px;
+  font-weight: bold;
+  color: rgba(255, 255, 255, 0.6);
+}
+.rescan-btn {
+  padding: 6px 14px;
+  border-radius: 20px;
+  background-color: #3b404d;
+}
+.rescan-btn-text {
+  font-size: 20px;
+  color: #bac3ff;
+  font-weight: bold;
+}
+.lan-list {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+}
+.device-card {
+  width: 400px;
+  min-height: 108px;
+  background-color: #2e323c;
+  border-radius: 54px;
+  padding: 12px 22px;
+  flex-direction: row;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.card-icon {
+  width: 46px;
+  height: 46px;
+  margin-right: 14px;
+  flex-shrink: 0;
+}
+.card-info {
+  flex-grow: 1;
+  flex-direction: column;
+  justify-content: center;
+}
+.card-name {
+  font-size: 24px;
+  font-weight: bold;
+  color: #ffffff;
+  lines: 1;
+  text-overflow: ellipsis;
+}
+.card-sub {
+  font-size: 20px;
+  color: #888888;
+  margin-top: 4px;
+  lines: 1;
+  text-overflow: ellipsis;
+}
+.badge-add {
+  font-size: 32px;
+  font-weight: bold;
+  color: #bac3ff;
+  margin-left: 8px;
+}
+.badge-added {
+  font-size: 20px;
+  font-weight: bold;
+  color: #888888;
+  margin-left: 8px;
+}
+.is-added {
+  opacity: 0.6;
+}
+.icon-disabled {
+  opacity: 0.5;
+}
+.text-disabled {
+  color: #888888;
+}
+.sub-disabled {
+  color: #666666;
+}
+.empty-box {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px 20px;
+}
+.empty-title {
+  font-size: 26px;
+  font-weight: bold;
+  color: #ffffff;
+  text-align: center;
+}
+.empty-sub {
+  font-size: 20px;
+  color: rgba(255, 255, 255, 0.6);
+  text-align: center;
+  margin-top: 8px;
+  margin-bottom: 24px;
+}
+.action-btn {
+  padding: 12px 32px;
+  border-radius: 28px;
+  background-color: #3b404d;
+}
+.action-btn-text {
+  font-size: 24px;
+  font-weight: bold;
+  color: #bac3ff;
+}
+.manual-switch-btn {
+  margin-top: 20px;
+  padding: 12px 20px;
+}
+.manual-switch-text {
+  font-size: 22px;
+  color: #bac3ff;
+  text-align: center;
+}
+.list-bottom-space {
+  width: 100%;
+  height: 80px;
+  flex-shrink: 0;
+}
+
+/* ---- Manual mode ---- */
 .form-area {
   position: absolute;
   top: 90px;
@@ -146,8 +499,6 @@
   max-width: 220px;
   text-align: right;
 }
-
-/* ---- Button ---- */
 .button-wrapper {
   width: 100%;
   flex-direction: column;
@@ -169,13 +520,31 @@
   width: 48px;
   height: 48px;
 }
-.form-error {
-  width: 390px;
-  font-size: 22px;
-  color: #ffb4ab;
-  text-align: center;
-  margin-top: 4px;
+
+/* 转圈动画 */
+.spinner {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  transform-origin: 24px 24px;
+  animation-name: spin;
+  animation-duration: 900ms;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
 }
+.spinner-img {
+  width: 48px;
+  height: 48px;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Press animation */
 .pressable {
   transform-origin: 50% 50%;
   transform: scale(1);
@@ -221,6 +590,21 @@
 
 /* ---- Circle screen adaptation ---- */
 @media (shape: circle) {
+  .option-card {
+    width: 370px;
+    height: 120px;
+    border-radius: 46px;
+    margin: 10px 0;
+  }
+  .section-header {
+    width: 360px;
+  }
+  .device-card {
+    width: 360px;
+  }
+  .list-bottom-space {
+    height: 140px;
+  }
   .form-list {
     padding-top: 30px;
   }
@@ -254,6 +638,12 @@
   .time-display {
     margin-right: 12px;
   }
+  .choose-area {
+    top: 65px;
+  }
+  .scan-scroll {
+    top: 65px;
+  }
   .form-area {
     top: 65px;
   }
@@ -269,13 +659,19 @@
 <script>
 import router from '@system.router'
 import prompt from '@system.prompt'
+import interconnectService from '../../services/interconnectService.js'
+import deviceService from '../../services/deviceService.js'
 
 export default {
   private: {
     currentTime: '00:00',
+    isIcConnected: false,
+    viewMode: 'manual', // 'choose' | 'scan' | 'manual'
     serverIp: '',
     serverPort: '9000',
     deviceName: '',
+    lanScanning: false,
+    lanDevices: [],
     pressedKey: '',
     releasedKey: ''
   },
@@ -283,6 +679,12 @@ export default {
   onInit() {
     this.updateTime()
     this._timeInterval = setInterval(() => this.updateTime(), 60000)
+
+    // 检查是否连接着 interconnect
+    interconnectService.ensureInit()
+    const icReady = interconnectService.isReady()
+    this.isIcConnected = !!icReady
+    this.viewMode = icReady ? 'choose' : 'manual'
   },
 
   onDestroy() {
@@ -310,8 +712,76 @@ export default {
     }
   },
 
-  goBack() {
+  onHeaderBack() {
+    if (this.viewMode === 'scan') {
+      this.viewMode = 'choose'
+      return
+    }
+    if (this.viewMode === 'manual' && this.isIcConnected) {
+      this.viewMode = 'choose'
+      return
+    }
     router.back()
+  },
+
+  chooseScan() {
+    this.viewMode = 'scan'
+    this.startScan()
+  },
+
+  chooseManual() {
+    this.viewMode = 'manual'
+  },
+
+  async startScan() {
+    if (this.lanScanning) return
+    this.lanScanning = true
+    try {
+      const devices = await interconnectService.discoverLan()
+      let saved = []
+      try {
+        saved = (await deviceService.getDevices()) || []
+      } catch (err) {
+        console.warn('[pair] getDevices error', err)
+      }
+      const savedKeys = new Set(saved.map(d => `${d.host}:${d.port || 9000}`))
+
+      if (devices && Array.isArray(devices)) {
+        const uniqueKeys = new Set()
+        const list = []
+        for (const dev of devices) {
+          const key = `${dev.host}:${dev.port || 9000}`
+          if (!uniqueKeys.has(key)) {
+            uniqueKeys.add(key)
+            list.push(Object.assign({}, dev, { isAdded: savedKeys.has(key) }))
+          }
+        }
+        this.lanDevices = list
+      } else {
+        this.lanDevices = []
+      }
+    } catch (e) {
+      console.warn('[pair] scanLan error', e)
+      this.lanDevices = []
+    } finally {
+      this.lanScanning = false
+    }
+  },
+
+  addLanDevice(dev) {
+    if (!dev || !dev.host) return
+    if (dev.isAdded) {
+      prompt.showToast({ message: '该设备已在列表中' })
+      return
+    }
+    router.push({
+      uri: '/pages/pairing',
+      params: {
+        serverIp: (dev.host || '').trim(),
+        serverPort: String(dev.port || 9000),
+        deviceName: (dev.name || '').trim()
+      }
+    })
   },
 
   onFieldClick(fieldName, label) {
@@ -320,7 +790,6 @@ export default {
     else if (fieldName === 'serverPort') currentValue = this.serverPort
     else if (fieldName === 'deviceName') currentValue = this.deviceName
 
-    // Pass config via router params
     router.push({
       uri: '/pages/keyboard',
       params: {
@@ -332,7 +801,6 @@ export default {
   },
 
   onPair() {
-    // 表单校验用 toast 提示（不再在页面内显示错误行）
     if (!this.serverIp) {
       prompt.showToast({ message: '请输入服务器IP' })
       return
@@ -347,7 +815,6 @@ export default {
       return
     }
 
-    // 进入「正在配对」页执行配对（错误在页面内显示，不弹 toast）
     router.push({
       uri: '/pages/pairing',
       params: {
