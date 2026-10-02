@@ -802,20 +802,11 @@ private fun MiuixConfirmHost(dialog: ConfirmDialog?, onDismiss: () -> Unit) {
         title = shown.title,
         content = {
             Column {
-                if (!shown.dangerWarning.isNullOrBlank()) {
-                    Text(
-                        text = shown.dangerWarning,
-                        color = Color(0xFFE53935),
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 12.dp),
-                    )
-                }
                 val scrollState = rememberScrollState()
-                Text(
-                    text = shown.message,
-                    color = MiuixTheme.colorScheme.onSurface,
+                Column(
                     modifier = Modifier
-                        .heightIn(max = 300.dp)
+                        .fillMaxWidth()
+                        .heightIn(max = if (!shown.dangerWarning.isNullOrBlank()) 220.dp else 260.dp)
                         .drawVerticalScrollbar(
                             state = scrollState,
                             thumbColor = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.38f),
@@ -823,8 +814,21 @@ private fun MiuixConfirmHost(dialog: ConfirmDialog?, onDismiss: () -> Unit) {
                         )
                         .verticalScroll(scrollState)
                         .padding(end = 10.dp),
-                )
-                Spacer(Modifier.height(24.dp))
+                ) {
+                    if (!shown.dangerWarning.isNullOrBlank()) {
+                        Text(
+                            text = shown.dangerWarning,
+                            color = Color(0xFFE53935),
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 10.dp),
+                        )
+                    }
+                    Text(
+                        text = shown.message,
+                        color = MiuixTheme.colorScheme.onSurface,
+                    )
+                }
+                Spacer(Modifier.height(18.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (shown.negative != null) {
                         MiuixTextButton(

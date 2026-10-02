@@ -1043,20 +1043,11 @@ private fun PluginConfirmDialog(model: MiuixModel) {
         title = dialog.title,
         content = {
             Column {
-                if (!dialog.dangerWarning.isNullOrBlank()) {
-                    Text(
-                        text = dialog.dangerWarning,
-                        color = Color(0xFFE53935),
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 12.dp),
-                    )
-                }
                 val scrollState = rememberScrollState()
-                Text(
-                    text = dialog.message,
-                    color = MiuixTheme.colorScheme.onSurface,
+                Column(
                     modifier = Modifier
-                        .heightIn(max = 300.dp)
+                        .fillMaxWidth()
+                        .heightIn(max = if (!dialog.dangerWarning.isNullOrBlank()) 220.dp else 260.dp)
                         .drawVerticalScrollbar(
                             state = scrollState,
                             thumbColor = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.38f),
@@ -1064,8 +1055,21 @@ private fun PluginConfirmDialog(model: MiuixModel) {
                         )
                         .verticalScroll(scrollState)
                         .padding(end = 10.dp),
-                )
-                Spacer(Modifier.height(24.dp))
+                ) {
+                    if (!dialog.dangerWarning.isNullOrBlank()) {
+                        Text(
+                            text = dialog.dangerWarning,
+                            color = Color(0xFFE53935),
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 10.dp),
+                        )
+                    }
+                    Text(
+                        text = dialog.message,
+                        color = MiuixTheme.colorScheme.onSurface,
+                    )
+                }
+                Spacer(Modifier.height(18.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     val negative = dialog.negative
                     if (negative != null) {
