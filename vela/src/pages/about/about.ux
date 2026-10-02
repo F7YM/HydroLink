@@ -53,6 +53,10 @@
           <image class="avatar" src="/common/avatars/avatar_fcb.jpg"></image>
           <text class="person-name">fcb</text>
         </div>
+        <div class="person-card">
+          <image class="avatar" src="/common/avatars/avatar_endelineark.jpg"></image>
+          <text class="person-name">EndeLineark_</text>
+        </div>
 
         <!-- 底部安全区占位 -->
         <div class="list-bottom-space"></div>
