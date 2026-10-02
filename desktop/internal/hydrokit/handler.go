@@ -81,7 +81,7 @@ func (h *Handler) listForClient(r *http.Request) []PluginSummary {
 // HostVersion 是报给插件的宿主应用版本（req.host.app）。由 app 装配处从
 // api.Version 注入——hydrokit 不能反过来 import api（会成环），而打包脚本
 // 是用 -X 注入 api.Version 的，所以保持单一来源。
-var HostVersion = "1.1.0"
+var HostVersion = "1.2.1"
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet && r.Method != http.MethodPost {

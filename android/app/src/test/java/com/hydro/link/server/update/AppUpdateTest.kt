@@ -98,6 +98,36 @@ class AppUpdateTest {
     }
 
     @Test
+    fun `解析分端分类 changelog（手机端、桌面端、手表端）`() {
+        val json = """
+            {
+              "version": "1.2.1",
+              "changelog": {
+                "手机端": [
+                  "新增：App 自动检查更新与网盘分发支持",
+                  "修复：若干已知体验问题"
+                ],
+                "桌面端": [
+                  "新增：Compose 双引擎更新弹窗"
+                ],
+                "手表端": [
+                  "优化：互联通信稳定性"
+                ]
+              }
+            }
+        """.trimIndent()
+        val info = AppUpdateHelper.parse(json)
+        val text = AppUpdateHelper.formatChangelog(info.changelog)
+        assertTrue(text.contains("【手机端】"))
+        assertTrue(text.contains("1. 新增：App 自动检查更新与网盘分发支持"))
+        assertTrue(text.contains("2. 修复：若干已知体验问题"))
+        assertTrue(text.contains("【桌面端】"))
+        assertTrue(text.contains("1. 新增：Compose 双引擎更新弹窗"))
+        assertTrue(text.contains("【手表端】"))
+        assertTrue(text.contains("1. 优化：互联通信稳定性"))
+    }
+
+    @Test
     fun `更新弹窗正文生成`() {
         val info = AppUpdateHelper.parse(sampleJson)
         val text = AppUpdateHelper.dialogText(info, "1.1.0")

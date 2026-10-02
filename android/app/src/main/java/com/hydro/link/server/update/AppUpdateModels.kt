@@ -42,7 +42,24 @@ object AppUpdateHelper {
         val changelogList = mutableListOf<String>()
         val clElem = obj.get("changelog")
         if (clElem != null) {
-            if (clElem.isJsonArray) {
+            if (clElem.isJsonObject) {
+                // 支持按分类对象解析，如 "手机端"、"桌面端"、"手表端"
+                clElem.asJsonObject.entrySet().forEach { (key, value) ->
+                    val header = if (key.startsWith("【") && key.endsWith("】")) key else "【$key】"
+                    changelogList.add(header)
+                    if (value.isJsonArray) {
+                        value.asJsonArray.forEach { item ->
+                            val s = item.asString.trim()
+                            if (s.isNotEmpty()) changelogList.add(s)
+                        }
+                    } else if (value.isJsonPrimitive) {
+                        value.asString.lines().forEach { line ->
+                            val s = line.trim()
+                            if (s.isNotEmpty()) changelogList.add(s)
+                        }
+                    }
+                }
+            } else if (clElem.isJsonArray) {
                 clElem.asJsonArray.forEach { elem ->
                     val s = elem.asString.trim()
                     if (s.isNotEmpty()) changelogList.add(s)
@@ -87,21 +104,46 @@ object AppUpdateHelper {
     fun isNewer(remoteVersion: String, currentVersion: String): Boolean =
         PluginStore.compareVersions(remoteVersion, currentVersion) > 0
 
-    /** 格式化更新日志列表。 */
+    /** 是否属于分类标题行（如【手机端】、[桌面端]、### 手表端、手机端：等）。 */
+    fun isSectionHeader(line: String): Boolean {
+        val t = line.trim()
+        return (t.startsWith("【") && t.endsWith("】")) ||
+            (t.startsWith("[") && t.endsWith("]")) ||
+            t.startsWith("###") ||
+            t.startsWith("##") ||
+            t.startsWith("#") ||
+            (t.endsWith("：") && !t.contains(" ")) ||
+            (t.endsWith(":") && !t.contains(" "))
+    }
+
+    /** 格式化更新日志列表。支持分类标题与多端独立序号计数。 */
     fun formatChangelog(changelog: List<String>): String = buildString {
         if (changelog.isEmpty()) {
             append("常规稳定性修复与性能优化。")
             return@buildString
         }
-        changelog.forEachIndexed { index, line ->
-            // 如果日志本身已带序号或项目符号则保留，否则补充序号
-            val trimmed = line.trim()
-            if (trimmed.startsWith("-") || trimmed.startsWith("•") || Regex("""^\d+[.、]""").containsMatchIn(trimmed)) {
+
+        var itemIndex = 1
+        var isFirstLine = true
+
+        changelog.forEach { raw ->
+            val trimmed = raw.trim()
+            if (trimmed.isEmpty()) return@forEach
+
+            if (isSectionHeader(trimmed)) {
+                if (!isFirstLine) append("\n\n")
                 append(trimmed)
+                itemIndex = 1 // 每个分类独立计数
             } else {
-                append("${index + 1}. ").append(trimmed)
+                if (!isFirstLine) append('\n')
+                if (trimmed.startsWith("-") || trimmed.startsWith("•") || Regex("""^\d+[.、]""").containsMatchIn(trimmed)) {
+                    append(trimmed)
+                } else {
+                    append("$itemIndex. ").append(trimmed)
+                    itemIndex++
+                }
             }
-            if (index < changelog.size - 1) append('\n')
+            isFirstLine = false
         }
     }
 

@@ -128,7 +128,7 @@ class HydroHttpServer(
     private val maxLogs = 100
 
     companion object {
-        private const val VERSION = "1.2.0"
+        private const val VERSION = "1.2.1"
 
         /** logcat tag（`adb logcat -s HydroLink`）。 */
         private const val TAG_LOGCAT = "HydroLink"
