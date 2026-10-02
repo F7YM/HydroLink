@@ -9,7 +9,7 @@
         ontouchend="pressRelease('back')"
         ontouchcancel="pressCancel('back')"
         onclick="onHeaderBack"
-      >{{ viewMode === 'choose' ? '‹添加设备' : (viewMode === 'scan' ? '‹扫描设备' : '‹配对新设备') }}</text>
+      >{{ viewMode === 'choose' ? '‹添加设备' : (viewMode === 'scan' ? '‹扫描设备' : '‹手动添加') }}</text>
     </div>
 
     <!-- ================= 模式 1: 选择添加方式 (连接着 interconnect) ================= -->
@@ -24,7 +24,7 @@
           onclick="chooseScan"
         >
           <div class="option-icon-box">
-            <image class="option-icon" src="/common/icons/desktop.png"></image>
+            <image class="option-icon" src="/common/icons/wifi_tethering_32dp_FFFFFF_FILL0_wght400_GRAD0_opsz40.png"></image>
           </div>
           <div class="option-info">
             <text class="option-title">尝试自动扫描设备</text>
@@ -42,7 +42,7 @@
           onclick="chooseManual"
         >
           <div class="option-icon-box">
-            <image class="option-icon" src="/common/icons/arrow-forward.png"></image>
+            <image class="option-icon" src="/common/icons/keyboard_32dp_FFFFFF_FILL0_wght400_GRAD0_opsz40.png"></image>
           </div>
           <div class="option-info">
             <text class="option-title">通过 IP 地址手动添加设备</text>
