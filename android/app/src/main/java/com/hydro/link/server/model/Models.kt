@@ -53,5 +53,9 @@ data class AppConfig(
     @SerializedName("liquid_glass") var liquidGlass: Boolean = false, // Liquid Glass 底栏（默认关）
     @SerializedName("miuix") var miuix: Boolean = false, // miuix 风格底栏（默认关）
     /** 插件市场来源：统一默认 Gh-Proxy。 */
-    @SerializedName("market_source") var marketSource: String = "https://gh-proxy.com/https://raw.githubusercontent.com/F7YM/hydromarket-index/main"
+    @SerializedName("market_source") var marketSource: String = "https://gh-proxy.com/https://raw.githubusercontent.com/F7YM/hydromarket-index/main",
+    /** 检查更新记录：上次自动检查日期（每天最多 1 次，yyyy-MM-dd）。 */
+    @SerializedName("last_update_check_date") var lastUpdateCheckDate: String = "",
+    /** 稍后提醒记录：上次点击稍后提醒日期（今日不再提醒，yyyy-MM-dd）。 */
+    @SerializedName("last_update_ignore_date") var lastUpdateIgnoreDate: String = ""
 )

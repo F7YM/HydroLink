@@ -43,6 +43,8 @@ class MiuixModel {
 
     // 设置 Tab
     var appName by mutableStateOf("")
+    var appVersion by mutableStateOf("")
+    var checkingAppUpdate by mutableStateOf(false)
     var rootStatus by mutableStateOf("")
     /** 命令授权器：none / root / shizuku。 */
     var authorizer by mutableStateOf("none")
@@ -136,6 +138,8 @@ class MiuixActions(
     val onToggleBoot: (Boolean) -> Unit,
     val onToggleGlass: (Boolean) -> Unit,
     val onToggleMiuix: (Boolean) -> Unit,
+    /** 手动检查应用版本更新。 */
+    val onCheckAppUpdate: () -> Unit,
     val onRootConfirmDismiss: () -> Unit,
     val onRootConfirmAccept: () -> Unit,
 )

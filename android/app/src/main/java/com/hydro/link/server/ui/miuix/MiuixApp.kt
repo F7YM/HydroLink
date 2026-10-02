@@ -790,7 +790,15 @@ private fun SettingsTab(padding: PaddingValues, model: MiuixModel, actions: Miui
         item { SmallTitle("关于") }
         item {
             Card(modifier = Modifier.sectionCard()) {
-                BasicComponent(title = model.appName, summary = "By Float11")
+                BasicComponent(
+                    title = model.appName,
+                    summary = "版本 v${model.appVersion} · By Float11",
+                )
+                BasicComponent(
+                    title = "检查更新",
+                    summary = if (model.checkingAppUpdate) "正在检查更新..." else "点击检查新版本",
+                    onClick = actions.onCheckAppUpdate,
+                )
             }
         }
 

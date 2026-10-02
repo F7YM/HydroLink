@@ -500,7 +500,19 @@ private fun SettingsTab(padding: PaddingValues, model: MiuixModel, actions: Miui
     MdPage(padding) {
         item {
             MdSegmentedColumn(title = "关于", contentPadding = PaddingValues(bottom = 8.dp)) {
-                item { MdBaseWidget(title = model.appName, description = "By Float11") }
+                item {
+                    MdBaseWidget(
+                        title = model.appName,
+                        description = "版本 v${model.appVersion} · By Float11",
+                    )
+                }
+                item {
+                    MdBaseWidget(
+                        title = "检查更新",
+                        description = if (model.checkingAppUpdate) "正在检查更新..." else "点击检查新版本",
+                        onClick = actions.onCheckAppUpdate,
+                    )
+                }
             }
         }
         item {

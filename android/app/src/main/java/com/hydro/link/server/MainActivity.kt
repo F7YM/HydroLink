@@ -186,6 +186,7 @@ class MainActivity : AppCompatActivity() {
         onToggleBoot = { forceSwitch(switchBoot, it); refreshData() },
         onToggleGlass = { forceSwitch(switchLiquidGlass, it); refreshData() },
         onToggleMiuix = { setMiuix(it) },
+        onCheckAppUpdate = { checkAppUpdate(manual = true) },
         onRootConfirmDismiss = { miuixModel.rootConfirm = false },
         onRootConfirmAccept = { miuixModel.rootConfirm = false },
     )
@@ -235,6 +236,11 @@ class MainActivity : AppCompatActivity() {
             cacheDir = java.io.File(cacheDir, "marketplace"),
             fetcher = com.hydro.link.server.market.UrlFetcher(),
         )
+    }
+
+    /** 应用更新客户端（从 hydromarket-index/app.json 拉取版本元数据）。 */
+    private val appUpdateClient: com.hydro.link.server.update.AppUpdateClient by lazy {
+        com.hydro.link.server.update.AppUpdateClient()
     }
 
     /** 上次成功拉到索引的基址（装更新时用，保证和校验时的来源一致）。 */
@@ -307,6 +313,7 @@ class MainActivity : AppCompatActivity() {
         requestNotificationPermissionIfNeeded()
         applyStatusBarMode()
         refreshData()
+        checkAppUpdate(manual = false)
     }
 
     /**
@@ -797,6 +804,7 @@ class MainActivity : AppCompatActivity() {
         m.devices = devices
         m.commands = commands
         m.serverVersion = BuildConfig.VERSION_NAME
+        m.appVersion = BuildConfig.VERSION_NAME
         val cfg = dataManager.loadConfig()
         m.authorizer = cfg.authorizer
         m.bootStart = cfg.bootStart
@@ -995,6 +1003,95 @@ class MainActivity : AppCompatActivity() {
                         refreshPlugins(forceUpdateCheck = true)
                     },
                 )
+            },
+        )
+    }
+
+    /**
+     * 应用检查更新逻辑。
+     * - [manual] 为 false 时：自动检查（每天最多 1 次，获取失败静默不管，若今日已选「稍后提醒」不弹窗）；
+     * - [manual] 为 true 时：用户手动点击设置页「检查更新」（提示正在检查，失败提示失败，最新提示已是最新，发现新版弹窗）。
+     */
+    private fun checkAppUpdate(manual: Boolean) {
+        if (manual) {
+            if (miuixModel.checkingAppUpdate) return
+            miuixModel.checkingAppUpdate = true
+            notifyUser(tabSettings, "正在检查新版本...")
+        } else {
+            val cfg = dataManager.loadConfig()
+            val today = com.hydro.link.server.update.AppUpdateHelper.todayDateString()
+            if (!com.hydro.link.server.update.AppUpdateHelper.shouldAutoCheck(cfg.lastUpdateCheckDate, today)) {
+                return
+            }
+            // 记录今日已进行自动检查
+            cfg.lastUpdateCheckDate = today
+            dataManager.saveConfig(cfg)
+        }
+
+        val cfg = dataManager.loadConfig()
+        val sources = com.hydro.link.server.market.MarketSources.bases(cfg.marketSource)
+        val currentVersion = BuildConfig.VERSION_NAME
+
+        Thread {
+            val update = appUpdateClient.fetchUpdate(sources)
+            runOnUiThread {
+                if (manual) miuixModel.checkingAppUpdate = false
+                if (update == null) {
+                    if (manual) notifyUser(tabSettings, "检查更新失败，请稍后重试")
+                    return@runOnUiThread
+                }
+
+                val hasNewer = com.hydro.link.server.update.AppUpdateHelper.isNewer(update.version, currentVersion)
+                if (hasNewer) {
+                    if (manual) {
+                        showAppUpdateDialog(update)
+                    } else {
+                        val latestCfg = dataManager.loadConfig()
+                        val today = com.hydro.link.server.update.AppUpdateHelper.todayDateString()
+                        if (com.hydro.link.server.update.AppUpdateHelper.shouldPrompt(latestCfg.lastUpdateIgnoreDate, today)) {
+                            showAppUpdateDialog(update)
+                        }
+                    }
+                } else if (manual) {
+                    notifyUser(tabSettings, "当前已是最新版本 (v$currentVersion)")
+                }
+            }
+        }.start()
+    }
+
+    /**
+     * 发现新版本时的更新弹窗：展示新版本、发布日期、提取码、更新日志。
+     * - 「前往网盘下载」：若有提取码自动复制到剪贴板，随后拉起系统默认浏览器打开网盘页面；
+     * - 「稍后提醒」：记录今日不再提醒。
+     */
+    private fun showAppUpdateDialog(update: com.hydro.link.server.update.AppUpdateInfo) {
+        val currentVersion = BuildConfig.VERSION_NAME
+        val message = com.hydro.link.server.update.AppUpdateHelper.dialogText(update, currentVersion)
+        EngineDialog.confirm(
+            activity = this,
+            title = "发现新版本 v${update.version}",
+            message = message,
+            positive = "前往网盘下载",
+            negative = "稍后提醒",
+            onNegative = {
+                val cfg = dataManager.loadConfig()
+                cfg.lastUpdateIgnoreDate = com.hydro.link.server.update.AppUpdateHelper.todayDateString()
+                dataManager.saveConfig(cfg)
+            },
+            onConfirm = {
+                if (update.password.isNotBlank()) {
+                    val clipboard = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                    clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("password", update.password))
+                    notifyUser(tabSettings, "网盘提取码「${update.password}」已复制到剪贴板")
+                }
+                val targetUrl = update.downloadUrl.ifBlank { update.backupUrl }
+                if (targetUrl.isNotBlank()) {
+                    try {
+                        startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(targetUrl)))
+                    } catch (e: Exception) {
+                        notifyUser(tabSettings, "无法拉起浏览器，请手动打开: $targetUrl")
+                    }
+                }
             },
         )
     }
