@@ -128,6 +128,31 @@ class AppUpdateTest {
     }
 
     @Test
+    fun `强制更新判定 isForceUpdate`() {
+        val forceJson = """
+            {
+              "version": "1.2.1",
+              "force": true,
+              "min_version": "1.2.0"
+            }
+        """.trimIndent()
+        val info = AppUpdateHelper.parse(forceJson)
+        assertTrue(info.force)
+        assertEquals("1.2.0", info.minVersion)
+        assertTrue(AppUpdateHelper.isForceUpdate(info, "1.1.0"))
+        assertTrue(AppUpdateHelper.isForceUpdate(info, "1.2.0"))
+
+        val minVersionOnly = AppUpdateInfo(
+            version = "1.2.1",
+            force = false,
+            minVersion = "1.2.0"
+        )
+        assertTrue(AppUpdateHelper.isForceUpdate(minVersionOnly, "1.1.9"))
+        assertFalse(AppUpdateHelper.isForceUpdate(minVersionOnly, "1.2.0"))
+        assertFalse(AppUpdateHelper.isForceUpdate(minVersionOnly, "1.2.1"))
+    }
+
+    @Test
     fun `更新弹窗正文生成`() {
         val info = AppUpdateHelper.parse(sampleJson)
         val text = AppUpdateHelper.dialogText(info, "1.1.0")

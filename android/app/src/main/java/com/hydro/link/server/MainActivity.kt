@@ -47,6 +47,8 @@ import com.hydro.link.server.util.DataManager
 import com.hydro.link.server.util.NetworkUtil
 import com.hydro.link.server.util.Authorizer
 
+private const val TAG = "HydroLink"
+
 class MainActivity : AppCompatActivity() {
 
     private val handler = Handler(Looper.getMainLooper())
@@ -313,7 +315,12 @@ class MainActivity : AppCompatActivity() {
         requestNotificationPermissionIfNeeded()
         applyStatusBarMode()
         refreshData()
-        checkAppUpdate(manual = false)
+        // 延时 1.2 秒等主界面首帧与 Compose 组件树平稳挂载后再发起静默检查，避免冷启动时序竞争
+        window.decorView.postDelayed({
+            if (!isFinishing && !isDestroyed) {
+                checkAppUpdate(manual = false)
+            }
+        }, 1200)
     }
 
     /**
@@ -1009,51 +1016,65 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * 应用检查更新逻辑。
-     * - [manual] 为 false 时：自动检查（每天最多 1 次，获取失败静默不管，若今日已选「稍后提醒」不弹窗）；
-     * - [manual] 为 true 时：用户手动点击设置页「检查更新」（提示正在检查，失败提示失败，最新提示已是最新，发现新版弹窗）。
+     * - 后台线程轻量拉取远端更新元数据（耗时短且不阻塞主线程）；
+     * - 若存在强制更新（isForce == true）：无论冷启动自动检查还是手动检查，无视任何频控，必定强弹更新；
+     * - 若为普通更新：自动检查模式下遵循每天最多提醒 1 次且今日「稍后提醒」不弹窗的频控规范。
      */
     private fun checkAppUpdate(manual: Boolean) {
+        val today = com.hydro.link.server.update.AppUpdateHelper.todayDateString()
+        val currentVersion = BuildConfig.VERSION_NAME
+
         if (manual) {
             if (miuixModel.checkingAppUpdate) return
             miuixModel.checkingAppUpdate = true
             notifyUser(tabSettings, "正在检查新版本...")
-        } else {
-            val cfg = dataManager.loadConfig()
-            val today = com.hydro.link.server.update.AppUpdateHelper.todayDateString()
-            if (!com.hydro.link.server.update.AppUpdateHelper.shouldAutoCheck(cfg.lastUpdateCheckDate, today)) {
-                return
-            }
-            // 记录今日已进行自动检查
-            cfg.lastUpdateCheckDate = today
-            dataManager.saveConfig(cfg)
         }
 
         val cfg = dataManager.loadConfig()
         val sources = com.hydro.link.server.market.MarketSources.bases(cfg.marketSource)
-        val currentVersion = BuildConfig.VERSION_NAME
 
         Thread {
+            android.util.Log.d(TAG, "AutoUpdate: 开始请求更新元数据 (manual=$manual, currentVersion=$currentVersion)...")
             val update = appUpdateClient.fetchUpdate(sources)
             runOnUiThread {
                 if (manual) miuixModel.checkingAppUpdate = false
                 if (update == null) {
+                    android.util.Log.w(TAG, "AutoUpdate: 获取更新元数据失败 (manual=$manual)")
                     if (manual) notifyUser(tabSettings, "检查更新失败，请稍后重试")
                     return@runOnUiThread
                 }
 
                 val hasNewer = com.hydro.link.server.update.AppUpdateHelper.isNewer(update.version, currentVersion)
+                val isForce = com.hydro.link.server.update.AppUpdateHelper.isForceUpdate(update, currentVersion)
+                android.util.Log.i(TAG, "AutoUpdate: 获取成功，远端版本=${update.version}，当前版本=$currentVersion，存在新版=$hasNewer，强制更新=$isForce")
+
                 if (hasNewer) {
-                    if (manual) {
+                    if (manual || isForce) {
+                        android.util.Log.i(TAG, "AutoUpdate: 触发更新弹窗 (manual=$manual, isForce=$isForce, v${update.version})")
                         showAppUpdateDialog(update)
                     } else {
+                        // 普通更新的自动检查频控
                         val latestCfg = dataManager.loadConfig()
-                        val today = com.hydro.link.server.update.AppUpdateHelper.todayDateString()
-                        if (com.hydro.link.server.update.AppUpdateHelper.shouldPrompt(latestCfg.lastUpdateIgnoreDate, today)) {
+                        val shouldAuto = com.hydro.link.server.update.AppUpdateHelper.shouldAutoCheck(latestCfg.lastUpdateCheckDate, today)
+                        val shouldPrompt = com.hydro.link.server.update.AppUpdateHelper.shouldPrompt(latestCfg.lastUpdateIgnoreDate, today)
+                        if (shouldAuto && shouldPrompt) {
+                            android.util.Log.i(TAG, "AutoUpdate: 触发普通自动更新弹窗 (v${update.version})")
+                            latestCfg.lastUpdateCheckDate = today
+                            dataManager.saveConfig(latestCfg)
                             showAppUpdateDialog(update)
+                        } else {
+                            android.util.Log.i(TAG, "AutoUpdate: 普通更新今日已检查或已选稍后提醒 (checkDate=${latestCfg.lastUpdateCheckDate}, ignoreDate=${latestCfg.lastUpdateIgnoreDate})，静默跳过")
                         }
                     }
-                } else if (manual) {
-                    notifyUser(tabSettings, "当前已是最新版本 (v$currentVersion)")
+                } else {
+                    if (manual) {
+                        notifyUser(tabSettings, "当前已是最新版本 (v$currentVersion)")
+                    } else {
+                        // 无更新时记录今日已完成自动检查
+                        val latestCfg = dataManager.loadConfig()
+                        latestCfg.lastUpdateCheckDate = today
+                        dataManager.saveConfig(latestCfg)
+                    }
                 }
             }
         }.start()
@@ -1062,21 +1083,25 @@ class MainActivity : AppCompatActivity() {
     /**
      * 发现新版本时的更新弹窗：展示新版本、发布日期、提取码、更新日志。
      * - 「前往网盘下载」：若有提取码自动复制到剪贴板，随后拉起系统默认浏览器打开网盘页面；
-     * - 「稍后提醒」：记录今日不再提醒。
+     * - 「稍后提醒」：非强制更新时展示，记录今日不再提醒；若为强制更新则不提供取消选项。
      */
     private fun showAppUpdateDialog(update: com.hydro.link.server.update.AppUpdateInfo) {
         val currentVersion = BuildConfig.VERSION_NAME
+        val isForce = com.hydro.link.server.update.AppUpdateHelper.isForceUpdate(update, currentVersion)
         val message = com.hydro.link.server.update.AppUpdateHelper.dialogText(update, currentVersion)
         EngineDialog.confirm(
             activity = this,
-            title = "发现新版本 v${update.version}",
+            title = if (isForce) "发现重要版本 (强制更新) v${update.version}" else "发现新版本 v${update.version}",
             message = message,
             positive = "前往网盘下载",
-            negative = "稍后提醒",
-            onNegative = {
-                val cfg = dataManager.loadConfig()
-                cfg.lastUpdateIgnoreDate = com.hydro.link.server.update.AppUpdateHelper.todayDateString()
-                dataManager.saveConfig(cfg)
+            negative = if (isForce) null else "稍后提醒",
+            dangerWarning = if (isForce) "当前版本过低或已停止支持，请立即前往下载更新以继续使用。" else null,
+            onNegative = if (isForce) null else {
+                {
+                    val cfg = dataManager.loadConfig()
+                    cfg.lastUpdateIgnoreDate = com.hydro.link.server.update.AppUpdateHelper.todayDateString()
+                    dataManager.saveConfig(cfg)
+                }
             },
             onConfirm = {
                 if (update.password.isNotBlank()) {

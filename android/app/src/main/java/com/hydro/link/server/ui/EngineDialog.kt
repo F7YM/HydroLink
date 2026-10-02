@@ -96,7 +96,19 @@ object EngineDialog {
         val initialText = if (countdownSeconds > 0) "$positive (${countdownSeconds}s)" else positive
         builder.setPositiveButton(initialText, null)
         val dialog = builder.create()
+        if (negative == null) {
+            dialog.setCancelable(false)
+            dialog.setCanceledOnTouchOutside(false)
+        }
         dialog.show()
+
+        // 确保当消息内容较长时，系统 ScrollView 的垂直滚动条可见且不自动淡出
+        dialog.findViewById<android.widget.TextView>(android.R.id.message)?.let { tv ->
+            (tv.parent as? android.widget.ScrollView)?.apply {
+                isVerticalScrollBarEnabled = true
+                isScrollbarFadingEnabled = false
+            }
+        }
 
         val posBtn = dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE)
         if (countdownSeconds > 0) {

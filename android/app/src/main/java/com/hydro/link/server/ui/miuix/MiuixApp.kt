@@ -43,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.hydro.link.server.ui.drawVerticalScrollbar
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -1031,9 +1032,14 @@ private fun PluginConfirmDialog(model: MiuixModel) {
             }
         }
     }
+    val isCancelable = dialog.negative != null
     WindowDialog(
         show = current != null,
-        onDismissRequest = { model.pluginDialog = null },
+        onDismissRequest = {
+            if (isCancelable) {
+                model.pluginDialog = null
+            }
+        },
         title = dialog.title,
         content = {
             Column {
@@ -1045,12 +1051,19 @@ private fun PluginConfirmDialog(model: MiuixModel) {
                         modifier = Modifier.padding(bottom = 12.dp),
                     )
                 }
+                val scrollState = rememberScrollState()
                 Text(
                     text = dialog.message,
                     color = MiuixTheme.colorScheme.onSurface,
                     modifier = Modifier
-                        .heightIn(max = 320.dp)
-                        .verticalScroll(rememberScrollState()),
+                        .heightIn(max = 300.dp)
+                        .drawVerticalScrollbar(
+                            state = scrollState,
+                            thumbColor = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                            trackColor = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                        )
+                        .verticalScroll(scrollState)
+                        .padding(end = 10.dp),
                 )
                 Spacer(Modifier.height(24.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -792,9 +793,12 @@ private fun MiuixConfirmHost(dialog: ConfirmDialog?, onDismiss: () -> Unit) {
             }
         }
     }
+    val isCancelable = shown.negative != null
     WindowDialog(
         show = dialog != null,
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            if (isCancelable) onDismiss()
+        },
         title = shown.title,
         content = {
             Column {
@@ -806,10 +810,19 @@ private fun MiuixConfirmHost(dialog: ConfirmDialog?, onDismiss: () -> Unit) {
                         modifier = Modifier.padding(bottom = 12.dp),
                     )
                 }
+                val scrollState = rememberScrollState()
                 Text(
                     text = shown.message,
                     color = MiuixTheme.colorScheme.onSurface,
-                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    modifier = Modifier
+                        .heightIn(max = 300.dp)
+                        .drawVerticalScrollbar(
+                            state = scrollState,
+                            thumbColor = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                            trackColor = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                        )
+                        .verticalScroll(scrollState)
+                        .padding(end = 10.dp),
                 )
                 Spacer(Modifier.height(24.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -860,7 +873,18 @@ private fun MdConfirmHost(dialog: ConfirmDialog?, onDismiss: () -> Unit) {
         onDismissRequest = onDismiss,
         title = { Text(dialog.title) },
         text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            val scrollState = rememberScrollState()
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 300.dp)
+                    .drawVerticalScrollbar(
+                        state = scrollState,
+                        thumbColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                        trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                    )
+                    .verticalScroll(scrollState)
+                    .padding(end = 10.dp)
+            ) {
                 if (!dialog.dangerWarning.isNullOrBlank()) {
                     Text(
                         text = dialog.dangerWarning,

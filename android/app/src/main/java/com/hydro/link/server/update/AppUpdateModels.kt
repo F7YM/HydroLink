@@ -19,6 +19,8 @@ data class AppUpdateInfo(
     val downloadUrl: String = "",
     val backupUrl: String = "",
     val password: String = "",
+    val force: Boolean = false,
+    val minVersion: String = "",
 )
 
 object AppUpdateHelper {
@@ -75,6 +77,8 @@ object AppUpdateHelper {
         val downloadUrl = obj.get("download_url")?.asString?.trim().orEmpty()
         val backupUrl = obj.get("backup_url")?.asString?.trim().orEmpty()
         val password = obj.get("password")?.asString?.trim().orEmpty()
+        val force = obj.get("force")?.asBoolean ?: false
+        val minVersion = obj.get("min_version")?.asString?.trim().orEmpty()
 
         return AppUpdateInfo(
             version = version,
@@ -85,6 +89,8 @@ object AppUpdateHelper {
             downloadUrl = downloadUrl,
             backupUrl = backupUrl,
             password = password,
+            force = force,
+            minVersion = minVersion,
         )
     }
 
@@ -103,6 +109,15 @@ object AppUpdateHelper {
     /** 判定远端版本是否高于当前本地版本（复用 PluginStore.compareVersions）。 */
     fun isNewer(remoteVersion: String, currentVersion: String): Boolean =
         PluginStore.compareVersions(remoteVersion, currentVersion) > 0
+
+    /** 判定是否属于强制更新（force 标识为 true，或本地当前版本低于最低兼容版本 minVersion）。 */
+    fun isForceUpdate(update: AppUpdateInfo, currentVersion: String): Boolean {
+        if (update.force) return true
+        if (update.minVersion.isNotBlank()) {
+            return PluginStore.compareVersions(currentVersion, update.minVersion) < 0
+        }
+        return false
+    }
 
     /** 是否属于分类标题行（如【手机端】、[桌面端]、### 手表端、手机端：等）。 */
     fun isSectionHeader(line: String): Boolean {
