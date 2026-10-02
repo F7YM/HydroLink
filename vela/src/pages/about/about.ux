@@ -37,6 +37,23 @@
           <text class="person-name">OrPudding</text>
         </div>
 
+        <!-- 早期赞助者 -->
+        <div class="section-header">
+          <text class="section-title">早期赞助者</text>
+        </div>
+        <div class="person-card">
+          <image class="avatar" src="/common/avatars/avatar_huohua.jpg"></image>
+          <text class="person-name">跃动的火花</text>
+        </div>
+        <div class="person-card">
+          <image class="avatar" src="/common/avatars/avatar_taiyang.jpg"></image>
+          <text class="person-name">云里是个太阳</text>
+        </div>
+        <div class="person-card">
+          <image class="avatar" src="/common/avatars/avatar_fcb.jpg"></image>
+          <text class="person-name">fcb</text>
+        </div>
+
         <!-- 底部安全区占位 -->
         <div class="list-bottom-space"></div>
       </div>
