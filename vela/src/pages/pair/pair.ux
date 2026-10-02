@@ -28,12 +28,12 @@
           </div>
           <div class="option-info">
             <text class="option-title">尝试自动扫描设备</text>
-            <text class="option-desc">自动发现局域网内的设备</text>
+            <text class="option-desc">扫描局域网内设备</text>
           </div>
           <text class="option-chevron">›</text>
         </div>
 
-        <!-- 选项二：通过 IP 地址手动添加设备 -->
+        <!-- 选项二：通过 IP 手动添加 -->
         <div
           class="option-card pressable {{ pressedKey === 'opt_manual' ? 'is-down press-down' : '' }} {{ releasedKey === 'opt_manual' ? 'press-up' : '' }}"
           ontouchstart="pressDown('opt_manual')"
@@ -45,7 +45,7 @@
             <image class="option-icon" src="/common/icons/keyboard_32dp_FFFFFF_FILL0_wght400_GRAD0_opsz40.png"></image>
           </div>
           <div class="option-info">
-            <text class="option-title">通过 IP 地址手动添加设备</text>
+            <text class="option-title">通过 IP 手动添加</text>
             <text class="option-desc">手动输入 IP 地址与端口</text>
           </div>
           <text class="option-chevron">›</text>
@@ -122,7 +122,7 @@
           ontouchcancel="pressCancel('switch_manual')"
           onclick="chooseManual"
         >
-          <text class="manual-switch-text">通过 IP 地址手动添加设备 ›</text>
+          <text class="manual-switch-text">通过 IP 手动添加 ›</text>
         </div>
 
         <!-- 底部安全区占位 -->
