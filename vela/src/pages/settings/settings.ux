@@ -17,18 +17,28 @@
       <div class="form-list">
         <!-- App info card -->
         <div
-          class="app-card pressable {{ pressedKey === 'about' ? 'is-down press-down' : '' }} {{ releasedKey === 'about' ? 'press-up' : '' }}"
-          ontouchstart="pressDown('about')"
-          ontouchend="pressRelease('about')"
-          ontouchcancel="pressCancel('about')"
+          class="app-card pressable {{ pressedKey === 'version' ? 'is-down press-down' : '' }} {{ releasedKey === 'version' ? 'press-up' : '' }}"
+          ontouchstart="pressDown('version')"
+          ontouchend="pressRelease('version')"
+          ontouchcancel="pressCancel('version')"
           onclick="onOpenVersion"
         >
           <image class="app-icon" src="/common/icon.png"></image>
           <div class="app-info">
             <text class="app-name">HydroLink</text>
-            <text class="app-version">v{{ appVersion }} · By Float-11</text>
-            <text class="app-group">交流群：1053432339</text>
+            <text class="app-version">v{{ appVersion }}</text>
           </div>
+        </div>
+
+        <!-- 关于 HydroLink -->
+        <div
+          class="form-item pressable {{ pressedKey === 'about' ? 'is-down press-down' : '' }} {{ releasedKey === 'about' ? 'press-up' : '' }}"
+          ontouchstart="pressDown('about')"
+          ontouchend="pressRelease('about')"
+          ontouchcancel="pressCancel('about')"
+          onclick="onOpenAbout"
+        >
+          <text class="form-label">关于 HydroLink</text>
           <text class="app-chevron">›</text>
         </div>
 
@@ -126,7 +136,7 @@
 }
 .app-card {
   width: 420px;
-  height: 150px;
+  height: 120px;
   margin-bottom: 16px;
   padding: 0 24px;
   background-color: #2e323c;
@@ -232,7 +242,7 @@
   }
   .app-card {
     width: 360px;
-    height: 156px;
+    height: 120px;
     border-radius: 44px;
   }
   .form-item {
@@ -359,6 +369,10 @@ export default {
 
   onOpenVersion() {
     router.push({ uri: '/pages/version' })
+  },
+
+  onOpenAbout() {
+    router.push({ uri: '/pages/about' })
   },
 
   onOpenOobe() {
