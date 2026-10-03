@@ -47,6 +47,7 @@ cp -a . %{buildroot}/
 %files
 %license %{_datadir}/doc/hydrolink/LICENSE
 %doc %{_datadir}/doc/hydrolink/README.md
+/opt/hydrolink
 %{_bindir}/hydrolink
 %{_datadir}/applications/hydrolink.desktop
 %{_datadir}/metainfo/com.hydro.hydrolink.metainfo.xml
