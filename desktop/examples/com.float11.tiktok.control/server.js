@@ -10,13 +10,10 @@ module.exports = {
         id: 'com.float11.tiktok.control',
         name: '抖音控制器',
         author: 'float11',
-        version: '1.0.9'
+        version: '1.1.0'
       },
       apps: [
         { id: 'main', name: '抖音控制器', icon: 'assets/icon.png' }
-      ],
-      widgets: [
-        { id: 'card', name: '抖音小控', refreshMs: 0 }
       ]
     };
   },
@@ -177,58 +174,9 @@ module.exports = {
     };
   },
 
-  async widgetCard(req) {
-    if (req && req.trigger === 'event' && req.event && req.event.handler) {
-      try {
-        await this.performAction(req.event.handler);
-      } catch (e) {}
-    }
-
-    return {
-      refreshMs: 0,
-      root: {
-        type: 'column',
-        style: {
-          backgroundColor: '#000000',
-          padding: 12,
-          borderRadius: 20,
-          justifyContent: 'center'
-        },
-        children: [
-          {
-            type: 'text',
-            props: { text: '抖音控制器' },
-            style: { fontSize: 18, fontWeight: 700, color: '#BAC3FF', marginBottom: 8 }
-          },
-          {
-            type: 'row',
-            style: { justifyContent: 'space-between' },
-            children: [
-              {
-                type: 'button',
-                props: { label: '下一条' },
-                events: { tap: 'next' },
-                style: { width: '62%', height: 44, borderRadius: 22, backgroundColor: '#BAC3FF' }
-              },
-              {
-                type: 'button',
-                props: { label: '点赞' },
-                events: { tap: 'like' },
-                style: { width: '34%', height: 44, borderRadius: 22, backgroundColor: '#9FA8CC' }
-              }
-            ]
-          }
-        ]
-      }
-    };
-  },
-
   async view(surface, item, req) {
     if (surface === 'app' && item === 'main') {
       return this.appMain(req);
-    }
-    if (surface === 'widget' && item === 'card') {
-      return this.widgetCard(req);
     }
     return null;
   }

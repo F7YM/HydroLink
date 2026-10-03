@@ -14,7 +14,7 @@
       <!-- Interconnect discovered device -->
       <div if="{{ icDevice }}" class="list-content">
         <div
-          class="device-item pressable ic-device {{ pressedKey === 'ic_device' ? 'is-down press-down' : '' }} {{ releasedKey === 'ic_device' ? 'press-up' : '' }}"
+          class="device-item ic-device {{ pressedKey === 'ic_device' ? 'is-down' : '' }}"
           ontouchstart="onIcTouchStart"
           ontouchend="onIcTouchEnd"
           ontouchcancel="onIcTouchCancel"

@@ -10,7 +10,7 @@
 
 - **Package ID**：`com.float11.tiktok.control`
 - **名称**：抖音控制器
-- **版本**：`1.0.2`
+- **版本**：`1.1.0`
 - **作者**：`float11`
 - **入口**：`server.js`
 - **所用权限**：
@@ -48,7 +48,7 @@
 
 ```text
 com.float11.tiktok.control/
-├── manifest.json       # 扁平规范清单文件（声明 package/apps/widgets/permissions）
+├── manifest.json       # 扁平规范清单文件（声明 package/apps/permissions）
 ├── server.js          # 插件运行时主脚本（界面树渲染与事件动作分发）
 ├── assets/
 │   └── icon.png       # 192x192 抖音风格高清图标

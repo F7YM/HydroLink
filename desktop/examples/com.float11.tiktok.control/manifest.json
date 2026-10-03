@@ -2,20 +2,13 @@
   "id": "com.float11.tiktok.control",
   "name": "抖音控制器",
   "author": "float11",
-  "version": "1.0.9",
+  "version": "1.1.0",
   "entry": "server.js",
   "apps": [
     {
       "id": "main",
       "name": "抖音控制器",
       "icon": "assets/icon.png"
-    }
-  ],
-  "widgets": [
-    {
-      "id": "card",
-      "name": "抖音小控",
-      "refreshMs": 0
     }
   ],
   "permissions": [
