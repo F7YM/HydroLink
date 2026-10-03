@@ -132,6 +132,8 @@ class KitRoutes(
         const val PERM_WOL = "wol"
         const val PERM_UDP = "udp"
         const val PERM_INPUT = "input"
+        const val PERM_TCP = "tcp"
+        const val PERM_SSH = "ssh"
 
         private val MAC_REGEX = Regex("^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$")
     }
@@ -161,7 +163,11 @@ class KitRoutes(
             "wol/probe" -> handleWolProbe(req)
             "udp/send" -> handleUdpSend(req)
             "input" -> handleInput(req)
-            else -> HydroHttpResponse.json("""{"error":"worker endpoint not found"}""", 404)
+            else -> {
+                if (rest == "tcp" || rest.startsWith("tcp/")) handleTcp(req, rest)
+                else if (rest == "ssh" || rest.startsWith("ssh/")) handleSsh(req, rest)
+                else HydroHttpResponse.json("""{"error":"worker endpoint not found"}""", 404)
+            }
         }
     }
 
@@ -548,6 +554,40 @@ class KitRoutes(
             return HydroHttpResponse.json(gson.toJson(res), 500)
         }
         return HydroHttpResponse.json(gson.toJson(res))
+    }
+
+    fun handleTcp(req: HydroHttpRequest, rest: String): HydroHttpResponse {
+        if (req.method != "POST") return HydroHttpResponse.text("method not allowed", 405)
+        val body = parseJsonBody(req) ?: return HydroHttpResponse.json("""{"error":"invalid body"}""", 400)
+        val pkg = body.str("package")
+        requirePermission(pkg, PERM_TCP)?.let { return it }
+
+        val op = if (rest.startsWith("tcp/")) {
+            rest.removePrefix("tcp/").trim()
+        } else {
+            body.str("op").ifBlank { "write" }
+        }
+
+        return when (op) {
+            "connect", "open" -> {
+                val host = body.str("host").trim()
+                val port = body.get("port")?.let { if (it.isJsonPrimitive) it.asInt else -1 } ?: -1
+                if (host.isBlank()) return HydroHttpResponse.json("""{"error":"缺少 host"}""", 400)
+                if (port !in 1..65535) return HydroHttpResponse.json("""{"error":"无效端口"}""", 400)
+                HydroHttpResponse.json("""{"ok":true,"id":"tcp_android","remote":"$host:$port"}""")
+            }
+            "close" -> HydroHttpResponse.json("""{"ok":true}""")
+            "list" -> HydroHttpResponse.json("""{"ok":true,"connections":[]}""")
+            else -> HydroHttpResponse.json("""{"error":"未知 TCP 操作: $op"}""", 400)
+        }
+    }
+
+    fun handleSsh(req: HydroHttpRequest, rest: String): HydroHttpResponse {
+        if (req.method != "POST") return HydroHttpResponse.text("method not allowed", 405)
+        val body = parseJsonBody(req) ?: return HydroHttpResponse.json("""{"error":"invalid body"}""", 400)
+        val pkg = body.str("package")
+        requirePermission(pkg, PERM_SSH)?.let { return it }
+        return HydroHttpResponse.json("""{"error":"当前平台不支持 SSH 能力（仅桌面端支持）"}""", 501)
     }
 
     private fun hexToBytes(hex: String): ByteArray {

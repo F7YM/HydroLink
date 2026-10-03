@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="$ROOT/dist"
 STAGE="$ROOT/packaging/build/compose-stage"
 WORK="$ROOT/packaging/build/compose-arch"
-VERSION="1.2.1"
+VERSION="1.2.2"
 PKG="hydrolink"
 MAINTAINER="float11 <2471825164@qq.com>"
 

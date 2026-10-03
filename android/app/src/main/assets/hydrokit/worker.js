@@ -147,6 +147,52 @@
         });
       },
     },
+    tcp: {
+      connect: function (opts) {
+        var o = (typeof opts === "object" && opts !== null) ? opts : {};
+        return remote("POST", "/api/hydro/worker/tcp", Object.assign({ package: PKG, op: "connect" }, o));
+      },
+      read: function (idOrOpts, timeout, encoding) {
+        var o = (typeof idOrOpts === "object" && idOrOpts !== null) ? idOrOpts : { id: idOrOpts, timeout: timeout, encoding: encoding };
+        return remote("POST", "/api/hydro/worker/tcp", Object.assign({ package: PKG, op: "read" }, o));
+      },
+      write: function (idOrOpts, data, encoding) {
+        var o = (typeof idOrOpts === "object" && idOrOpts !== null) ? idOrOpts : { id: idOrOpts, data: data, encoding: encoding };
+        return remote("POST", "/api/hydro/worker/tcp", Object.assign({ package: PKG, op: "write" }, o));
+      },
+      close: function (idOrOpts) {
+        var o = (typeof idOrOpts === "object" && idOrOpts !== null) ? idOrOpts : { id: idOrOpts };
+        return remote("POST", "/api/hydro/worker/tcp", Object.assign({ package: PKG, op: "close" }, o));
+      },
+      list: function () {
+        return remote("POST", "/api/hydro/worker/tcp", { package: PKG, op: "list" });
+      },
+    },
+    ssh: {
+      open: function (opts) {
+        var o = (typeof opts === "object" && opts !== null) ? opts : {};
+        return remote("POST", "/api/hydro/worker/ssh", Object.assign({ package: PKG, op: "open" }, o));
+      },
+      read: function (idOrOpts, timeout, encoding) {
+        var o = (typeof idOrOpts === "object" && idOrOpts !== null) ? idOrOpts : { id: idOrOpts, timeout: timeout, encoding: encoding };
+        return remote("POST", "/api/hydro/worker/ssh", Object.assign({ package: PKG, op: "read" }, o));
+      },
+      write: function (idOrOpts, data, encoding) {
+        var o = (typeof idOrOpts === "object" && idOrOpts !== null) ? idOrOpts : { id: idOrOpts, data: data, encoding: encoding };
+        return remote("POST", "/api/hydro/worker/ssh", Object.assign({ package: PKG, op: "write" }, o));
+      },
+      resize: function (idOrOpts, cols, rows) {
+        var o = (typeof idOrOpts === "object" && idOrOpts !== null) ? idOrOpts : { id: idOrOpts, cols: cols, rows: rows };
+        return remote("POST", "/api/hydro/worker/ssh", Object.assign({ package: PKG, op: "resize" }, o));
+      },
+      close: function (idOrOpts) {
+        var o = (typeof idOrOpts === "object" && idOrOpts !== null) ? idOrOpts : { id: idOrOpts };
+        return remote("POST", "/api/hydro/worker/ssh", Object.assign({ package: PKG, op: "close" }, o));
+      },
+      list: function () {
+        return remote("POST", "/api/hydro/worker/ssh", { package: PKG, op: "list" });
+      },
+    },
     input: {
       screen: function () {
         return remote("POST", "/api/hydro/worker/input", { package: PKG, op: "screen" });
@@ -333,6 +379,25 @@
         if (op === "commands") return kit.commands.run(eff.index);
         if (op === "wol") return kit.wol.wake(eff);
         if (op === "udp") return kit.udp.send(eff);
+        if (op === "tcp") {
+          var tcpAction = eff.action || eff.type || eff.tcpOp || "write";
+          if (tcpAction === "connect" || tcpAction === "open") return kit.tcp.connect(eff);
+          if (tcpAction === "read") return kit.tcp.read(eff);
+          if (tcpAction === "write") return kit.tcp.write(eff);
+          if (tcpAction === "close") return kit.tcp.close(eff);
+          if (tcpAction === "list") return kit.tcp.list();
+          return remote("POST", "/api/hydro/worker/tcp", Object.assign({ package: PKG }, eff));
+        }
+        if (op === "ssh") {
+          var sshAction = eff.action || eff.type || eff.sshOp || "write";
+          if (sshAction === "open" || sshAction === "connect") return kit.ssh.open(eff);
+          if (sshAction === "read") return kit.ssh.read(eff);
+          if (sshAction === "write") return kit.ssh.write(eff);
+          if (sshAction === "resize") return kit.ssh.resize(eff);
+          if (sshAction === "close") return kit.ssh.close(eff);
+          if (sshAction === "list") return kit.ssh.list();
+          return remote("POST", "/api/hydro/worker/ssh", Object.assign({ package: PKG }, eff));
+        }
         if (op === "input") {
           var action = eff.action || eff.type || eff.inputOp || "click";
           if (action === "screen") return kit.input.screen();
