@@ -63,18 +63,18 @@
       </div>
     </div>
 
-    <!-- 键盘区域 (恢复原始定位结构，确保全键盘正确定位与九宫格安全区) -->
+    <!-- 键盘区域 -->
     <div class="keyboard-area">
-      <!-- 九宫格数字键盘 (恢复原 numpad-wrapper 保障底部 30px 安全区) -->
-      <div class="numpad-wrapper">
-        <numpad if="{{ keyboardMode === 'numpad' }}"
+      <!-- 九宫格数字键盘 (if加在wrapper上，彻底避免非九宫格时空div横向占位挤压手写板) -->
+      <div class="numpad-wrapper" if="{{ keyboardMode === 'numpad' }}">
+        <numpad
           @complete="onComplete"
           @delete="onDelete"
           @switchkeyboard="onSwitchToQwerty"
         ></numpad>
       </div>
 
-      <!-- 全键盘输入法 (直接作为 keyboard-area 子节点，恢复原版无包裹布局) -->
+      <!-- 全键盘输入法 (直接作为 keyboard-area 子节点) -->
       <input-method if="{{ keyboardMode === 'qwerty' }}"
         hide="{{ hide }}"
         keyboardtype="{{ keyboardtype }}"
@@ -85,12 +85,14 @@
         @complete="onComplete"
       ></input-method>
 
-      <!-- 手写输入法 -->
-      <handwriting-pad if="{{ keyboardMode === 'handwriting' }}"
-        @complete="onComplete"
-        @delete="onDelete"
-        @switchkeyboard="onSwitchFromHandwriting"
-      ></handwriting-pad>
+      <!-- 手写输入法 (包裹在全宽容器中，确保铺满整个屏幕宽度) -->
+      <div class="handwriting-wrapper" if="{{ keyboardMode === 'handwriting' }}">
+        <handwriting-pad
+          @complete="onComplete"
+          @delete="onDelete"
+          @switchkeyboard="onSwitchFromHandwriting"
+        ></handwriting-pad>
+      </div>
     </div>
   </div>
 </template>
@@ -129,7 +131,7 @@
   flex-direction: row;
   justify-content: center;
   align-items: center;
-  padding: 0 20px;
+  padding: 0 16px;
 }
 
 .preview-box {
@@ -146,12 +148,13 @@
   overflow: hidden;
 }
 
+/* 输入框适度加长 */
 .preview-box-compact {
-  width: 180px;
+  width: 230px;
 }
 
 .preview-box-wide {
-  width: 250px;
+  width: 290px;
 }
 
 .preview-text {
@@ -172,7 +175,7 @@
 .mode-btn {
   width: 60px;
   height: 60px;
-  margin-left: 10px;
+  margin-left: 8px;
   border-radius: 30px;
   background-color: #bac3ff;
   flex-direction: column;
@@ -184,7 +187,7 @@
 .confirm-button {
   width: 60px;
   height: 60px;
-  margin-left: 10px;
+  margin-left: 8px;
   border-radius: 30px;
   background-color: #bac3ff;
   flex-direction: column;
@@ -241,26 +244,36 @@
   }
 }
 
-/* ---- 键盘固定在底部 (恢复原版无 flex 干扰布局) ---- */
+/* ---- 键盘固定在底部 (显式 flex-direction: column 避免子元素横向挤压并排) ---- */
 .keyboard-area {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
   width: 100%;
+  flex-direction: column;
+  align-items: center;
   overflow: visible;
 }
 .numpad-wrapper {
   width: 100%;
+  flex-direction: column;
+  align-items: center;
+}
+.handwriting-wrapper {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
 }
 
 /* ---- Circle screen ---- */
 @media (shape: circle) {
+  /* 圆屏输入框加长：compact 230px, wide 290px */
   .preview-box-compact {
-    width: 170px;
+    width: 230px;
   }
   .preview-box-wide {
-    width: 240px;
+    width: 290px;
   }
   .mode-btn {
     width: 56px;
@@ -288,10 +301,10 @@
     top: 65px;
   }
   .preview-box-compact {
-    width: 220px;
+    width: 250px;
   }
   .preview-box-wide {
-    width: 290px;
+    width: 310px;
   }
 }
 </style>
@@ -388,15 +401,15 @@ export default {
       return
     }
 
-    // 字符视觉单位计算：半角算 1，全角/中文算 2
+    // 字符视觉单位计算：半角算 1，全角/中文算 2 (加长后单位容量相应增加)
     const isCircle = this.screentype === 'circle'
     const isCompact = this.canUseHandwriting
 
-    let maxUnits = 12
+    let maxUnits = 14
     if (isCircle) {
-      maxUnits = isCompact ? 8 : 13
+      maxUnits = isCompact ? 12 : 16
     } else {
-      maxUnits = isCompact ? 11 : 16
+      maxUnits = isCompact ? 14 : 18
     }
 
     let currentUnits = 0
