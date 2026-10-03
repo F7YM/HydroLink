@@ -28,19 +28,27 @@
 
     <!-- 预览和确认行 -->
     <div class="input-row">
-      <div class="preview-box">
-        <text class="preview-text">{{ textValue || ' ' }}</text>
+      <div class="preview-box {{ canUseHandwriting ? 'preview-box-compact' : 'preview-box-wide' }}">
+        <text class="preview-text">{{ displayValue || ' ' }}</text>
         <text class="cursor">_</text>
       </div>
+
+      <!-- 仅在非IP/端口且互联通道已连接时显示手写切换按钮 (强调色背景) -->
       <div
+        if="{{ canUseHandwriting }}"
         class="mode-btn pressable {{ pressedKey === 'mode' ? 'is-down press-down' : '' }} {{ releasedKey === 'mode' ? 'press-up' : '' }}"
         ontouchstart="pressDown('mode')"
         ontouchend="pressRelease('mode')"
         ontouchcancel="pressCancel('mode')"
         @click="toggleHandwritingMode"
       >
-        <text class="mode-btn-text">{{ keyboardMode === 'handwriting' ? '键' : '写' }}</text>
+        <image
+          class="btn-icon"
+          src="{{ keyboardMode === 'handwriting' ? '/common/icons/keyboard_32dp_FFFFFF_FILL0_wght400_GRAD0_opsz40.png' : '/common/icons/draw_32dp_FFFFFF_FILL0_wght400_GRAD0_opsz40.png' }}"
+        ></image>
       </div>
+
+      <!-- 确认按钮换成 check_small 图标 -->
       <div
         class="confirm-button pressable {{ pressedKey === 'confirm' ? 'is-down press-down' : '' }} {{ releasedKey === 'confirm' ? 'press-up' : '' }}"
         ontouchstart="pressDown('confirm')"
@@ -48,7 +56,10 @@
         ontouchcancel="pressCancel('confirm')"
         @click="onConfirm"
       >
-        <text class="confirm-button-text">确认</text>
+        <image
+          class="btn-icon"
+          src="/common/icons/check_small_32dp_FFFFFF_FILL0_wght400_GRAD0_opsz40.png"
+        ></image>
       </div>
     </div>
 
@@ -130,10 +141,10 @@
   flex-direction: row;
   justify-content: center;
   align-items: center;
-  padding: 0 30px;
+  padding: 0 20px;
 }
+
 .preview-box {
-  width: 210px;
   height: 60px;
   padding: 0 16px;
   background-color: #2e323c;
@@ -144,53 +155,58 @@
   flex-direction: row;
   justify-content: center;
   align-items: center;
+  overflow: hidden;
 }
+
+.preview-box-compact {
+  width: 180px;
+}
+
+.preview-box-wide {
+  width: 250px;
+}
+
 .preview-text {
   font-size: 28px;
   font-weight: bold;
   color: #fff;
   lines: 1;
-  text-overflow: ellipsis;
-  max-width: 150px;
-  text-align: center;
+  text-align: right;
 }
+
 .cursor {
   font-size: 28px;
   color: #bac3ff;
   font-weight: bold;
 }
+
+/* 切换手写键盘按钮：强调色圆形胶囊 */
 .mode-btn {
   width: 60px;
   height: 60px;
-  margin-left: 8px;
-  border-radius: 30px;
-  background-color: #2e323c;
-  border-width: 2px;
-  border-style: solid;
-  border-color: #bac3ff;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-}
-.mode-btn-text {
-  font-size: 26px;
-  font-weight: bold;
-  color: #bac3ff;
-}
-.confirm-button {
-  width: 90px;
-  height: 60px;
-  margin-left: 8px;
+  margin-left: 10px;
   border-radius: 30px;
   background-color: #bac3ff;
   flex-direction: column;
   justify-content: center;
   align-items: center;
 }
-.confirm-button-text {
-  font-size: 28px;
-  font-weight: bold;
-  color: #000;
+
+/* 确认按钮：强调色圆形胶囊 */
+.confirm-button {
+  width: 60px;
+  height: 60px;
+  margin-left: 10px;
+  border-radius: 30px;
+  background-color: #bac3ff;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.btn-icon {
+  width: 34px;
+  height: 34px;
 }
 
 /* ---- 按压动画 ---- */
@@ -261,14 +277,23 @@
 
 /* ---- Circle screen ---- */
 @media (shape: circle) {
-  .preview-box {
+  .preview-box-compact {
     width: 170px;
+  }
+  .preview-box-wide {
+    width: 240px;
   }
   .mode-btn {
     width: 56px;
+    height: 56px;
+    border-radius: 28px;
+    margin-left: 8px;
   }
   .confirm-button {
-    width: 80px;
+    width: 56px;
+    height: 56px;
+    border-radius: 28px;
+    margin-left: 8px;
   }
   .numpad-wrapper {
     margin-bottom: 30px;
@@ -283,8 +308,11 @@
   .input-row {
     top: 65px;
   }
-  .preview-box {
-    width: 230px;
+  .preview-box-compact {
+    width: 220px;
+  }
+  .preview-box-wide {
+    width: 290px;
   }
 }
 </style>
@@ -292,6 +320,7 @@
 <script>
 import router from '@system.router'
 import device from '@system.device'
+import interconnectService from '../../services/interconnectService.js'
 
 export default {
   public: {
@@ -305,11 +334,14 @@ export default {
     vibratemode: 'short',
     screentype: 'rect',
     textValue: '',
+    displayValue: '',
     hide: false,
     pressedKey: '',
     releasedKey: '',
     keyboardMode: 'qwerty',
-    lastKeyboardMode: 'qwerty'
+    lastKeyboardMode: 'qwerty',
+    canUseHandwriting: false,
+    interconnectConnected: false
   },
 
   onInit() {
@@ -317,7 +349,7 @@ export default {
     this.fieldName = this.field || ''
     this.textValue = this.value || ''
 
-    // 根据字段决定键盘模式
+    // 根据字段决定初始键盘模式
     if (this.fieldName === 'serverPort' || this.fieldName === 'port') {
       // 端口：纯九宫格
       this.keyboardMode = 'numpad'
@@ -329,12 +361,79 @@ export default {
       this.keyboardMode = 'qwerty'
     }
 
+    this.updateHandwritingAvailability()
+    this.updateDisplayValue()
+
     device.getInfo({
       success: (data) => {
-        if (data.screenShape) this.screentype = data.screenShape
+        if (data.screenShape) {
+          this.screentype = data.screenShape
+          this.updateDisplayValue()
+        }
       },
       fail: () => {}
     })
+  },
+
+  onShow() {
+    this.updateHandwritingAvailability()
+    this.updateDisplayValue()
+  },
+
+  updateHandwritingAvailability() {
+    // 1. IP 和 端口等纯数字字段，绝不提供手写切换
+    if (
+      this.fieldName === 'serverPort' ||
+      this.fieldName === 'port' ||
+      this.fieldName === 'serverIp' ||
+      this.fieldName === 'ip'
+    ) {
+      this.canUseHandwriting = false
+      return
+    }
+
+    // 2. 仅在互联通道处于连接就绪状态时才显示切换手写
+    const ready = interconnectService && typeof interconnectService.isReady === 'function'
+      ? interconnectService.isReady()
+      : false
+    this.interconnectConnected = ready
+    this.canUseHandwriting = ready
+    this.updateDisplayValue()
+  },
+
+  // 文本过长时不显示省略号，截取末尾可视字符跟随光标
+  updateDisplayValue() {
+    const text = this.textValue || ''
+    if (!text) {
+      this.displayValue = ''
+      return
+    }
+
+    // 字符视觉单位计算：半角算 1，全角/中文算 2
+    const isCircle = this.screentype === 'circle'
+    const isCompact = this.canUseHandwriting
+
+    let maxUnits = 12
+    if (isCircle) {
+      maxUnits = isCompact ? 8 : 13
+    } else {
+      maxUnits = isCompact ? 11 : 16
+    }
+
+    let currentUnits = 0
+    let startIndex = text.length
+
+    for (let i = text.length - 1; i >= 0; i--) {
+      const code = text.charCodeAt(i)
+      const weight = code > 255 ? 2 : 1
+      if (currentUnits + weight > maxUnits) {
+        break
+      }
+      currentUnits += weight
+      startIndex = i
+    }
+
+    this.displayValue = text.slice(startIndex)
   },
 
   // 长按数字0：单向切换到全键盘
@@ -361,10 +460,12 @@ export default {
 
   onComplete(evt) {
     this.textValue += evt.detail.content
+    this.updateDisplayValue()
   },
 
   onDelete() {
     this.textValue = this.textValue.slice(0, -1)
+    this.updateDisplayValue()
   },
 
   onConfirm() {
