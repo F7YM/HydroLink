@@ -1,6 +1,6 @@
 <template>
   <div class="handwriting-container">
-    <!-- 顶部操作与候选字栏 (深黑背景，删除冗余的拼按钮) -->
+    <!-- 顶部操作与候选字栏 (深黑背景) -->
     <div class="top-bar">
       <!-- 候选字横向滚动展示区 -->
       <div class="candidate-bar">
@@ -32,7 +32,7 @@
       </div>
     </div>
 
-    <!-- 居中纯净手写触控板 (无描边，实心深灰背景，与候选栏形成深浅层次) -->
+    <!-- 候选栏下面一整块通栏实心手写触控区 (零间隙零边距通栏铺满，与顶栏形成深浅区分) -->
     <div
       class="writing-pad"
       ontouchstart="onTouchStart"
@@ -59,7 +59,7 @@
   background-color: #000000;
 }
 
-/* ---- 顶部候选栏 (深色背景，与下方手写板深浅区隔) ---- */
+/* ---- 顶部候选栏 (深色背景) ---- */
 .top-bar {
   width: 100%;
   height: 52px;
@@ -146,14 +146,13 @@
   opacity: 1;
 }
 
-/* ---- 居中纯净手写板 (无描边，实心背景，与候选栏区分) ---- */
+/* ---- 候选栏下方整块通栏实心手写触控区 (全宽占满、无间隙、无圆角) ---- */
 .writing-pad {
-  width: 400px;
-  height: 240px;
-  background-color: #1e1e24;
-  border-radius: 24px;
-  margin-top: 6px;
-  margin-bottom: 12px;
+  width: 100%;
+  height: 260px;
+  background-color: #1b1b24;
+  margin: 0;
+  border-radius: 0;
   position: relative;
 }
 
@@ -212,9 +211,9 @@ export default {
     var x = pos.x
     var y = pos.y
 
-    // 更新高光位置居中 (光斑宽32px，半宽16px)
-    var dotLeft = Math.max(0, Math.min(368, x - 16))
-    var dotTop = Math.max(0, Math.min(208, y - 16))
+    // 更新高光位置居中 (光斑宽32px，最大边界按全宽466px、高260px计算)
+    var dotLeft = Math.max(0, Math.min(434, x - 16))
+    var dotTop = Math.max(0, Math.min(228, y - 16))
     this.dotStyle = 'left: ' + dotLeft + 'px; top: ' + dotTop + 'px;'
     this.showHighlight = true
 
@@ -233,8 +232,8 @@ export default {
     var y = pos.y
 
     // 实时跟随手指高光
-    var dotLeft = Math.max(0, Math.min(368, x - 16))
-    var dotTop = Math.max(0, Math.min(208, y - 16))
+    var dotLeft = Math.max(0, Math.min(434, x - 16))
+    var dotTop = Math.max(0, Math.min(228, y - 16))
     this.dotStyle = 'left: ' + dotLeft + 'px; top: ' + dotTop + 'px;'
 
     // 笔画采样 (位移 >= 3px 记录点)
@@ -280,8 +279,8 @@ export default {
 
     var payload = {
       strokes: this.strokes,
-      width: 400,
-      height: 240,
+      width: 466,
+      height: 260,
       max: 8
     }
 

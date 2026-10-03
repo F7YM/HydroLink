@@ -33,7 +33,7 @@
         <text class="cursor">_</text>
       </div>
 
-      <!-- 仅在非IP/端口且互联通道已连接时显示手写切换按钮 (强调色背景) -->
+      <!-- 仅在非IP/端口且互联通道已连接时显示手写切换按钮 (强调色背景，黑色图标) -->
       <div
         if="{{ canUseHandwriting }}"
         class="mode-btn pressable {{ pressedKey === 'mode' ? 'is-down press-down' : '' }} {{ releasedKey === 'mode' ? 'press-up' : '' }}"
@@ -44,11 +44,11 @@
       >
         <image
           class="btn-icon"
-          src="{{ keyboardMode === 'handwriting' ? '/common/icons/keyboard_32dp_FFFFFF_FILL0_wght400_GRAD0_opsz40.png' : '/common/icons/draw_32dp_FFFFFF_FILL0_wght400_GRAD0_opsz40.png' }}"
+          src="{{ keyboardMode === 'handwriting' ? '/common/icons/keyboard_32dp_000000_FILL0_wght400_GRAD0_opsz40.png' : '/common/icons/draw_32dp_000000_FILL0_wght400_GRAD0_opsz40.png' }}"
         ></image>
       </div>
 
-      <!-- 确认按钮换成 check_small 图标 -->
+      <!-- 确认按钮换成 check_small 黑色图标 -->
       <div
         class="confirm-button pressable {{ pressedKey === 'confirm' ? 'is-down press-down' : '' }} {{ releasedKey === 'confirm' ? 'press-up' : '' }}"
         ontouchstart="pressDown('confirm')"
@@ -58,51 +58,39 @@
       >
         <image
           class="btn-icon"
-          src="/common/icons/check_small_32dp_FFFFFF_FILL0_wght400_GRAD0_opsz40.png"
+          src="/common/icons/check_small_32dp_000000_FILL0_wght400_GRAD0_opsz40.png"
         ></image>
       </div>
     </div>
 
-    <!-- 键盘区域 -->
+    <!-- 键盘区域 (恢复原始定位结构，确保全键盘正确定位与九宫格安全区) -->
     <div class="keyboard-area">
-      <!-- 九宫格数字键盘 -->
-      <div class="mode-wrapper" if="{{ keyboardMode === 'numpad' }}">
-        <numpad
+      <!-- 九宫格数字键盘 (恢复原 numpad-wrapper 保障底部 30px 安全区) -->
+      <div class="numpad-wrapper">
+        <numpad if="{{ keyboardMode === 'numpad' }}"
           @complete="onComplete"
           @delete="onDelete"
           @switchkeyboard="onSwitchToQwerty"
-          oncomplete="onComplete"
-          ondelete="onDelete"
-          onswitchkeyboard="onSwitchToQwerty"
         ></numpad>
       </div>
 
-      <!-- 全键盘输入法 -->
-      <div class="mode-wrapper" if="{{ keyboardMode === 'qwerty' }}">
-        <input-method
-          hide="{{ hide }}"
-          keyboardtype="{{ keyboardtype }}"
-          maxlength="20"
-          vibratemode="{{ vibratemode }}"
-          screentype="{{ screentype }}"
-          @delete="onDelete"
-          @complete="onComplete"
-          ondelete="onDelete"
-          oncomplete="onComplete"
-        ></input-method>
-      </div>
+      <!-- 全键盘输入法 (直接作为 keyboard-area 子节点，恢复原版无包裹布局) -->
+      <input-method if="{{ keyboardMode === 'qwerty' }}"
+        hide="{{ hide }}"
+        keyboardtype="{{ keyboardtype }}"
+        maxlength="20"
+        vibratemode="{{ vibratemode }}"
+        screentype="{{ screentype }}"
+        @delete="onDelete"
+        @complete="onComplete"
+      ></input-method>
 
       <!-- 手写输入法 -->
-      <div class="mode-wrapper" if="{{ keyboardMode === 'handwriting' }}">
-        <handwriting-pad
-          @complete="onComplete"
-          @delete="onDelete"
-          @switchkeyboard="onSwitchFromHandwriting"
-          oncomplete="onComplete"
-          ondelete="onDelete"
-          onswitchkeyboard="onSwitchFromHandwriting"
-        ></handwriting-pad>
-      </div>
+      <handwriting-pad if="{{ keyboardMode === 'handwriting' }}"
+        @complete="onComplete"
+        @delete="onDelete"
+        @switchkeyboard="onSwitchFromHandwriting"
+      ></handwriting-pad>
     </div>
   </div>
 </template>
@@ -253,23 +241,14 @@
   }
 }
 
-/* ---- 键盘固定在底部 ---- */
+/* ---- 键盘固定在底部 (恢复原版无 flex 干扰布局) ---- */
 .keyboard-area {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
   width: 100%;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
   overflow: visible;
-}
-.mode-wrapper {
-  width: 100%;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
 }
 .numpad-wrapper {
   width: 100%;
@@ -332,7 +311,7 @@ export default {
     fieldName: '',
     keyboardtype: 'QWERTY',
     vibratemode: 'short',
-    screentype: 'rect',
+    screentype: 'circle',
     textValue: '',
     displayValue: '',
     hide: false,
