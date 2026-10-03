@@ -55,31 +55,43 @@
     <!-- 键盘区域 -->
     <div class="keyboard-area">
       <!-- 九宫格数字键盘 -->
-      <div class="numpad-wrapper">
-        <numpad if="{{ keyboardMode === 'numpad' }}"
+      <div class="mode-wrapper" if="{{ keyboardMode === 'numpad' }}">
+        <numpad
           @complete="onComplete"
           @delete="onDelete"
           @switchkeyboard="onSwitchToQwerty"
+          oncomplete="onComplete"
+          ondelete="onDelete"
+          onswitchkeyboard="onSwitchToQwerty"
         ></numpad>
       </div>
 
       <!-- 全键盘输入法 -->
-      <input-method if="{{ keyboardMode === 'qwerty' }}"
-        hide="{{ hide }}"
-        keyboardtype="{{ keyboardtype }}"
-        maxlength="20"
-        vibratemode="{{ vibratemode }}"
-        screentype="{{ screentype }}"
-        @delete="onDelete"
-        @complete="onComplete"
-      ></input-method>
+      <div class="mode-wrapper" if="{{ keyboardMode === 'qwerty' }}">
+        <input-method
+          hide="{{ hide }}"
+          keyboardtype="{{ keyboardtype }}"
+          maxlength="20"
+          vibratemode="{{ vibratemode }}"
+          screentype="{{ screentype }}"
+          @delete="onDelete"
+          @complete="onComplete"
+          ondelete="onDelete"
+          oncomplete="onComplete"
+        ></input-method>
+      </div>
 
       <!-- 手写输入法 -->
-      <handwriting-pad if="{{ keyboardMode === 'handwriting' }}"
-        @complete="onComplete"
-        @delete="onDelete"
-        @switchkeyboard="onSwitchFromHandwriting"
-      ></handwriting-pad>
+      <div class="mode-wrapper" if="{{ keyboardMode === 'handwriting' }}">
+        <handwriting-pad
+          @complete="onComplete"
+          @delete="onDelete"
+          @switchkeyboard="onSwitchFromHandwriting"
+          oncomplete="onComplete"
+          ondelete="onDelete"
+          onswitchkeyboard="onSwitchFromHandwriting"
+        ></handwriting-pad>
+      </div>
     </div>
   </div>
 </template>
@@ -232,7 +244,16 @@
   left: 0;
   right: 0;
   width: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
   overflow: visible;
+}
+.mode-wrapper {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
 }
 .numpad-wrapper {
   width: 100%;

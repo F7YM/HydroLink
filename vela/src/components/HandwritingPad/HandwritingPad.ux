@@ -3,26 +3,44 @@
     <!-- 顶部操作与候选字栏 -->
     <div class="top-bar">
       <!-- 切换输入法模式按钮 (切回全键盘/九宫格) -->
-      <div class="mode-switch-btn" @click="onSwitchKeyboard">
+      <div
+        class="mode-switch-btn pressable {{ pressedKey === 'switch' ? 'is-down press-down' : '' }} {{ releasedKey === 'switch' ? 'press-up' : '' }}"
+        ontouchstart="pressDown('switch')"
+        ontouchend="pressRelease('switch')"
+        ontouchcancel="pressCancel('switch')"
+        onclick="onSwitchKeyboard"
+      >
         <text class="mode-switch-text">{{ switchLabel || '拼' }}</text>
       </div>
 
-      <!-- 候选字横向展示区 -->
+      <!-- 候选字横向展示区 (带横向滚动胶囊，防挤压防截断) -->
       <div class="candidate-bar">
-        <text
-          for="{{(idx, item) in candidates}}"
-          class="candidate-word"
-          @click="selectCandidate(item)"
-        >{{ item }}</text>
+        <scroll class="candidate-scroll" scroll-x="{{true}}">
+          <div class="candidate-list">
+            <div
+              for="{{(idx, item) in candidates}}"
+              class="candidate-item"
+              onclick="selectCandidate(item)"
+            >
+              <text class="candidate-word">{{ item }}</text>
+            </div>
+          </div>
+        </scroll>
       </div>
 
-      <!-- 退格删除键 -->
-      <div class="action-btn" @click="onDelete">
-        <text class="action-text">⌫</text>
+      <!-- 退格删除键 (纯文字“删”，无emoji) -->
+      <div
+        class="action-btn pressable {{ pressedKey === 'del' ? 'is-down press-down' : '' }} {{ releasedKey === 'del' ? 'press-up' : '' }}"
+        ontouchstart="pressDown('del')"
+        ontouchend="pressRelease('del')"
+        ontouchcancel="pressCancel('del')"
+        onclick="onDelete"
+      >
+        <text class="action-text">删</text>
       </div>
     </div>
 
-    <!-- 纯净手写触控板 -->
+    <!-- 居中纯净手写触控板 -->
     <div
       class="writing-pad"
       ontouchstart="onTouchStart"
@@ -30,11 +48,11 @@
       ontouchend="onTouchEnd"
       ontouchcancel="onTouchCancel"
     >
-      <!-- 落笔点高光指示器 (随手指实时跟随，抬笔即散) -->
+      <!-- 落笔点高光指示器 (随手指实时跟随) -->
       <div
         class="highlight-dot"
-        style="left: {{highlightX}}px; top: {{highlightY}}px;"
-        show="{{showHighlight}}"
+        style="{{ dotStyle }}"
+        if="{{ showHighlight }}"
       ></div>
     </div>
   </div>
@@ -44,33 +62,33 @@
 .handwriting-container {
   width: 100%;
   flex-direction: column;
-  background-color: #000;
-  overflow: hidden;
+  align-items: center;
+  justify-content: flex-end;
+  background-color: #000000;
 }
 
 /* ---- 顶部栏 ---- */
 .top-bar {
   width: 100%;
-  height: 56px;
+  height: 52px;
   flex-direction: row;
   align-items: center;
-  padding: 0 8px;
+  justify-content: space-between;
+  padding: 0 16px;
   background-color: #121212;
-  border-bottom: 1px solid #222;
 }
 
 .mode-switch-btn {
-  width: 52px;
-  height: 40px;
+  width: 56px;
+  height: 42px;
   background-color: #242424;
-  border-radius: 8px;
+  border-radius: 21px;
   justify-content: center;
   align-items: center;
-  margin-right: 6px;
 }
 
 .mode-switch-text {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: bold;
   color: #bac3ff;
 }
@@ -80,43 +98,88 @@
   height: 48px;
   flex-direction: row;
   align-items: center;
+  margin: 0 6px;
   overflow: hidden;
 }
 
-.candidate-word {
+.candidate-scroll {
+  width: 100%;
+  height: 46px;
+  flex-direction: row;
+  align-items: center;
+}
+
+.candidate-list {
   height: 44px;
-  padding: 0 12px;
-  font-size: 26px;
+  flex-direction: row;
+  align-items: center;
+  padding: 0 2px;
+}
+
+.candidate-item {
+  height: 38px;
+  min-width: 44px;
+  padding: 0 14px;
+  margin-right: 8px;
+  background-color: #242424;
+  border-radius: 19px;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.candidate-word {
+  font-size: 24px;
   color: #ffffff;
-  font-weight: 500;
+  font-weight: bold;
   text-align: center;
 }
 
 .action-btn {
-  width: 48px;
-  height: 40px;
+  width: 56px;
+  height: 42px;
   background-color: #242424;
-  border-radius: 8px;
+  border-radius: 21px;
   justify-content: center;
   align-items: center;
-  margin-left: 6px;
 }
 
 .action-text {
   font-size: 22px;
+  font-weight: bold;
   color: #bac3ff;
 }
 
-/* ---- 纯净手写板 ---- */
+/* ---- 按压反馈动画 ---- */
+.pressable {
+  transform-origin: 50% 50%;
+  transform: scale(1);
+  opacity: 1;
+}
+.is-down {
+  opacity: 0.75;
+}
+.press-down {
+  transform: scale(0.92);
+  opacity: 0.75;
+}
+.press-up {
+  transform: scale(1);
+  opacity: 1;
+}
+
+/* ---- 居中纯净手写板 (圆表留出安全边距) ---- */
 .writing-pad {
-  width: 100%;
-  height: 270px;
-  background-color: #080808;
-  border: 1px solid #1c1c1c;
-  border-radius: 12px;
+  width: 400px;
+  height: 240px;
+  background-color: #0c0c0c;
+  border-width: 1px;
+  border-style: solid;
+  border-color: #262626;
+  border-radius: 20px;
+  margin-top: 6px;
+  margin-bottom: 12px;
   position: relative;
-  overflow: hidden;
-  margin-top: 4px;
 }
 
 /* ---- 落笔点高光指示器 ---- */
@@ -125,8 +188,10 @@
   width: 32px;
   height: 32px;
   border-radius: 16px;
-  background-color: rgba(186, 195, 255, 0.4);
-  border: 2px solid #bac3ff;
+  background-color: rgba(186, 195, 255, 0.35);
+  border-width: 2px;
+  border-style: solid;
+  border-color: #bac3ff;
 }
 </style>
 
@@ -145,13 +210,12 @@ export default {
   data: {
     candidates: [],
     showHighlight: false,
-    highlightX: 0,
-    highlightY: 0,
+    dotStyle: 'left: 0px; top: 0px;',
     strokes: [],
     currentStroke: [],
     commitTimer: null,
-    padLeft: 0,
-    padTop: 0
+    pressedKey: '',
+    releasedKey: ''
   },
 
   onDestroy() {
@@ -161,45 +225,55 @@ export default {
     }
   },
 
+  getTouchCoords(e) {
+    var touch = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e
+    // 优先读取相对当前元素的 offsetX / offsetY，如果不存在则使用 clientX / pageX
+    var x = typeof touch.offsetX === 'number' ? touch.offsetX : (touch.clientX || touch.pageX || touch.x || 0)
+    var y = typeof touch.offsetY === 'number' ? touch.offsetY : (touch.clientY || touch.pageY || touch.y || 0)
+    return { x: x, y: y }
+  },
+
   onTouchStart(e) {
     if (this.commitTimer) {
       clearTimeout(this.commitTimer)
       this.commitTimer = null
     }
 
-    const touch = (e.touches && e.touches[0]) || e
-    const x = touch.clientX || touch.x || 0
-    const y = touch.clientY || touch.y || 0
+    var pos = this.getTouchCoords(e)
+    var x = pos.x
+    var y = pos.y
 
-    // 更新高光并居中 (32px / 2 = 16)
-    this.highlightX = x - 16
-    this.highlightY = y - 16
+    // 更新高光位置居中 (光斑宽32px，半宽16px)
+    var dotLeft = Math.max(0, Math.min(368, x - 16))
+    var dotTop = Math.max(0, Math.min(208, y - 16))
+    this.dotStyle = 'left: ' + dotLeft + 'px; top: ' + dotTop + 'px;'
     this.showHighlight = true
 
     // 开启新笔画
     this.currentStroke = [[x, y]]
 
-    // 触感反馈
+    // 落笔短振动触觉反馈
     try {
       vibrator.vibrate({ mode: 'short' })
     } catch (_) {}
   },
 
   onTouchMove(e) {
-    const touch = (e.touches && e.touches[0]) || e
-    const x = touch.clientX || touch.x || 0
-    const y = touch.clientY || touch.y || 0
+    var pos = this.getTouchCoords(e)
+    var x = pos.x
+    var y = pos.y
 
     // 实时跟随手指高光
-    this.highlightX = x - 16
-    this.highlightY = y - 16
+    var dotLeft = Math.max(0, Math.min(368, x - 16))
+    var dotTop = Math.max(0, Math.min(208, y - 16))
+    this.dotStyle = 'left: ' + dotLeft + 'px; top: ' + dotTop + 'px;'
 
-    // 防抖采样 (位移差 > 4px 计入轨迹)
+    // 笔画采样 (位移 >= 3px 记录点)
     if (this.currentStroke.length > 0) {
-      const last = this.currentStroke[this.currentStroke.length - 1]
-      const dx = x - last[0]
-      const dy = y - last[1]
-      if (dx * dx + dy * dy >= 16) {
+      var last = this.currentStroke[this.currentStroke.length - 1]
+      var dx = x - last[0]
+      var dy = y - last[1]
+      if (dx * dx + dy * dy >= 9) {
         this.currentStroke.push([x, y])
       }
     } else {
@@ -215,7 +289,7 @@ export default {
       this.currentStroke = []
     }
 
-    // 500ms 抬笔超时自动提交
+    // 500ms 抬笔超时自动提交识别
     this.commitTimer = setTimeout(() => {
       this.commitStrokes()
     }, 500)
@@ -235,14 +309,14 @@ export default {
   commitStrokes() {
     if (!this.strokes || this.strokes.length === 0) return
 
-    const payload = {
+    var payload = {
       strokes: this.strokes,
-      width: 360,
-      height: 270,
+      width: 400,
+      height: 240,
       max: 8
     }
 
-    // 自动清屏本地笔画缓存，允许用户立即开始写下一个字
+    // 自动清空本地笔画缓存，允许用户立即开始写下一个字
     this.strokes = []
 
     // 走统一的 /api/ime/handwriting 互联通道
@@ -253,7 +327,7 @@ export default {
         }
       })
       .catch((err) => {
-        console.warn('[handwriting] recognize failed', err)
+        console.warn('[handwriting] recognize request failed: ' + JSON.stringify(err))
       })
   },
 
@@ -275,6 +349,27 @@ export default {
 
   onSwitchKeyboard() {
     this.$emit('switchkeyboard', {})
+    try {
+      vibrator.vibrate({ mode: 'short' })
+    } catch (_) {}
+  },
+
+  pressDown(key) {
+    this.releasedKey = ''
+    this.pressedKey = key
+  },
+
+  pressRelease(key) {
+    this.pressedKey = ''
+    this.releasedKey = key
+    setTimeout(() => {
+      if (this.releasedKey === key) this.releasedKey = ''
+    }, 160)
+  },
+
+  pressCancel(key) {
+    if (this.pressedKey === key) this.pressedKey = ''
+    if (this.releasedKey === key) this.releasedKey = ''
   }
 }
 </script>
