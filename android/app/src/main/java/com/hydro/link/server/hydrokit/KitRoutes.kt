@@ -3,6 +3,8 @@ package com.hydro.link.server.hydrokit
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import com.hydro.link.server.hydrokit.net.SshManager
+import com.hydro.link.server.hydrokit.net.TcpManager
 
 /**
  * 宿主提供给插件的「kit 能力」。桌面端直接调用 Go 里的 system/music/lock 等实现；
@@ -568,17 +570,59 @@ class KitRoutes(
             body.str("op").ifBlank { "write" }
         }
 
-        return when (op) {
-            "connect", "open" -> {
-                val host = body.str("host").trim()
-                val port = body.get("port")?.let { if (it.isJsonPrimitive) it.asInt else -1 } ?: -1
-                if (host.isBlank()) return HydroHttpResponse.json("""{"error":"缺少 host"}""", 400)
-                if (port !in 1..65535) return HydroHttpResponse.json("""{"error":"无效端口"}""", 400)
-                HydroHttpResponse.json("""{"ok":true,"id":"tcp_android","remote":"$host:$port"}""")
+        return try {
+            when (op) {
+                "connect", "open" -> {
+                    val host = body.str("host").trim()
+                    val port = body.get("port")?.let { if (it.isJsonPrimitive) it.asInt else -1 } ?: -1
+                    val timeout = body.get("timeout")?.let { if (it.isJsonPrimitive) it.asInt else 10_000 } ?: 10_000
+                    if (host.isBlank()) return HydroHttpResponse.json("""{"error":"缺少 host"}""", 400)
+                    if (port !in 1..65535) return HydroHttpResponse.json("""{"error":"无效端口"}""", 400)
+                    val res = TcpManager.connect(pkg, host, port, timeout)
+                    HydroHttpResponse.json(gson.toJson(mapOf(
+                        "ok" to true,
+                        "id" to res.id,
+                        "remote" to res.remote,
+                    )))
+                }
+                "read" -> {
+                    val id = body.str("id").takeIf { it.isNotBlank() }
+                    val timeout = body.get("timeout")?.let { if (it.isJsonPrimitive) it.asInt else 1000 } ?: 1000
+                    val encoding = body.str("encoding").ifBlank { "utf-8" }
+                    val res = TcpManager.read(pkg, id, timeout, encoding)
+                    HydroHttpResponse.json(gson.toJson(mapOf(
+                        "ok" to true,
+                        "data" to res.data,
+                        "eof" to res.eof,
+                        "bytesRead" to res.bytesRead,
+                    )))
+                }
+                "write" -> {
+                    val id = body.str("id").takeIf { it.isNotBlank() }
+                    val data = if (body.has("data")) body.str("data") else body.str("text")
+                    val encoding = body.str("encoding").ifBlank { "utf-8" }
+                    val written = TcpManager.write(pkg, id, data, encoding)
+                    HydroHttpResponse.json(gson.toJson(mapOf(
+                        "ok" to true,
+                        "bytesWritten" to written,
+                    )))
+                }
+                "close" -> {
+                    val id = body.str("id").takeIf { it.isNotBlank() }
+                    TcpManager.close(pkg, id)
+                    HydroHttpResponse.json("""{"ok":true}""")
+                }
+                "list" -> {
+                    val list = TcpManager.list(pkg)
+                    HydroHttpResponse.json(gson.toJson(mapOf(
+                        "ok" to true,
+                        "connections" to list,
+                    )))
+                }
+                else -> HydroHttpResponse.json("""{"error":"未知 TCP 操作: $op"}""", 400)
             }
-            "close" -> HydroHttpResponse.json("""{"ok":true}""")
-            "list" -> HydroHttpResponse.json("""{"ok":true,"connections":[]}""")
-            else -> HydroHttpResponse.json("""{"error":"未知 TCP 操作: $op"}""", 400)
+        } catch (e: Exception) {
+            HydroHttpResponse.json(gson.toJson(mapOf("error" to (e.message ?: "TCP 操作失败"))), 500)
         }
     }
 
@@ -587,7 +631,106 @@ class KitRoutes(
         val body = parseJsonBody(req) ?: return HydroHttpResponse.json("""{"error":"invalid body"}""", 400)
         val pkg = body.str("package")
         requirePermission(pkg, PERM_SSH)?.let { return it }
-        return HydroHttpResponse.json("""{"error":"当前平台不支持 SSH 能力（仅桌面端支持）"}""", 501)
+
+        val op = if (rest.startsWith("ssh/")) {
+            rest.removePrefix("ssh/").trim()
+        } else {
+            body.str("op").ifBlank { "read" }
+        }
+
+        return try {
+            when (op) {
+                "open", "connect" -> {
+                    val host = body.str("host").trim()
+                    val port = body.get("port")?.let { if (it.isJsonPrimitive) it.asInt else 22 } ?: 22
+                    val user = body.str("user").ifBlank { body.str("username") }.trim()
+                    val password = body.str("password").takeIf { it.isNotBlank() }
+                    val agent = body.get("agent")?.let { if (it.isJsonPrimitive) it.asBoolean else false } ?: false
+                    val keyFile = body.str("keyFile").takeIf { it.isNotBlank() }
+                    val privateKey = body.str("privateKey").takeIf { it.isNotBlank() }
+                    val passphrase = body.str("passphrase").takeIf { it.isNotBlank() }
+                    val fingerprint = body.str("fingerprint").takeIf { it.isNotBlank() }
+                    val term = body.str("term").ifBlank { "xterm-256color" }
+                    val cols = body.get("cols")?.let { if (it.isJsonPrimitive) it.asInt else 80 } ?: 80
+                    val rows = body.get("rows")?.let { if (it.isJsonPrimitive) it.asInt else 24 } ?: 24
+                    val timeout = body.get("timeout")?.let { if (it.isJsonPrimitive) it.asInt else 10_000 } ?: 10_000
+
+                    if (host.isBlank()) return HydroHttpResponse.json("""{"error":"缺少 host"}""", 400)
+                    if (user.isBlank()) return HydroHttpResponse.json("""{"error":"缺少 user"}""", 400)
+                    if (port !in 1..65535) return HydroHttpResponse.json("""{"error":"无效端口"}""", 400)
+
+                    val params = SshManager.OpenParams(
+                        host = host,
+                        port = port,
+                        user = user,
+                        password = password,
+                        agent = agent,
+                        keyFile = keyFile,
+                        privateKey = privateKey,
+                        passphrase = passphrase,
+                        fingerprint = fingerprint,
+                        term = term,
+                        cols = cols,
+                        rows = rows,
+                        timeoutMs = timeout,
+                    )
+                    val res = SshManager.open(pkg, params)
+                    HydroHttpResponse.json(gson.toJson(mapOf(
+                        "ok" to true,
+                        "id" to res.id,
+                        "remote" to res.remote,
+                        "fingerprint" to res.fingerprint,
+                        "banner" to res.banner,
+                    )))
+                }
+                "read" -> {
+                    val id = body.str("id").takeIf { it.isNotBlank() }
+                    val timeout = body.get("timeout")?.let { if (it.isJsonPrimitive) it.asInt else 1000 } ?: 1000
+                    val encoding = body.str("encoding").ifBlank { "utf-8" }
+                    val res = SshManager.read(pkg, id, timeout, encoding)
+                    val map = mutableMapOf<String, Any?>(
+                        "ok" to true,
+                        "data" to res.data,
+                        "closed" to res.closed,
+                        "bytesRead" to res.bytesRead,
+                    )
+                    if (res.exitCode != null) map["exitCode"] = res.exitCode
+                    HydroHttpResponse.json(gson.toJson(map))
+                }
+                "write" -> {
+                    val id = body.str("id").takeIf { it.isNotBlank() }
+                    val data = if (body.has("data")) body.str("data") else body.str("text")
+                    val encoding = body.str("encoding").ifBlank { "utf-8" }
+                    val written = SshManager.write(pkg, id, data, encoding)
+                    HydroHttpResponse.json(gson.toJson(mapOf(
+                        "ok" to true,
+                        "bytesWritten" to written,
+                    )))
+                }
+                "resize" -> {
+                    val id = body.str("id").takeIf { it.isNotBlank() }
+                    val cols = body.get("cols")?.let { if (it.isJsonPrimitive) it.asInt else 80 } ?: 80
+                    val rows = body.get("rows")?.let { if (it.isJsonPrimitive) it.asInt else 24 } ?: 24
+                    SshManager.resize(pkg, id, cols, rows)
+                    HydroHttpResponse.json("""{"ok":true}""")
+                }
+                "close" -> {
+                    val id = body.str("id").takeIf { it.isNotBlank() }
+                    SshManager.close(pkg, id)
+                    HydroHttpResponse.json("""{"ok":true}""")
+                }
+                "list" -> {
+                    val list = SshManager.list(pkg)
+                    HydroHttpResponse.json(gson.toJson(mapOf(
+                        "ok" to true,
+                        "sessions" to list,
+                    )))
+                }
+                else -> HydroHttpResponse.json("""{"error":"未知 SSH 操作: $op"}""", 400)
+            }
+        } catch (e: Exception) {
+            HydroHttpResponse.json(gson.toJson(mapOf("error" to (e.message ?: "SSH 操作失败"))), 500)
+        }
     }
 
     private fun hexToBytes(hex: String): ByteArray {

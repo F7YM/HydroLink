@@ -111,6 +111,9 @@ dependencies {
     implementation 'top.yukonga.miuix.kmp:miuix-blur-android:0.9.4'
     // XMS Wearable SDK for interconnect (included as AAR in libs/)
 
+    // HydroKit 原生网络能力（JSch pure Java SSH 支持）
+    implementation 'com.github.mwiede:jsch:0.2.23'
+
     // HydroKit 的协议/运行时/存储等纯逻辑放在 JVM 单测里跑（不依赖 Android API）
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'com.google.code.gson:gson:2.10.1'
