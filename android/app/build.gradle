@@ -114,6 +114,9 @@ dependencies {
     // HydroKit 原生网络能力（JSch pure Java SSH 支持）
     implementation 'com.github.mwiede:jsch:0.2.23'
 
+    // Google ML Kit 离线手写识别引擎
+    implementation 'com.google.mlkit:digital-ink-recognition:18.1.0'
+
     // HydroKit 的协议/运行时/存储等纯逻辑放在 JVM 单测里跑（不依赖 Android API）
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'com.google.code.gson:gson:2.10.1'

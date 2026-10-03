@@ -8,6 +8,11 @@
     src="../../components/NumPad/NumPad.ux"
 ></import>
 
+<import
+    name="handwriting-pad"
+    src="../../components/HandwritingPad/HandwritingPad.ux"
+></import>
+
 <template>
   <div class="page-container">
     <!-- Header: identical to pair.ux -->
@@ -26,6 +31,15 @@
       <div class="preview-box">
         <text class="preview-text">{{ textValue || ' ' }}</text>
         <text class="cursor">_</text>
+      </div>
+      <div
+        class="mode-btn pressable {{ pressedKey === 'mode' ? 'is-down press-down' : '' }} {{ releasedKey === 'mode' ? 'press-up' : '' }}"
+        ontouchstart="pressDown('mode')"
+        ontouchend="pressRelease('mode')"
+        ontouchcancel="pressCancel('mode')"
+        @click="toggleHandwritingMode"
+      >
+        <text class="mode-btn-text">{{ keyboardMode === 'handwriting' ? '键' : '写' }}</text>
       </div>
       <div
         class="confirm-button pressable {{ pressedKey === 'confirm' ? 'is-down press-down' : '' }} {{ releasedKey === 'confirm' ? 'press-up' : '' }}"
@@ -59,6 +73,13 @@
         @delete="onDelete"
         @complete="onComplete"
       ></input-method>
+
+      <!-- 手写输入法 -->
+      <handwriting-pad if="{{ keyboardMode === 'handwriting' }}"
+        @complete="onComplete"
+        @delete="onDelete"
+        @switchkeyboard="onSwitchFromHandwriting"
+      ></handwriting-pad>
     </div>
   </div>
 </template>
@@ -100,9 +121,9 @@
   padding: 0 30px;
 }
 .preview-box {
-  width: 280px;
+  width: 210px;
   height: 60px;
-  padding: 0 20px;
+  padding: 0 16px;
   background-color: #2e323c;
   border-radius: 30px;
   border-width: 2px;
@@ -118,7 +139,7 @@
   color: #fff;
   lines: 1;
   text-overflow: ellipsis;
-  max-width: 200px;
+  max-width: 150px;
   text-align: center;
 }
 .cursor {
@@ -126,10 +147,28 @@
   color: #bac3ff;
   font-weight: bold;
 }
-.confirm-button {
-  width: 100px;
+.mode-btn {
+  width: 60px;
   height: 60px;
-  margin-left: 10px;
+  margin-left: 8px;
+  border-radius: 30px;
+  background-color: #2e323c;
+  border-width: 2px;
+  border-style: solid;
+  border-color: #bac3ff;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.mode-btn-text {
+  font-size: 26px;
+  font-weight: bold;
+  color: #bac3ff;
+}
+.confirm-button {
+  width: 90px;
+  height: 60px;
+  margin-left: 8px;
   border-radius: 30px;
   background-color: #bac3ff;
   flex-direction: column;
@@ -202,10 +241,13 @@
 /* ---- Circle screen ---- */
 @media (shape: circle) {
   .preview-box {
-    width: 240px;
+    width: 170px;
+  }
+  .mode-btn {
+    width: 56px;
   }
   .confirm-button {
-    width: 90px;
+    width: 80px;
   }
   .numpad-wrapper {
     margin-bottom: 30px;
@@ -221,7 +263,7 @@
     top: 65px;
   }
   .preview-box {
-    width: 320px;
+    width: 230px;
   }
 }
 </style>
@@ -245,7 +287,8 @@ export default {
     hide: false,
     pressedKey: '',
     releasedKey: '',
-    keyboardMode: 'qwerty'
+    keyboardMode: 'qwerty',
+    lastKeyboardMode: 'qwerty'
   },
 
   onInit() {
@@ -280,6 +323,19 @@ export default {
 
   goBack() {
     router.back()
+  },
+
+  toggleHandwritingMode() {
+    if (this.keyboardMode === 'handwriting') {
+      this.keyboardMode = this.lastKeyboardMode || 'qwerty'
+    } else {
+      this.lastKeyboardMode = this.keyboardMode
+      this.keyboardMode = 'handwriting'
+    }
+  },
+
+  onSwitchFromHandwriting() {
+    this.keyboardMode = this.lastKeyboardMode || 'qwerty'
   },
 
   onComplete(evt) {

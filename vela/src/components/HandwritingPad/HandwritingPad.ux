@@ -1,0 +1,280 @@
+<template>
+  <div class="handwriting-container">
+    <!-- 顶部操作与候选字栏 -->
+    <div class="top-bar">
+      <!-- 切换输入法模式按钮 (切回全键盘/九宫格) -->
+      <div class="mode-switch-btn" @click="onSwitchKeyboard">
+        <text class="mode-switch-text">{{ switchLabel || '拼' }}</text>
+      </div>
+
+      <!-- 候选字横向展示区 -->
+      <div class="candidate-bar">
+        <text
+          for="{{(idx, item) in candidates}}"
+          class="candidate-word"
+          @click="selectCandidate(item)"
+        >{{ item }}</text>
+      </div>
+
+      <!-- 退格删除键 -->
+      <div class="action-btn" @click="onDelete">
+        <text class="action-text">⌫</text>
+      </div>
+    </div>
+
+    <!-- 纯净手写触控板 -->
+    <div
+      class="writing-pad"
+      ontouchstart="onTouchStart"
+      ontouchmove="onTouchMove"
+      ontouchend="onTouchEnd"
+      ontouchcancel="onTouchCancel"
+    >
+      <!-- 落笔点高光指示器 (随手指实时跟随，抬笔即散) -->
+      <div
+        class="highlight-dot"
+        style="left: {{highlightX}}px; top: {{highlightY}}px;"
+        show="{{showHighlight}}"
+      ></div>
+    </div>
+  </div>
+</template>
+
+<style>
+.handwriting-container {
+  width: 100%;
+  flex-direction: column;
+  background-color: #000;
+  overflow: hidden;
+}
+
+/* ---- 顶部栏 ---- */
+.top-bar {
+  width: 100%;
+  height: 56px;
+  flex-direction: row;
+  align-items: center;
+  padding: 0 8px;
+  background-color: #121212;
+  border-bottom: 1px solid #222;
+}
+
+.mode-switch-btn {
+  width: 52px;
+  height: 40px;
+  background-color: #242424;
+  border-radius: 8px;
+  justify-content: center;
+  align-items: center;
+  margin-right: 6px;
+}
+
+.mode-switch-text {
+  font-size: 20px;
+  font-weight: bold;
+  color: #bac3ff;
+}
+
+.candidate-bar {
+  flex: 1;
+  height: 48px;
+  flex-direction: row;
+  align-items: center;
+  overflow: hidden;
+}
+
+.candidate-word {
+  height: 44px;
+  padding: 0 12px;
+  font-size: 26px;
+  color: #ffffff;
+  font-weight: 500;
+  text-align: center;
+}
+
+.action-btn {
+  width: 48px;
+  height: 40px;
+  background-color: #242424;
+  border-radius: 8px;
+  justify-content: center;
+  align-items: center;
+  margin-left: 6px;
+}
+
+.action-text {
+  font-size: 22px;
+  color: #bac3ff;
+}
+
+/* ---- 纯净手写板 ---- */
+.writing-pad {
+  width: 100%;
+  height: 270px;
+  background-color: #080808;
+  border: 1px solid #1c1c1c;
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+/* ---- 落笔点高光指示器 ---- */
+.highlight-dot {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  border-radius: 16px;
+  background-color: rgba(186, 195, 255, 0.4);
+  border: 2px solid #bac3ff;
+}
+</style>
+
+<script>
+import vibrator from '@system.vibrator'
+import interconnectService from '../../services/interconnectService.js'
+
+export default {
+  props: {
+    switchLabel: {
+      type: String,
+      default: '拼'
+    }
+  },
+
+  data: {
+    candidates: [],
+    showHighlight: false,
+    highlightX: 0,
+    highlightY: 0,
+    strokes: [],
+    currentStroke: [],
+    commitTimer: null,
+    padLeft: 0,
+    padTop: 0
+  },
+
+  onDestroy() {
+    if (this.commitTimer) {
+      clearTimeout(this.commitTimer)
+      this.commitTimer = null
+    }
+  },
+
+  onTouchStart(e) {
+    if (this.commitTimer) {
+      clearTimeout(this.commitTimer)
+      this.commitTimer = null
+    }
+
+    const touch = (e.touches && e.touches[0]) || e
+    const x = touch.clientX || touch.x || 0
+    const y = touch.clientY || touch.y || 0
+
+    // 更新高光并居中 (32px / 2 = 16)
+    this.highlightX = x - 16
+    this.highlightY = y - 16
+    this.showHighlight = true
+
+    // 开启新笔画
+    this.currentStroke = [[x, y]]
+
+    // 触感反馈
+    try {
+      vibrator.vibrate({ mode: 'short' })
+    } catch (_) {}
+  },
+
+  onTouchMove(e) {
+    const touch = (e.touches && e.touches[0]) || e
+    const x = touch.clientX || touch.x || 0
+    const y = touch.clientY || touch.y || 0
+
+    // 实时跟随手指高光
+    this.highlightX = x - 16
+    this.highlightY = y - 16
+
+    // 防抖采样 (位移差 > 4px 计入轨迹)
+    if (this.currentStroke.length > 0) {
+      const last = this.currentStroke[this.currentStroke.length - 1]
+      const dx = x - last[0]
+      const dy = y - last[1]
+      if (dx * dx + dy * dy >= 16) {
+        this.currentStroke.push([x, y])
+      }
+    } else {
+      this.currentStroke.push([x, y])
+    }
+  },
+
+  onTouchEnd() {
+    this.showHighlight = false
+
+    if (this.currentStroke.length > 0) {
+      this.strokes.push(this.currentStroke)
+      this.currentStroke = []
+    }
+
+    // 500ms 抬笔超时自动提交
+    this.commitTimer = setTimeout(() => {
+      this.commitStrokes()
+    }, 500)
+  },
+
+  onTouchCancel() {
+    this.showHighlight = false
+    if (this.currentStroke.length > 0) {
+      this.strokes.push(this.currentStroke)
+      this.currentStroke = []
+    }
+    this.commitTimer = setTimeout(() => {
+      this.commitStrokes()
+    }, 500)
+  },
+
+  commitStrokes() {
+    if (!this.strokes || this.strokes.length === 0) return
+
+    const payload = {
+      strokes: this.strokes,
+      width: 360,
+      height: 270,
+      max: 8
+    }
+
+    // 自动清屏本地笔画缓存，允许用户立即开始写下一个字
+    this.strokes = []
+
+    // 走统一的 /api/ime/handwriting 互联通道
+    interconnectService.sendApiRequest('/api/ime/handwriting', 'POST', payload)
+      .then((res) => {
+        if (res && res.ok && Array.isArray(res.candidates) && res.candidates.length > 0) {
+          this.candidates = res.candidates
+        }
+      })
+      .catch((err) => {
+        console.warn('[handwriting] recognize failed', err)
+      })
+  },
+
+  selectCandidate(word) {
+    if (!word) return
+    this.$emit('complete', { content: word })
+    this.candidates = []
+    try {
+      vibrator.vibrate({ mode: 'short' })
+    } catch (_) {}
+  },
+
+  onDelete() {
+    this.$emit('delete', {})
+    try {
+      vibrator.vibrate({ mode: 'short' })
+    } catch (_) {}
+  },
+
+  onSwitchKeyboard() {
+    this.$emit('switchkeyboard', {})
+  }
+}
+</script>

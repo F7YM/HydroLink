@@ -52,6 +52,14 @@ class ServerService : Service() {
             // Start interconnect handler (XMS Wearable SDK based)
             interconnectHandler = InterconnectHandler(this, server, port).also { it.start() }
             httpServer?.addLog("Interconnect 已启动", "info")
+
+            // 初始化 IME 输入法引擎（异步预检/加载离线手写模型）
+            try {
+                com.hydro.link.server.ime.ImeManager.init(this)
+                httpServer?.addLog("IME 输入法引擎已就绪", "info")
+            } catch (e: Throwable) {
+                httpServer?.addLog("IME 输入法初始化异常: ${e.message}", "warning")
+            }
             // 授权器为 Root 时记一条 su 解析结果：真机上"命令执行失败"十有八九是
             // su 不在 PATH（KernelSU 只对已授权进程暴露 su），日志里先看清这个再排查
             val kind = com.hydro.link.server.util.Authorizer.kindOf(

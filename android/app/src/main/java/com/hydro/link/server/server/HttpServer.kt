@@ -348,6 +348,12 @@ class HydroHttpServer(
                     }
                 }
 
+                // ---- IME 输入法服务 ----
+                cleanUri.startsWith("/api/ime") -> {
+                    val jsonElem = handleImeInternal(cleanUri, method.name, bodyJson)
+                    newFixedLengthResponse(Response.Status.OK, "application/json; charset=utf-8", gson.toJson(jsonElem))
+                }
+
                 // ---- Root / health check ----
                 cleanUri == "/" || cleanUri == "" -> {
                     jsonResp(mapOf("status" to "ok", "service" to "HydroLinkServer", "version" to VERSION))
@@ -421,6 +427,35 @@ class HydroHttpServer(
     }
 
     /**
+     * 互联通道与 HTTP 下的统一 `/api/ime/...` 路由：
+     * 手表通过互联通道或网络调用输入法服务（手写识别 / 拼音输入等）。
+     */
+    private fun handleImeInternal(
+        cleanPath: String,
+        method: String,
+        bodyJson: JsonObject?,
+    ): com.google.gson.JsonElement {
+        val rest = cleanPath.removePrefix("/api/ime").removePrefix("/ime").trimStart('/')
+        return when {
+            rest == "handwriting" || rest.startsWith("handwriting") -> {
+                if (method != "POST") {
+                    return gson.toJsonTree(mapOf("error" to "method not allowed", "ok" to false))
+                }
+                val candidates = kotlinx.coroutines.runBlocking {
+                    com.hydro.link.server.ime.ImeManager.recognize(bodyJson)
+                }
+                gson.toJsonTree(mapOf("ok" to true, "candidates" to candidates))
+            }
+            rest == "status" || rest.isEmpty() -> {
+                gson.toJsonTree(mapOf("ok" to true, "handwriting" to true, "pinyin" to false))
+            }
+            else -> {
+                gson.toJsonTree(mapOf("error" to "unknown ime endpoint: $rest", "ok" to false))
+            }
+        }
+    }
+
+    /**
      * Handle an API request from the InterconnectHandler (UDP transport).
      * Routes to the same handlers as serve() but returns a JsonElement
      * instead of an HTTP Response.  Bypasses device-trust checks since
@@ -438,6 +473,9 @@ class HydroHttpServer(
                 // 另外互联通道没有 HTTP 头，X-Hydro-Store 改从 query/body 的
                 // "store" 字段读取（见 vela deviceService.hydro）。
                 cleanPath.startsWith("/api/hydro") -> handleHydroInternal(cleanPath, method, bodyJson)
+
+                // ---- IME 输入法服务（手写识别 / 拼音等）----
+                cleanPath.startsWith("/api/ime") -> handleImeInternal(cleanPath, method, bodyJson)
 
                 // Health check
                 cleanPath == "/api/ping" || cleanPath == "/ping" ->
