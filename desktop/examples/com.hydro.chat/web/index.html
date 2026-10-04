@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HydroChat - Bilibili 私信管理</title>
+  <script src="qrcode.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+      background: #111217;
+      color: #E8EAF0;
+      padding: 24px 16px;
+      display: flex;
+      justify-content: center;
+    }
+    .container {
+      width: 100%;
+      max-width: 520px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .logo-badge {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: #FB7299;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 14px;
+      font-weight: bold;
+      font-size: 20px;
+      color: #FFF;
+      box-shadow: 0 4px 16px rgba(251, 114, 153, 0.35);
+    }
+    .title-group h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #FFF;
+    }
+    .title-group p {
+      font-size: 13px;
+      color: #8C92A4;
+      margin-top: 2px;
+    }
+    .card {
+      background: #1C1E26;
+      border: 1px solid #2B2E3B;
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    }
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #FFF;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .status-tag {
+      font-size: 12px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-weight: 500;
+    }
+    .status-tag.online {
+      background: rgba(38, 191, 122, 0.15);
+      color: #34D399;
+      border: 1px solid rgba(52, 211, 153, 0.3);
+    }
+    .status-tag.offline {
+      background: rgba(251, 114, 153, 0.15);
+      color: #FB7299;
+      border: 1px solid rgba(251, 114, 153, 0.3);
+    }
+    .qr-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px 0;
+    }
+    .qr-box {
+      width: 216px;
+      height: 216px;
+      background: #FFF;
+      border-radius: 12px;
+      padding: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      position: relative;
+    }
+    .qr-mask {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.75);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: #FFF;
+      font-size: 13px;
+      text-align: center;
+      padding: 12px;
+    }
+    .qr-hint {
+      margin-top: 14px;
+      font-size: 14px;
+      color: #BAC3FF;
+      font-weight: 500;
+      text-align: center;
+    }
+    .qr-subhint {
+      margin-top: 4px;
+      font-size: 12px;
+      color: #8C92A4;
+      text-align: center;
+    }
+    .user-profile {
+      display: flex;
+      align-items: center;
+      padding: 8px 0;
+    }
+    .avatar {
+      width: 56px;
+      height: 56px;
+      border-radius: 28px;
+      background: #2D303E;
+      margin-right: 16px;
+      object-fit: cover;
+      border: 2px solid #FB7299;
+    }
+    .user-details h3 {
+      font-size: 16px;
+      color: #FFF;
+    }
+    .user-details p {
+      font-size: 13px;
+      color: #8C92A4;
+      margin-top: 4px;
+    }
+    .btn {
+      cursor: pointer;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: #FB7299;
+      color: #FFF;
+    }
+    .btn-primary:hover {
+      background: #FF85A7;
+    }
+    .btn-ghost {
+      background: transparent;
+      color: #C4C8D4;
+      border: 1px solid #3A3F50;
+    }
+    .btn-ghost:hover {
+      background: #262936;
+      color: #FFF;
+    }
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      color: #F87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.25);
+    }
+    .btn-full {
+      width: 100%;
+    }
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .form-group {
+      margin-bottom: 12px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      color: #8C92A4;
+      margin-bottom: 6px;
+    }
+    .form-group input {
+      width: 100%;
+      padding: 9px 12px;
+      border-radius: 8px;
+      border: 1px solid #2F3342;
+      background: #14151B;
+      color: #FFF;
+      font-size: 13px;
+      font-family: monospace;
+    }
+    .form-group input:focus {
+      outline: none;
+      border-color: #FB7299;
+    }
+    details {
+      margin-top: 12px;
+      font-size: 13px;
+      color: #8C92A4;
+    }
+    summary {
+      cursor: pointer;
+      color: #9BA2B8;
+      user-select: none;
+      margin-bottom: 10px;
+    }
+    summary:hover {
+      color: #FFF;
+    }
+    .hint-list {
+      list-style: none;
+      margin-top: 6px;
+    }
+    .hint-list li {
+      font-size: 13px;
+      color: #A0A5B8;
+      line-height: 1.6;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: flex-start;
+    }
+    .hint-list li span.step {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border-radius: 10px;
+      background: #2D303E;
+      color: #BAC3FF;
+      font-size: 11px;
+      font-weight: bold;
+      text-align: center;
+      line-height: 20px;
+      margin-right: 8px;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo-badge">HC</div>
+      <div class="title-group">
+        <h1>HydroChat</h1>
+        <p>Bilibili 手表端私信连接中心</p>
+      </div>
+    </div>
+
+    <!-- 登录状态卡片 (已登录) -->
+    <div class="card" id="loggedCard" style="display: none;">
+      <div class="card-title">
+        <span>当前登录账号</span>
+        <span class="status-tag online">已登录</span>
+      </div>
+      <div class="user-profile">
+        <img id="userAvatar" class="avatar" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'%3E%3Ccircle cx='28' cy='28' r='28' fill='%232D303E'/%3E%3Ctext x='50%25' y='55%25' text-anchor='middle' fill='%23FFF' font-size='20'%3EUP%3C/text%3E%3C/svg%3E" alt="Avatar">
+        <div class="user-details">
+          <h3 id="userName">B站用户</h3>
+          <p id="userUid">UID: -</p>
+        </div>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-ghost" id="btnRefreshStatus" style="flex: 1;">刷新信息</button>
+        <button class="btn btn-danger" id="btnLogout" style="flex: 1;">退出登录</button>
+      </div>
+    </div>
+
+    <!-- 扫码登录卡片 (未登录) -->
+    <div class="card" id="loginCard">
+      <div class="card-title">
+        <span>扫码登录</span>
+        <span class="status-tag offline" id="loginTag">等待扫码</span>
+      </div>
+
+      <div class="qr-container">
+        <div class="qr-box" id="qrBox">
+          <div id="qrcode"></div>
+          <div class="qr-mask" id="qrMask" style="display: none;" onclick="initQrCode()">
+            <p>二维码已失效</p>
+            <p style="font-size: 11px; margin-top: 4px; color: #BAC3FF;">点击重新获取</p>
+          </div>
+        </div>
+        <p class="qr-hint" id="qrStatus">打开哔哩哔哩手机客户端扫码</p>
+        <p class="qr-subhint">无需密码，扫码确认后即可完成授权</p>
+      </div>
+
+      <!-- 高级：手动填入 Cookie -->
+      <details>
+        <summary>或者：手动配置 Cookie (高级选项)</summary>
+        <div style="margin-top: 10px;">
+          <div class="form-group">
+            <label>UID (DedeUserID)</label>
+            <input type="text" id="inputUid" placeholder="例如: 293793435">
+          </div>
+          <div class="form-group">
+            <label>SESSDATA</label>
+            <input type="password" id="inputSessdata" placeholder="填入浏览器中的 SESSDATA">
+          </div>
+          <div class="form-group">
+            <label>bili_jct (CSRF Token)</label>
+            <input type="password" id="inputBiliJct" placeholder="填入浏览器中的 bili_jct">
+          </div>
+          <button class="btn btn-primary btn-full" id="btnSaveManual">保存 Cookie 凭据</button>
+        </div>
+      </details>
+    </div>
+
+    <!-- 手表使用说明卡片 -->
+    <div class="card">
+      <div class="card-title">手表端使用指南</div>
+      <ul class="hint-list">
+        <li>
+          <span class="step">1</span>
+          <span>完成上述扫码登录后，登录凭据将安全保存在本地服务端，手表端立即生效。</span>
+        </li>
+        <li>
+          <span class="step">2</span>
+          <span>在手表应用列表中打开 <strong>HydroChat</strong>，即可查看近期私信会话列表及未读数。</span>
+        </li>
+        <li>
+          <span class="step">3</span>
+          <span>点击任意会话进入聊天详情，最新消息置顶呈现。点击顶部输入框直接弹出流畅手写板快速回复！</span>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    const PKG = 'com.hydro.chat';
+    let qrKey = '';
+    let pollTimer = null;
+    let qrInstance = null;
+
+    async function kitStorage(op, key, value) {
+      try {
+        const res = await fetch('/api/hydro/worker/store', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          body: JSON.stringify({ package: PKG, op: op, key: key, value: value, scope: 'server' })
+        });
+        return await res.json();
+      } catch (e) {
+        console.error('kitStorage error:', e);
+        return null;
+      }
+    }
+
+    async function checkAuth() {
+      const res = await kitStorage('get', 'bili_auth');
+      if (res && res.found && res.value && res.value.sessdata) {
+        const auth = res.value;
+        document.getElementById('loggedCard').style.display = 'block';
+        document.getElementById('loginCard').style.display = 'none';
+        document.getElementById('userName').textContent = auth.name || '已登录用户';
+        document.getElementById('userUid').textContent = 'UID: ' + (auth.uid || '-');
+        if (auth.face) {
+          document.getElementById('userAvatar').src = auth.face;
+        }
+        stopPoll();
+        fetchUserInfo(auth);
+      } else {
+        document.getElementById('loggedCard').style.display = 'none';
+        document.getElementById('loginCard').style.display = 'block';
+        initQrCode();
+      }
+    }
+
+    async function fetchUserInfo(auth) {
+      try {
+        const res = await fetch('https://api.bilibili.com/x/web-interface/nav', {
+          headers: { 'Cookie': `SESSDATA=${auth.sessdata}; bili_jct=${auth.bili_jct}; DedeUserID=${auth.uid}` }
+        });
+        const data = await res.json();
+        if (data && data.code === 0 && data.data) {
+          const u = data.data;
+          document.getElementById('userName').textContent = u.uname || 'B站用户';
+          document.getElementById('userUid').textContent = 'UID: ' + u.mid;
+          if (u.face) document.getElementById('userAvatar').src = u.face;
+          auth.name = u.uname;
+          auth.face = u.face;
+          auth.uid = u.mid;
+          await kitStorage('set', 'bili_auth', auth);
+        }
+      } catch (e) {
+        // 网络/跨域异常降级，不阻断主流程
+      }
+    }
+
+    async function initQrCode() {
+      stopPoll();
+      document.getElementById('qrMask').style.display = 'none';
+      document.getElementById('qrStatus').textContent = '正在获取登录二维码...';
+      document.getElementById('loginTag').textContent = '申请中';
+      document.getElementById('loginTag').className = 'status-tag offline';
+
+      try {
+        const res = await fetch('https://passport.bilibili.com/x/passport-login/web/qrcode/generate');
+        const json = await res.json();
+        if (json.code === 0 && json.data) {
+          qrKey = json.data.qrcode_key;
+          const qrUrl = json.data.url;
+          renderQr(qrUrl);
+          document.getElementById('qrStatus').textContent = '打开哔哩哔哩手机客户端扫码';
+          document.getElementById('loginTag').textContent = '等待扫码';
+          startPoll();
+        } else {
+          document.getElementById('qrStatus').textContent = '获取二维码失败，请点击重试';
+          document.getElementById('qrMask').style.display = 'flex';
+        }
+      } catch (e) {
+        console.warn('获取二维码受限或网络错误，请尝试手动配置 Cookie:', e);
+        document.getElementById('qrStatus').textContent = '网络受阻，请尝试下方手动配置 Cookie';
+        document.getElementById('qrMask').style.display = 'flex';
+      }
+    }
+
+    function renderQr(text) {
+      const container = document.getElementById('qrcode');
+      container.innerHTML = '';
+      qrInstance = new QRCode(container, {
+        text: text,
+        width: 200,
+        height: 200,
+        colorDark: '#000000',
+        colorLight: '#FFFFFF',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    }
+
+    function startPoll() {
+      stopPoll();
+      pollTimer = setInterval(pollQrStatus, 2000);
+    }
+
+    function stopPoll() {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    }
+
+    async function pollQrStatus() {
+      if (!qrKey) return;
+      try {
+        const res = await fetch(`https://passport.bilibili.com/x/passport-login/web/qrcode/poll?qrcode_key=${qrKey}`);
+        const json = await res.json();
+        if (!json || typeof json.code !== 'number') return;
+
+        const code = json.data ? json.data.code : json.code;
+        if (code === 0) {
+          // 登录成功
+          stopPoll();
+          document.getElementById('qrStatus').textContent = '登录成功，正在同步凭证...';
+          document.getElementById('loginTag').textContent = '已登录';
+          document.getElementById('loginTag').className = 'status-tag online';
+
+          const dataUrl = (json.data && json.data.url) || '';
+          const urlObj = new URL(dataUrl);
+          const sessdata = urlObj.searchParams.get('SESSDATA') || '';
+          const biliJct = urlObj.searchParams.get('bili_jct') || '';
+          const dedeUserId = urlObj.searchParams.get('DedeUserID') || '';
+
+          const auth = {
+            uid: dedeUserId,
+            sessdata: sessdata,
+            bili_jct: biliJct,
+            raw_cookie: `SESSDATA=${sessdata}; bili_jct=${biliJct}; DedeUserID=${dedeUserId}`,
+            login_at: Date.now()
+          };
+          await kitStorage('set', 'bili_auth', auth);
+          setTimeout(checkAuth, 500);
+        } else if (code === 86090) {
+          document.getElementById('qrStatus').textContent = '已扫码，请在手机上确认登录';
+          document.getElementById('loginTag').textContent = '待确认';
+        } else if (code === 86038) {
+          stopPoll();
+          document.getElementById('qrStatus').textContent = '二维码已失效';
+          document.getElementById('qrMask').style.display = 'flex';
+          document.getElementById('loginTag').textContent = '已失效';
+        }
+      } catch (e) {
+        // 轮询异常不终止
+      }
+    }
+
+    document.getElementById('btnLogout').addEventListener('click', async () => {
+      if (!confirm('确定要退出当前 B 站登录吗？')) return;
+      await kitStorage('remove', 'bili_auth');
+      checkAuth();
+    });
+
+    document.getElementById('btnRefreshStatus').addEventListener('click', checkAuth);
+
+    document.getElementById('btnSaveManual').addEventListener('click', async () => {
+      const uid = document.getElementById('inputUid').value.trim();
+      const sessdata = document.getElementById('inputSessdata').value.trim();
+      const biliJct = document.getElementById('inputBiliJct').value.trim();
+      if (!sessdata || !biliJct) {
+        alert('请完整填写 SESSDATA 和 bili_jct');
+        return;
+      }
+      const auth = {
+        uid: uid,
+        sessdata: sessdata,
+        bili_jct: biliJct,
+        raw_cookie: `SESSDATA=${sessdata}; bili_jct=${biliJct}; DedeUserID=${uid}`,
+        login_at: Date.now()
+      };
+      await kitStorage('set', 'bili_auth', auth);
+      alert('Cookie 凭据保存成功！');
+      checkAuth();
+    });
+
+    // 初始化运行
+    checkAuth();
+  </script>
+</body>
+</html>

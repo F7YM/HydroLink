@@ -1,0 +1,19 @@
+{
+  "id": "com.hydro.chat",
+  "name": "HydroChat",
+  "author": "HydroLink",
+  "version": "1.0.0",
+  "entry": "server.js",
+  "apps": [
+    {
+      "id": "main",
+      "name": "HydroChat",
+      "icon": "assets/icon.png"
+    }
+  ],
+  "permissions": [
+    "storage",
+    "notify",
+    "fetch"
+  ]
+}

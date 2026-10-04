@@ -583,7 +583,11 @@ export default {
     this._inputItem = item
     router.push({
       uri: '/pages/keyboard',
-      params: { field: 'hydro_input', label: '输入', value: item.v || item.placeholder || '' }
+      params: {
+        field: 'hydro_input',
+        label: item.label || '输入',
+        value: item.v || ''
+      }
     })
   },
 

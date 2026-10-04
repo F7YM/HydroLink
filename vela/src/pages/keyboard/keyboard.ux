@@ -354,6 +354,9 @@ export default {
     }
 
     this.updateHandwritingAvailability()
+    if (this.fieldName === 'hydro_input' && this.canUseHandwriting) {
+      this.keyboardMode = 'handwriting'
+    }
     this.updateDisplayValue()
 
     device.getInfo({
