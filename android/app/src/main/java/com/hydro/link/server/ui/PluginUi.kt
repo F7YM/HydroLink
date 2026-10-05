@@ -46,7 +46,7 @@ object PluginUi {
     /** 当前服务实例（服务没跑时为 null，插件页据此显示提示）。 */
     fun server(): HydroHttpServer? = ServerService.instance?.server()
 
-    /** 读取已安装插件列表（worker 在线状态只在详情弹窗里显示）。 */
+    /** 读取已安装插件列表。 */
     fun rows(srv: HydroHttpServer): List<PluginRow> {
         val kit = srv.hydroKit
         return kit.store.list().map { info ->
@@ -195,8 +195,7 @@ object PluginUi {
             append("版本：").append(if (row.version.isBlank()) "—" else "v${row.version}").append('\n')
             append("运行时：").append(row.runtime).append('\n')
             if (row.items.isNotBlank()) append("包含：").append(row.items).append('\n')
-            append("权限：").append(if (row.permissions.isBlank()) "未申请权限" else row.permissions).append('\n')
-            append("worker：").append(if (row.workerOnline) "在线" else "离线（首次请求时自动拉起）")
+            append("权限：").append(if (row.permissions.isBlank()) "未申请权限" else row.permissions)
             if (row.error != null) append('\n').append("清单异常：").append(row.error)
         }
         EngineDialog.confirm(activity, row.name, msg, "知道了", null, null)
