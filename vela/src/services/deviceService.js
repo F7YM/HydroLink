@@ -162,49 +162,20 @@ function generateDeviceId() {
   })
 }
 
-// getWatchName 从 device.getInfo 获取本设备型号名（marketName / model / brand / product），
-// 优先提取真实的系统硬件标识；若系统未上报任何硬件信息则中立回退为「未知设备」。
+// getWatchName 从 device.getInfo 获取本手表设备型号名，严格且仅使用 product 字段
 function getWatchName() {
   return new Promise((resolve) => {
     try {
       device.getInfo({
         success: (info) => {
-          if (!info) {
-            resolve('未知设备')
-            return
-          }
-          const marketName = (info.marketName || '').trim()
-          if (marketName) {
-            resolve(marketName)
-            return
-          }
-          const model = (info.model || '').trim()
-          const brand = (info.brand || info.manufacturer || '').trim()
-          const product = (info.product || '').trim()
-
-          if (model) {
-            if (brand && !model.toLowerCase().includes(brand.toLowerCase())) {
-              resolve(`${brand} ${model}`)
-            } else {
-              resolve(model)
-            }
-            return
-          }
-          if (product && product.toLowerCase() !== 'vela') {
-            resolve(product)
-            return
-          }
-          if (brand) {
-            resolve(`${brand} Watch`)
-            return
-          }
-          resolve('未知设备')
+          const product = (info && info.product ? String(info.product) : '').trim()
+          resolve(product)
         },
-        fail: () => resolve('未知设备'),
+        fail: () => resolve(''),
         complete: () => {}
       })
     } catch (e) {
-      resolve('未知设备')
+      resolve('')
     }
   })
 }
@@ -338,11 +309,11 @@ export default {
     const status = (msg) => { if (onStatus) onStatus(msg) }
 
     // 区分两个名称：
-    //   watchName -> 作为 device_name 发送给服务端（即本手表的型号名称，由 getWatchName 获取）
+    //   watchName -> 作为 device_name 发送给服务端（即本手表的型号名称，由 getWatchName 严格且仅取 product）
     //   manualName (用户填写的服务器别名/局域网搜索到的主机名) -> 手表本地保存此服务端连接项时的名称，
     //                若为空则自动回退到服务端的 hostname。两者职责清晰，不再互相串用。
     const manualName = (deviceName || '').trim()
-    const watchName = (await getWatchName()) || '未知设备'
+    const watchName = (await getWatchName()) || ''
 
     status('正在连接服务器...')
     const reachable = await this.ping(host, port)
