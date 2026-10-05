@@ -66,29 +66,66 @@ async function biliFetch(url, auth, opts) {
   return await res.json();
 }
 
-// 批量拉取用户信息卡片
+// 规范化头像 URL，并添加手表专用的轻量级图片后缀（~4KB，极速解码防卡顿）
+function formatFaceUrl(url) {
+  if (!url) return '';
+  var u = String(url).trim();
+  if (u.startsWith('http://')) {
+    u = 'https://' + u.slice(7);
+  } else if (u.startsWith('//')) {
+    u = 'https:' + u;
+  }
+  if (u.indexOf('@') === -1 && (u.endsWith('.jpg') || u.endsWith('.png') || u.endsWith('.webp') || u.endsWith('.jpeg'))) {
+    u += '@100w_100h_1c.png';
+  }
+  return u;
+}
+
+// 批量拉取用户信息卡片（包含昵称与头像 face）
+// 参考文档：https://sessionhu.github.io/bilibili-API-collect/docs/user/info.html
 async function fetchUserCards(uids, auth) {
-  if (!uids || !uids.length) return {};
+  if (!uids || !uids.length) return userCardCache;
   var missing = [];
   for (var i = 0; i < uids.length; i++) {
     var uid = uids[i];
-    if (!userCardCache[uid]) missing.push(uid);
+    // 只要查询过一次（无论是否有头像）都记录已拉取，绝不重复网络阻塞
+    if (!userCardCache[uid] || !userCardCache[uid].fetched) {
+      missing.push(uid);
+    }
   }
   if (!missing.length) return userCardCache;
 
+  // 使用 B站私信 IM 专属的多用户信息接口 (x/im/user_infos)，单次高效拉取带头像的完整资料
   try {
-    var res = await biliFetch('https://api.vc.bilibili.com/account/v1/user/cards?uids=' + missing.join(','), auth);
-    if (res && res.code === 0 && Array.isArray(res.data)) {
-      for (var j = 0; j < res.data.length; j++) {
-        var card = res.data[j];
+    var imRes = await biliFetch('https://api.vc.bilibili.com/x/im/user_infos?uids=' + missing.join(','), auth);
+    if (imRes && imRes.code === 0 && Array.isArray(imRes.data)) {
+      for (var j = 0; j < imRes.data.length; j++) {
+        var card = imRes.data[j];
         if (card && card.mid) {
-          userCardCache[card.mid] = cleanVelaText(card.name || 'UID ' + card.mid);
+          userCardCache[card.mid] = {
+            name: cleanVelaText(card.name || ('UID ' + card.mid)),
+            face: formatFaceUrl(card.face),
+            fetched: true
+          };
         }
       }
     }
-  } catch (e) {
-    // 忽略异常，降级显示
+  } catch (e) {}
+
+  // 对于接口中未返回或无结果的 UID，记录兜底信息并标记 fetched，避免反复发起网络请求拖慢手表
+  for (var k = 0; k < missing.length; k++) {
+    var mUid = missing[k];
+    if (!userCardCache[mUid]) {
+      userCardCache[mUid] = {
+        name: 'UID ' + mUid,
+        face: '',
+        fetched: true
+      };
+    } else {
+      userCardCache[mUid].fetched = true;
+    }
   }
+
   return userCardCache;
 }
 
@@ -254,43 +291,48 @@ module.exports = {
   async renderSessionListView(auth) {
     var sessionList = [];
     try {
-      var res = await biliFetch('https://api.vc.bilibili.com/session_svr/v1/session_svr/get_sessions?session_type=1&size=15', auth);
+      // 优化为首屏拉取前 8 条活跃会话（大幅减少网络延时与手表图片解码并发，极速加载防卡顿）
+      var res = await biliFetch('https://api.vc.bilibili.com/session_svr/v1/session_svr/get_sessions?session_type=1&size=8', auth);
       if (res && res.code === 0 && res.data && Array.isArray(res.data.session_list)) {
         sessionList = res.data.session_list;
       }
     } catch (e) {}
 
-    // 提取所有 talker_id，拉取用户名
+    // 提取所有 talker_id，拉取用户名与头像
     var uids = sessionList.map(function (s) { return s.talker_id; });
     await fetchUserCards(uids, auth);
 
     var cardKids = [];
 
-    // 顶部标题行
+    // 顶部标题行（在圆屏下有充裕的上边距，固定高度防压缩）
     cardKids.push({
       type: 'row',
       style: {
         width: '100%',
+        height: 38,
+        minHeight: 38,
+        flexShrink: 0,
+        'flex-shrink': 0,
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginBottom: 16
+        marginBottom: 12
       },
       children: [
         {
           type: 'text',
-          props: { text: 'HydroChat' },
-          style: { fontSize: 26, fontWeight: 700, color: '#FB7299' }
+          props: { text: '私信会话' },
+          style: { fontSize: 22, fontWeight: 700, color: '#FB7299' }
         },
         {
           type: 'button',
           props: { label: '刷新' },
           events: { tap: 'refresh' },
           style: {
-            width: 72,
-            height: 36,
-            borderRadius: 18,
+            width: 68,
+            height: 34,
+            borderRadius: 17,
             backgroundColor: '#2A2D38',
-            fontSize: 16,
+            fontSize: 15,
             color: '#FFFFFF'
           }
         }
@@ -301,6 +343,9 @@ module.exports = {
       cardKids.push({
         type: 'column',
         style: {
+          width: '100%',
+          flexShrink: 0,
+          'flex-shrink': 0,
           backgroundColor: '#1E1F24',
           borderRadius: 16,
           padding: 24,
@@ -319,76 +364,156 @@ module.exports = {
       for (var i = 0; i < sessionList.length; i++) {
         var s = sessionList[i];
         var talkerId = s.talker_id;
-        var talkerName = userCardCache[talkerId] || ('UID ' + talkerId);
+        var cached = userCardCache[talkerId];
+        var talkerName = 'UID ' + talkerId;
+        var talkerFace = '';
+        if (typeof cached === 'string') {
+          talkerName = cached;
+        } else if (cached && typeof cached === 'object') {
+          talkerName = cached.name || talkerName;
+          talkerFace = cached.face || '';
+        }
+
         var unread = s.unread_count || 0;
         var lastMsg = parseMessageContent(s.last_msg);
         var timeStr = s.last_msg ? formatTime(s.last_msg.timestamp) : '';
 
-        var nameRowChildren = [
-          {
-            type: 'text',
-            props: { text: talkerName },
-            style: { fontSize: 20, fontWeight: 700, color: '#FB7299' }
-          }
-        ];
-
-        if (unread > 0) {
-          nameRowChildren.push({
+        // 头像组件：L2 叶子节点，固定尺寸 42x42 防变形
+        var avatarNode;
+        if (talkerFace) {
+          avatarNode = {
+            type: 'image',
+            props: { src: talkerFace },
+            style: {
+              width: 42,
+              height: 42,
+              minWidth: 42,
+              minHeight: 42,
+              borderRadius: 21,
+              flexShrink: 0,
+              'flex-shrink': 0,
+              backgroundColor: '#2A2D38',
+              marginRight: 10
+            }
+          };
+        } else {
+          var initialChar = (talkerName && talkerName.length > 0) ? talkerName.charAt(0) : 'U';
+          avatarNode = {
             type: 'badge',
-            props: { label: String(unread) },
-            style: { backgroundColor: '#EF4444', marginLeft: 8 }
-          });
+            props: { label: initialChar },
+            style: {
+              width: 42,
+              height: 42,
+              minWidth: 42,
+              minHeight: 42,
+              borderRadius: 21,
+              flexShrink: 0,
+              'flex-shrink': 0,
+              backgroundColor: '#323644',
+              color: '#FB7299',
+              fontSize: 20,
+              marginRight: 10
+            }
+          };
         }
 
+        // 拼接标题行文本：避免在 L2 列里再嵌套 L3 行容器（快应用模板仅支持 2 层容器展开！）
+        var titleText = talkerName;
+        if (unread > 0) {
+          titleText = '[' + unread + '未读] ' + titleText;
+        }
+        if (timeStr) {
+          titleText = titleText + ' · ' + timeStr;
+        }
+
+        // 会话卡片：L1 容器（row），固定高度 68px 并设置 flexShrink: 0
         cardKids.push({
-          type: 'column',
+          type: 'row',
           style: {
             width: '100%',
+            height: 68,
+            minHeight: 68,
+            flexShrink: 0,
+            'flex-shrink': 0,
             backgroundColor: '#1C1E26',
             borderRadius: 14,
-            padding: 14,
-            marginBottom: 10
+            padding: 10,
+            marginBottom: 8,
+            alignItems: 'center'
           },
           events: {
             tap: 'open_chat:' + talkerId + ':' + encodeURIComponent(talkerName)
           },
           children: [
+            avatarNode,
             {
-              type: 'row',
+              type: 'column',
               style: {
-                width: '100%',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: 6
+                flex: 1,
+                minWidth: 0,
+                height: 48,
+                justifyContent: 'center'
               },
               children: [
                 {
-                  type: 'row',
-                  style: { alignItems: 'center' },
-                  children: nameRowChildren
+                  type: 'text',
+                  props: { text: titleText },
+                  style: {
+                    fontSize: 17,
+                    fontWeight: 700,
+                    color: unread > 0 ? '#FF5C8A' : '#FB7299',
+                    lines: 1
+                  }
                 },
                 {
                   type: 'text',
-                  props: { text: timeStr },
-                  style: { fontSize: 14, color: '#7E8394' }
+                  props: { text: lastMsg || '[暂无内容]' },
+                  style: {
+                    fontSize: 14,
+                    color: '#D0D4DE',
+                    lines: 1,
+                    marginTop: 3
+                  }
                 }
               ]
             },
             {
               type: 'text',
-              props: { text: lastMsg || '[暂无内容]' },
-              style: { fontSize: 16, color: '#D0D4DE', lines: 1 }
+              props: { text: '›' },
+              style: {
+                fontSize: 22,
+                color: '#555C70',
+                marginLeft: 8,
+                marginRight: 2,
+                flexShrink: 0,
+                'flex-shrink': 0
+              }
             }
           ]
         });
       }
+
+      // 关键：底部安全垫高 Spacer，设置固定高度并禁止压缩，确保圆屏能顺畅滑出全部卡片
+      cardKids.push({
+        type: 'column',
+        style: {
+          width: '100%',
+          height: 80,
+          minHeight: 80,
+          flexShrink: 0,
+          'flex-shrink': 0
+        }
+      });
     }
 
     return {
       root: {
         type: 'scroll',
-        style: { padding: 20 },
-        media: { circle: { padding: 28 } },
+        style: { padding: 14 },
+        media: {
+          circle: { padding: 20, paddingTop: 28, paddingBottom: 64 },
+          rect: { padding: 16 }
+        },
         children: cardKids
       }
     };
@@ -398,21 +523,50 @@ module.exports = {
   async renderChatDetailView(talker, auth) {
     var msgs = [];
     try {
-      var res = await biliFetch('https://api.vc.bilibili.com/svr_sync/v1/svr_sync/fetch_session_msgs?talker_id=' + talker.id + '&session_type=1&size=15&sender_device_id=1&build=0&mobi_app=web', auth);
+      var res = await biliFetch('https://api.vc.bilibili.com/svr_sync/v1/svr_sync/fetch_session_msgs?talker_id=' + talker.id + '&session_type=1&size=20&sender_device_id=1&build=0&mobi_app=web', auth);
       if (res && res.code === 0 && res.data && Array.isArray(res.data.messages)) {
         msgs = res.data.messages;
       }
     } catch (e) {}
 
-    // B站接口返回的消息已经是时间倒序排列（最新排最前），正好契合 Latest-First 原则
+    var cached = userCardCache[talker.id];
+    var talkerFace = (cached && typeof cached === 'object') ? cached.face : '';
+
     var myUid = parseInt(auth.uid, 10);
     var kids = [];
 
-    // 顶部导航栏：返回 + 对方名字 + 刷新
+    // 顶部导航栏：返回 + 对方头像与名字 + 刷新（固定高度防压缩）
+    var titleRowChildren = [];
+    if (talkerFace) {
+      titleRowChildren.push({
+        type: 'image',
+        props: { src: talkerFace },
+        style: {
+          width: 28,
+          height: 28,
+          minWidth: 28,
+          minHeight: 28,
+          borderRadius: 14,
+          flexShrink: 0,
+          'flex-shrink': 0,
+          marginRight: 6
+        }
+      });
+    }
+    titleRowChildren.push({
+      type: 'text',
+      props: { text: cleanVelaText(talker.name) },
+      style: { fontSize: 18, fontWeight: 700, color: '#FB7299', lines: 1 }
+    });
+
     kids.push({
       type: 'row',
       style: {
         width: '100%',
+        height: 38,
+        minHeight: 38,
+        flexShrink: 0,
+        'flex-shrink': 0,
         alignItems: 'center',
         justifyContent: 'space-between',
         marginBottom: 12
@@ -432,9 +586,9 @@ module.exports = {
           }
         },
         {
-          type: 'text',
-          props: { text: cleanVelaText(talker.name) },
-          style: { fontSize: 18, fontWeight: 700, color: '#FB7299', lines: 1 }
+          type: 'row',
+          style: { alignItems: 'center' },
+          children: titleRowChildren
         },
         {
           type: 'button',
@@ -452,7 +606,7 @@ module.exports = {
       ]
     });
 
-    // 顶部常驻手写输入框（点击直接拉起手写板）
+    // 顶部常驻手写输入框（点击直接拉起手写板，固定高度防压缩）
     kids.push({
       type: 'input',
       props: {
@@ -466,6 +620,9 @@ module.exports = {
       style: {
         width: '100%',
         height: 44,
+        minHeight: 44,
+        flexShrink: 0,
+        'flex-shrink': 0,
         backgroundColor: '#1E1F24',
         borderRadius: 22,
         marginBottom: 12,
@@ -479,6 +636,9 @@ module.exports = {
       kids.push({
         type: 'column',
         style: {
+          width: '100%',
+          flexShrink: 0,
+          'flex-shrink': 0,
           backgroundColor: '#1E1F24',
           borderRadius: 14,
           padding: 20,
@@ -504,6 +664,9 @@ module.exports = {
           type: 'column',
           style: {
             width: '100%',
+            minHeight: 52,
+            flexShrink: 0,
+            'flex-shrink': 0,
             backgroundColor: isMe ? '#2E1E28' : '#20222B',
             borderRadius: 14,
             padding: 12,
@@ -543,13 +706,28 @@ module.exports = {
           ]
         });
       }
+
+      // 聊天底部同样垫高，确保最早消息不被截断并禁止压缩
+      kids.push({
+        type: 'column',
+        style: {
+          width: '100%',
+          height: 60,
+          minHeight: 60,
+          flexShrink: 0,
+          'flex-shrink': 0
+        }
+      });
     }
 
     return {
       root: {
         type: 'scroll',
-        style: { padding: 18 },
-        media: { circle: { padding: 26 } },
+        style: { padding: 14 },
+        media: {
+          circle: { padding: 18, paddingTop: 24, paddingBottom: 56 },
+          rect: { padding: 16 }
+        },
         children: kids
       }
     };

@@ -315,6 +315,14 @@ function build(n, inRow, ctx) {
         cSt.width = '100%'
       }
     }
+    // 列布局里的容器（如 scroll 下的列表卡片）：高度与防挤压属性同样需要上提到 wrapper，
+    // 防止快应用原生 Flexbox 对直接子项执行默认 flex-shrink: 1 导致多项时挤压压扁
+    if (!inRow && !isAbs) {
+      if (cSt.height !== undefined) cWrap.height = cSt.height
+      if (cSt.minHeight !== undefined) cWrap.minHeight = cSt.minHeight
+      if (cSt.flexShrink !== undefined) cWrap.flexShrink = cSt.flexShrink
+      else if (cSt.height !== undefined || cSt.minHeight !== undefined) cWrap.flexShrink = 0
+    }
     return {
       c: true,
       sc: n.type === 'scroll',

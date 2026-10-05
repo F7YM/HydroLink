@@ -495,6 +495,7 @@ func (s *Server) handlePair(w http.ResponseWriter, r *http.Request) {
 		s.writeJSON(w, http.StatusBadRequest, map[string]any{"status": "error", "message": "Invalid device_id"})
 		return
 	}
+	body.DeviceName = strings.TrimSpace(body.DeviceName)
 	if len(body.DeviceName) > 50 {
 		body.DeviceName = body.DeviceName[:50]
 	}
@@ -502,6 +503,9 @@ func (s *Server) handlePair(w http.ResponseWriter, r *http.Request) {
 	cfg, _ := s.store.LoadConfig()
 
 	if s.store.IsTrusted(body.DeviceID) {
+		if body.DeviceName != "" {
+			_ = s.store.AddTrustedDevice(body.DeviceID, body.DeviceName)
+		}
 		s.AddLog("设备 "+shortID(body.DeviceID)+" 已信任", "success")
 		s.writeJSON(w, http.StatusOK, map[string]any{
 			"status": "trusted", "message": "Device already trusted", "encryption_key": cfg.EncryptionKey,
@@ -579,10 +583,20 @@ func (s *Server) handleRespondPair(w http.ResponseWriter, r *http.Request) {
 	if len(body.DeviceName) > 50 {
 		body.DeviceName = body.DeviceName[:50]
 	}
+	deviceName := strings.TrimSpace(body.DeviceName)
+	if deviceName == "" {
+		pending, _ := s.store.LoadPendingPairs()
+		for _, p := range pending {
+			if p.DeviceID == body.DeviceID && strings.TrimSpace(p.DeviceName) != "" {
+				deviceName = strings.TrimSpace(p.DeviceName)
+				break
+			}
+		}
+	}
 	_ = s.store.RemovePendingPair(body.DeviceID)
 	if body.Action == "accept" {
-		_ = s.store.AddTrustedDevice(body.DeviceID, body.DeviceName)
-		s.AddLog("已信任设备: "+shortID(body.DeviceID), "success")
+		_ = s.store.AddTrustedDevice(body.DeviceID, deviceName)
+		s.AddLog("已信任设备: "+shortID(body.DeviceID)+" ("+deviceName+")", "success")
 	} else {
 		_ = s.store.AddRejected(body.DeviceID)
 		s.AddLog("拒绝设备: "+shortID(body.DeviceID), "error")

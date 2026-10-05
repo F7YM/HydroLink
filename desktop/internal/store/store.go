@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -130,8 +131,12 @@ func (s *Store) AddTrustedDevice(deviceID, deviceName string) error {
 	if err != nil {
 		return err
 	}
-	for _, d := range devices {
+	for i, d := range devices {
 		if d.DeviceID == deviceID {
+			if strings.TrimSpace(d.DeviceName) == "" && strings.TrimSpace(deviceName) != "" {
+				devices[i].DeviceName = strings.TrimSpace(deviceName)
+				return s.SaveTrustedDevices(devices)
+			}
 			return nil // already trusted
 		}
 	}

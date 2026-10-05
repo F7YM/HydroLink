@@ -162,20 +162,49 @@ function generateDeviceId() {
   })
 }
 
-// getWatchName resolves this watch's display name from device.getInfo
-// (brand + model), used when the user leaves the name empty.
+// getWatchName 从 device.getInfo 获取本设备型号名（marketName / model / brand / product），
+// 优先提取真实的系统硬件标识；若系统未上报任何硬件信息则中立回退为「未知设备」。
 function getWatchName() {
   return new Promise((resolve) => {
     try {
       device.getInfo({
         success: (info) => {
-          resolve((info && info.product) || 'Vela Watch')
+          if (!info) {
+            resolve('未知设备')
+            return
+          }
+          const marketName = (info.marketName || '').trim()
+          if (marketName) {
+            resolve(marketName)
+            return
+          }
+          const model = (info.model || '').trim()
+          const brand = (info.brand || info.manufacturer || '').trim()
+          const product = (info.product || '').trim()
+
+          if (model) {
+            if (brand && !model.toLowerCase().includes(brand.toLowerCase())) {
+              resolve(`${brand} ${model}`)
+            } else {
+              resolve(model)
+            }
+            return
+          }
+          if (product && product.toLowerCase() !== 'vela') {
+            resolve(product)
+            return
+          }
+          if (brand) {
+            resolve(`${brand} Watch`)
+            return
+          }
+          resolve('未知设备')
         },
-        fail: () => resolve('Vela Watch'),
+        fail: () => resolve('未知设备'),
         complete: () => {}
       })
     } catch (e) {
-      resolve('Vela Watch')
+      resolve('未知设备')
     }
   })
 }
@@ -308,13 +337,12 @@ export default {
     const deviceId = await this.getDeviceId()
     const status = (msg) => { if (onStatus) onStatus(msg) }
 
-    // Two distinct names here:
-    //   watchName -> sent as device_name, i.e. THIS watch's name on the server
-    //                (auto-filled from device.getInfo when the user left it empty)
-    //   deviceName (user alias, may be empty) -> local saved entry name, which
-    //                falls back to the SERVER's hostname. Never mixed up.
+    // 区分两个名称：
+    //   watchName -> 作为 device_name 发送给服务端（即本手表的型号名称，由 getWatchName 获取）
+    //   manualName (用户填写的服务器别名/局域网搜索到的主机名) -> 手表本地保存此服务端连接项时的名称，
+    //                若为空则自动回退到服务端的 hostname。两者职责清晰，不再互相串用。
     const manualName = (deviceName || '').trim()
-    const watchName = manualName || (await getWatchName())
+    const watchName = (await getWatchName()) || '未知设备'
 
     status('正在连接服务器...')
     const reachable = await this.ping(host, port)

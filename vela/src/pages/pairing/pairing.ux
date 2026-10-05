@@ -212,11 +212,13 @@ import router from '@system.router'
 import deviceService from '../../services/deviceService.js'
 
 export default {
-  private: {
-    currentTime: '00:00',
+  protected: {
     serverIp: '',
     serverPort: '9000',
-    deviceName: '',
+    deviceName: ''
+  },
+  private: {
+    currentTime: '00:00',
     pairState: 'loading', // loading | success | error
     statusText: '正在连接服务器...',
     errorText: '',
