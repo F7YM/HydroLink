@@ -2,6 +2,12 @@
 <template>
   <div id="hydroPage" class="page" style="{{ pageStyle }}" ontouchstart="traceFirstTouch">
 
+    <!-- 固定头部：与 HydroLink 风格统一 (时间和标题) -->
+    <div class="header" if="{{ headerTitle && !loading && !errorText }}">
+      <text class="time-display">{{ currentTime }}</text>
+      <text class="title">{{ headerTitle }}</text>
+    </div>
+
     <!-- 加载 / 错误（垂直居中） -->
     <div class="center-area" if="{{ loading && !errorText }}">
       <image class="spin" src="/common/icons/progress-activity.png"></image>
@@ -12,7 +18,7 @@
     </div>
 
     <!-- 组件树：单层绝对定位扁平渲染 (JSLab 纯 JS 布局引擎) -->
-    <div class="tree-area" show="{{ !loading && !errorText }}">
+    <div class="tree-area {{ headerTitle ? 'tree-area-with-header' : '' }}" show="{{ !loading && !errorText }}">
       <!-- 滚动视图：根据 JS 测量精确总高度提供安全视口与底部留白 -->
       <scroll id="hydroScroll" if="{{ rootScroll }}" class="tree-scroll" style="{{ viewportStyle }}" scroll-y="true" bounces="true" onscroll="traceFirstScroll">
         <div id="hydroScrollContent" class="scroll-content-flat" style="{{ { height: totalHeight + 'px' } }}" onclick="rootTap">
@@ -108,6 +114,31 @@
   background-color: #000;
   position: relative;
 }
+.header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 90px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #000;
+  z-index: 10;
+}
+.time-display {
+  font-size: 28px;
+  font-weight: bold;
+  color: #fff;
+  padding-top: 5px;
+  text-align: center;
+}
+.title {
+  font-size: 32px;
+  font-weight: bold;
+  color: #fff;
+  text-align: center;
+}
 .tree-area {
   position: absolute;
   width: 100%;
@@ -115,6 +146,10 @@
   top: 0;
   left: 0;
   right: 0;
+  bottom: 0;
+}
+.tree-area-with-header {
+  top: 90px;
   bottom: 0;
 }
 .tree-scroll {
@@ -212,6 +247,26 @@
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
+@media (shape: rect) {
+  .header {
+    height: 65px;
+    flex-direction: row-reverse;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 36px;
+  }
+  .title {
+    margin-left: 8px;
+  }
+  .time-display {
+    margin-right: 8px;
+  }
+  .tree-area-with-header {
+    top: 65px;
+    bottom: 0;
+  }
+}
 </style>
 
 <script>
@@ -238,6 +293,9 @@ export default {
     _rootTap: '',
     loading: true,
     errorText: '',
+    headerTitle: '',
+    currentTime: '00:00',
+    _timeTimer: null,
     refreshMs: 0,
     _timer: null,
     _busy: false,
@@ -262,6 +320,10 @@ export default {
 
   onInit() {
     this._publisher = createUiPublisher();
+    this.updateTime();
+    this._timeTimer = setInterval(() => {
+      this.updateTime();
+    }, 30000);
     this._sandbox = createClientSandbox({
       onLocalStateChange: () => this._applyLocal(),
       getStore: (k, def) => (this._watchStore && this._watchStore[k] !== undefined ? this._watchStore[k] : def),
@@ -278,9 +340,7 @@ export default {
   async _init() {
     this._screen = await this._readScreen();
     if (this._destroyed) return;
-    if (this._screen.width > 0 && this._screen.height > 0) {
-      this.viewportStyle = 'height: ' + (480 * this._screen.height / this._screen.width) + 'px';
-    }
+    this._updateViewport();
     this._watchStore = await deviceService.readPluginStore(this.plugin);
     if (this._destroyed) return;
     await this.load();
@@ -325,10 +385,29 @@ export default {
     };
   },
 
+  updateTime() {
+    const now = new Date();
+    this.currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  },
+
+  _updateViewport() {
+    const isRect = this._screen && this._screen.shape === 'rect';
+    const headerH = this.headerTitle ? (isRect ? 65 : 90) : 0;
+    const totalH = (this._screen && this._screen.width > 0 && this._screen.height > 0)
+      ? Math.round(480 * this._screen.height / this._screen.width)
+      : 480;
+    const h = Math.max(100, totalH - headerH);
+    this.viewportStyle = 'height: ' + h + 'px';
+  },
+
   onDestroy() {
     this._destroyed = true;
     this._visible = false;
     this._clearTimer();
+    if (this._timeTimer) {
+      clearInterval(this._timeTimer);
+      this._timeTimer = null;
+    }
     this.flatNodes = [];
     if (this._publisher) this._publisher.clear();
     if (this._sandbox) {
@@ -428,7 +507,13 @@ export default {
 
   _apply(view) {
     if (this._destroyed) return;
-    const root = view.root;
+    const root = view ? view.root : null;
+    const title = (view && (view.title || (view.header && view.header.title))) ||
+      (root && root.props && (root.props.title || (root.props.header && root.props.header.title))) ||
+      (root && (root.title || (root.header && root.header.title))) || '';
+    this.headerTitle = typeof title === 'string' ? title : '';
+    this._updateViewport();
+
     this.rootScroll = !!(root && root.type === 'scroll');
     const ctx = this._screenCtx();
 

@@ -161,7 +161,7 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
   const defaultPadTop = isCircle ? 30 : 0;
   const defaultPadBottom = isScroll ? (isCircle ? 120 : 40) : (isCircle ? 48 : 0);
 
-  const minPadT = isCircle ? 30 : 0;
+  const minPadT = isCircle ? 12 : 0;
   const minPadB = isScroll ? (isCircle ? 120 : 40) : (isCircle ? 48 : 0);
 
   const rootPadL = parseUnit(rootStyle.paddingLeft !== undefined ? rootStyle.paddingLeft : rootStyle.padding, DESIGN_WIDTH, defaultPadX);

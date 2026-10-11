@@ -155,7 +155,7 @@ async function wbiKeys(auth) {
 function coverUrl(url) {
   var value = String(url || '').replace(/^http:/, 'https:').replace(/^\/\//, 'https://');
   if (!/^https:\/\/(?:[a-z0-9-]+\.)*hdslb\.com\//i.test(value)) return '';
-  return value.split('@')[0] + '@240w_135h_1c.jpg';
+  return value.split('@')[0] + '@160w_90h_1c_70q.jpg';
 }
 
 function count(value) {
@@ -204,11 +204,22 @@ function button(label) {
     style: { width: '100%', height: 52, backgroundColor: '#FB7299', color: '#FFFFFF', borderRadius: 18, marginTop: 12, marginBottom: 16 } };
 }
 
-function viewTree(children) {
-  return { refreshMs: 0, root: { type: 'scroll', style: { padding: 18, backgroundColor: '#000000' },
-    media: { circle: { paddingLeft: 42, paddingRight: 42, paddingTop: 52, paddingBottom: 120 }, pill: { padding: 14 } }, children: [
-      text('HydroBili', 30, '#FB7299')
-    ].concat(children) } };
+function viewTree(children, title) {
+  var pageTitle = title !== undefined ? title : '首页推荐';
+  return {
+    title: pageTitle,
+    refreshMs: 0,
+    root: {
+      type: 'scroll',
+      props: { title: pageTitle },
+      style: { padding: 18, backgroundColor: '#000000' },
+      media: {
+        circle: { paddingLeft: 42, paddingRight: 42, paddingTop: 16, paddingBottom: 120 },
+        pill: { padding: 14 }
+      },
+      children: children
+    }
+  };
 }
 
 module.exports = {
@@ -221,7 +232,7 @@ module.exports = {
       var auth = await kit.storage.getItem(AUTH_KEY);
       if (!auth || !auth.sessdata) {
         feedCache = null; wbiCache = null;
-        return viewTree([text('尚未登录', 26), text('在手机或电脑的插件列表打开 HydroBili 界面，用哔哩哔哩客户端扫码登录。', 20, '#B7BCCB'), button('已登录，刷新')]);
+        return viewTree([text('尚未登录', 26), text('在手机或电脑的插件列表打开 HydroBili 界面，用哔哩哔哩客户端扫码登录。', 20, '#B7BCCB'), button('已登录，刷新')], '尚未登录');
       }
       var force = !!(req && (
         req.trigger === 'event' ||
@@ -229,14 +240,14 @@ module.exports = {
         (req.event && req.event.handler === 'refresh')
       ));
       var items = await recommendations(auth, force);
-      var children = [text('首页推荐', 24)];
+      var children = [];
       items.forEach(function (video) {
         var cardId = 'bili_' + (video.bvid || Math.random().toString(36).slice(2, 8));
         var nodes = [];
         if (Array.isArray(video.segments) && video.segments.length) {
-          nodes.push({ id: cardId + '_gif', type: 'gif-player', props: { segments: video.segments, width: '100%', height: 166, loop: true, autoPlay: true }, style: { width: '100%', height: 166, borderRadius: 12, marginBottom: 10 } });
+          nodes.push({ id: cardId + '_gif', type: 'gif-player', props: { segments: video.segments, width: '100%', height: 140, loop: true, autoPlay: true }, style: { width: '100%', height: 140, borderRadius: 12, marginBottom: 8 } });
         } else if (video.cover) {
-          nodes.push({ id: cardId + '_img', type: 'image', props: { src: video.cover }, style: { width: '100%', height: 166, borderRadius: 12, marginBottom: 10 } });
+          nodes.push({ id: cardId + '_img', type: 'image', props: { src: video.cover }, style: { width: '100%', height: 140, borderRadius: 12, marginBottom: 8 } });
         }
         nodes.push({ id: cardId + '_title', type: 'text', props: { text: video.title || '无标题视频' }, style: { fontSize: 22, color: '#FFFFFF', marginBottom: 8 } });
         nodes.push({ id: cardId + '_owner', type: 'text', props: { text: video.owner || '未知 UP 主' }, style: { fontSize: 18, color: '#B7BCCB', marginBottom: 8 } });
@@ -247,9 +258,9 @@ module.exports = {
         children.push(text('本批暂无视频推荐，请换一批。', 20, '#B7BCCB'));
       }
       children.push(button('换一批'));
-      return viewTree(children);
+      return viewTree(children, '首页推荐');
     } catch (error) {
-      return viewTree([text('暂时无法加载', 26), text(safeText(error && error.message || '请稍后重试'), 20, '#B7BCCB'), button('重试')]);
+      return viewTree([text('暂时无法加载', 26), text(safeText(error && error.message || '请稍后重试'), 20, '#B7BCCB'), button('重试')], '首页推荐');
     }
   }
 };

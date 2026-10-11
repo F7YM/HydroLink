@@ -79,7 +79,7 @@ test('homepage recommendation filters other surfaces and duplicates, caches, and
   assert.equal((serialized.match(/测试视频/g) || []).length, 1);
   assert.match(serialized, /测试作者/);
   assert.match(serialized, /1.2万播放 · 2:05/);
-  assert.match(serialized, /240w_135h_1c.jpg/);
+  assert.match(serialized, /160w_90h_1c_70q.jpg/);
   assert.ok(!serialized.includes(auth.sessdata));
   assert.equal(view.storage, undefined);
   assert.equal(view.refreshMs, 0);
