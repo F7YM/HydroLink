@@ -433,6 +433,18 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
       leaf.events = events;
       leaf.w = w !== null ? w : parseUnit(props.width, containerInnerWidth, 320);
       if (!leaf.h) leaf.h = parseUnit(props.height, viewportHeight, 240);
+    } else if (type === 'video') {
+      leaf.src = normalizeUrl(props.src || props.url || '', screenCtx);
+      leaf.poster = normalizeUrl(props.poster || '', screenCtx);
+      leaf.autoplay = props.autoplay !== undefined ? !!props.autoplay : true;
+      leaf.controls = props.controls !== undefined ? !!props.controls : true;
+      leaf.muted = !!props.muted;
+      leaf.loop = !!props.loop;
+      leaf.radius = number(style.borderRadius, 0, 80, 0);
+      leaf.tap = events.tap || '';
+      leaf.events = events;
+      leaf.w = w !== null ? w : containerInnerWidth;
+      if (!leaf.h) leaf.h = parseUnit(props.height, viewportHeight, 200);
     } else {
       // 纯样式盒子或占位
       leaf.background = style.backgroundColor || style.background || 'transparent';
@@ -526,6 +538,8 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
         painted.navTextStyle = `color: ${box.color}; font-size: ${box.size}px;`;
       } else if (box.kind === 'progress') {
         painted.progressStyle = `width: 100%; height: 100%;`;
+      } else if (box.kind === 'video') {
+        painted.videoStyle = `width: ${w}px; height: ${h}px;` + (box.radius ? ` border-radius: ${box.radius}px; overflow: hidden;` : '');
       } else if (box.kind === 'box') {
         painted.innerStyle = `width: 100%; height: 100%;` +
           (box.background ? ` background-color: ${box.background};` : '') +

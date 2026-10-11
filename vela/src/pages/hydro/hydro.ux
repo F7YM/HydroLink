@@ -67,6 +67,9 @@
             <!-- gif-player (本地双缓冲播放器组件) -->
             <gif-player elif="{{ node.kind === 'gif-player' }}" player-data="{{ node.playerData }}" @playerready="onPlayerReady(node)" @playerfinish="onPlayerFinish(node)" @segmentchange="onPlayerSegmentChange(node)"></gif-player>
 
+            <!-- video (原生视频播放器组件) -->
+            <video elif="{{ node.kind === 'video' }}" id="{{ node.id }}" class="flat-video" style="{{ node.videoStyle }}" src="{{ node.src }}" poster="{{ node.poster }}" autoplay="{{ node.autoplay }}" controls="{{ node.controls }}" muted="{{ node.muted }}" onstart="onVideoStart(node)" onpause="onVideoPause(node)" onfinish="onVideoFinish(node)" onerror="onVideoError(node)"></video>
+
             <!-- fallback other -->
             <text elif="{{ node.kind === 'other' }}" class="flat-other">[{{ node.type }}]</text>
           </div>
@@ -96,6 +99,7 @@
             <text class="flat-nav-text" style="{{ node.navTextStyle }}">{{ node.navLabel }}</text>
           </div>
           <gif-player elif="{{ node.kind === 'gif-player' }}" player-data="{{ node.playerData }}" @playerready="onPlayerReady(node)" @playerfinish="onPlayerFinish(node)" @segmentchange="onPlayerSegmentChange(node)"></gif-player>
+          <video elif="{{ node.kind === 'video' }}" id="{{ node.id }}" class="flat-video" style="{{ node.videoStyle }}" src="{{ node.src }}" poster="{{ node.poster }}" autoplay="{{ node.autoplay }}" controls="{{ node.controls }}" muted="{{ node.muted }}" onstart="onVideoStart(node)" onpause="onVideoPause(node)" onfinish="onVideoFinish(node)" onerror="onVideoError(node)"></video>
           <text elif="{{ node.kind === 'other' }}" class="flat-other">[{{ node.type }}]</text>
         </div>
       </div>
@@ -248,6 +252,7 @@
   align-items: center;
 }
 .flat-nav-text { font-size: 26px; }
+.flat-video { width: 100%; height: 100%; }
 .flat-other { color: #666666; font-size: 20px; }
 
 .fab-container {
@@ -727,6 +732,35 @@ export default {
     if (!node || !node.events || !node.events.segmentChange) return;
     if (this._sandbox && this._sandbox.invoke(node.events.segmentChange, detail)) return;
     this._send({ handler: node.events.segmentChange, source: 'segmentChange', detail });
+  },
+
+  onVideoStart(node, evt) {
+    const detail = this._unwrap(evt);
+    if (!node || !node.events || !node.events.start) return;
+    if (this._sandbox && this._sandbox.invoke(node.events.start, detail)) return;
+    this._send({ handler: node.events.start, source: 'videoStart', detail });
+  },
+
+  onVideoPause(node, evt) {
+    const detail = this._unwrap(evt);
+    if (!node || !node.events || !node.events.pause) return;
+    if (this._sandbox && this._sandbox.invoke(node.events.pause, detail)) return;
+    this._send({ handler: node.events.pause, source: 'videoPause', detail });
+  },
+
+  onVideoFinish(node, evt) {
+    const detail = this._unwrap(evt);
+    if (!node || !node.events || !node.events.finish) return;
+    if (this._sandbox && this._sandbox.invoke(node.events.finish, detail)) return;
+    this._send({ handler: node.events.finish, source: 'videoFinish', detail });
+  },
+
+  onVideoError(node, evt) {
+    const detail = this._unwrap(evt);
+    console.warn('[hydro] video play error: ' + (node && node.src), detail);
+    if (!node || !node.events || !node.events.error) return;
+    if (this._sandbox && this._sandbox.invoke(node.events.error, detail)) return;
+    this._send({ handler: node.events.error, source: 'videoError', detail });
   },
 
   onFabTap(evt) {

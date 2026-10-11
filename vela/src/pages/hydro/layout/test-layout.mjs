@@ -174,5 +174,47 @@ console.log('--- 测试 5: normalizeUrl 与 toCssStyle 图片与背景 URL 归�
     assert.ok(bgStyle.includes('background-color: #0b0d12'));
 
     console.log('✓ normalizeUrl 与 toCssStyle 背景/图片测试全部通过');
+
+    console.log('--- 测试 6: video 视频组件编译与排版 ---');
+    const videoTree = {
+      type: 'scroll',
+      children: [
+        {
+          id: 'bili_player',
+          type: 'video',
+          props: {
+            src: 'https://upos-sz-mirrorcos.bilivideo.com/test.mp4',
+            poster: 'https://i0.hdslb.com/cover.jpg',
+            autoplay: true,
+            controls: true,
+            width: '100%',
+            height: 180
+          },
+          style: {
+            borderRadius: 12
+          },
+          events: {
+            start: 'onStart',
+            finish: 'onFinish',
+            error: 'onError'
+          }
+        }
+      ]
+    };
+    const vRes = compileHydroUi(videoTree, ctx);
+    const videoNode = vRes.flatNodes.find(n => n.kind === 'video');
+    assert.ok(videoNode, '应发射 video 节点');
+    assert.equal(videoNode.id, 'bili_player');
+    assert.equal(videoNode.src, 'https://upos-sz-mirrorcos.bilivideo.com/test.mp4');
+    assert.equal(videoNode.poster, 'https://i0.hdslb.com/cover.jpg');
+    assert.equal(videoNode.autoplay, true);
+    assert.equal(videoNode.controls, true);
+    assert.equal(videoNode.h, 180);
+    assert.ok(videoNode.videoStyle.includes('width:'), 'videoStyle 应包含 width');
+    assert.ok(videoNode.videoStyle.includes('height: 180px'), 'videoStyle 应包含 height: 180px');
+    assert.ok(videoNode.videoStyle.includes('border-radius: 12px'), 'videoStyle 应包含 border-radius');
+    assert.equal(videoNode.events.start, 'onStart');
+    assert.equal(videoNode.events.finish, 'onFinish');
+    console.log('✓ video 组件测量与样式编译全部通过');
   });
 }

@@ -168,3 +168,111 @@ test('packaged slice.wasm can be loaded and slices RGBA frames to GIF', async ()
   assert.ok(gif && gif.length > 50, 'GIF 压缩数据必须存在且大于 50B');
   assert.equal(Buffer.from(gif.slice(0, 6)).toString('ascii'), 'GIF89a', '切片结果必须是合法的 GIF89a');
 });
+
+test('video detail view displays stats, desc, and provides play video event', async () => {
+  const { state, plugin } = harness();
+  state.auth = auth;
+  // 模拟 view 接口返回
+  const detailReply = {
+    code: 0,
+    data: {
+      bvid: 'BVtestDetail',
+      aid: 1234567,
+      cid: 998877,
+      title: '详细测试视频标题',
+      desc: '这是一个详尽的测试简介。',
+      pic: 'https://i0.hdslb.com/bfs/archive/detail_cover.jpg',
+      owner: { name: '高能UP主', face: 'https://i0.hdslb.com/face.jpg' },
+      stat: { view: 88888, danmaku: 666, like: 9999, coin: 520, favorite: 1314 },
+      duration: 185
+    }
+  };
+  state.replies.push(detailReply);
+
+  const detailView = await plugin.view('app', 'main', {
+    trigger: 'event',
+    event: { handler: 'open_video:BVtestDetail', source: 'tap' }
+  });
+
+  assert.equal(detailView.title, '视频详情');
+  const serialized = JSON.stringify(detailView);
+  assert.match(serialized, /详细测试视频标题/);
+  assert.match(serialized, /高能UP主/);
+  assert.match(serialized, /8.9万/);
+  assert.match(serialized, /这是一个详尽的测试简介/);
+  assert.match(serialized, /play_video:BVtestDetail:998877/);
+  assert.match(serialized, /back_to_feed/);
+  assert.equal(state.requests.length, 1);
+  const detailReqUrl = new URL(state.requests[0].url);
+  assert.equal(detailReqUrl.pathname, '/x/web-interface/view');
+  assert.equal(detailReqUrl.searchParams.get('bvid'), 'BVtestDetail');
+});
+
+test('play_video fetches WBI-signed playurl and returns native video component', async () => {
+  const { state, plugin } = harness();
+  state.auth = auth;
+  // 1. view 详情响应
+  state.replies.push({
+    code: 0,
+    data: {
+      bvid: 'BVtestPlay',
+      cid: 112233,
+      title: '播放测试视频',
+      desc: '简介内容',
+      pic: 'https://i0.hdslb.com/cover.jpg',
+      owner: { name: 'UP主' },
+      stat: { view: 100 },
+      duration: 60
+    }
+  });
+  // 2. nav WBI keys 响应
+  state.replies.push(nav);
+  // 3. playurl 播放地址响应
+  state.replies.push({
+    code: 0,
+    data: {
+      quality: 16,
+      format: 'mp4',
+      durl: [
+        {
+          order: 1,
+          length: 60000,
+          size: 1048576,
+          url: 'https://upos-sz-mirrorcos.bilivideo.com/upgcxcode/test_360p.mp4'
+        }
+      ]
+    }
+  });
+
+  const playView = await plugin.view('app', 'main', {
+    trigger: 'event',
+    event: { handler: 'play_video:BVtestPlay:112233', source: 'tap' }
+  });
+
+  assert.equal(playView.title, '视频详情');
+  function findNodes(root, predicate) {
+    const matched = [];
+    if (predicate(root)) matched.push(root);
+    for (const child of root.children || []) {
+      matched.push(...findNodes(child, predicate));
+    }
+    return matched;
+  }
+
+  const videoNodes = findNodes(playView.root, n => n.type === 'video');
+  assert.equal(videoNodes.length, 1, '必须包含一个 video 原生组件');
+  const v = videoNodes[0];
+  assert.equal(v.props.src, 'https://upos-sz-mirrorcos.bilivideo.com/upgcxcode/test_360p.mp4');
+  assert.equal(v.props.autoplay, true);
+  assert.equal(v.props.controls, true);
+
+  // 验证调用了正确的 playurl 接口且带了 WBI 签名
+  assert.equal(state.requests.length, 3);
+  const playReqUrl = new URL(state.requests[2].url);
+  assert.equal(playReqUrl.pathname, '/x/player/wbi/playurl');
+  assert.equal(playReqUrl.searchParams.get('bvid'), 'BVtestPlay');
+  assert.equal(playReqUrl.searchParams.get('cid'), '112233');
+  assert.equal(playReqUrl.searchParams.get('qn'), '16');
+  assert.equal(playReqUrl.searchParams.get('fnval'), '0');
+  assert.match(playReqUrl.searchParams.get('w_rid'), /^[a-f0-9]{32}$/);
+});

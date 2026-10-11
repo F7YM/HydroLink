@@ -199,9 +199,234 @@ function text(value, size, color) {
   return { type: 'text', props: { text: value }, style: { fontSize: size || 22, color: color || '#FFFFFF', marginBottom: 8 } };
 }
 
-function button(label) {
-  return { type: 'button', props: { label: label }, events: { tap: 'refresh' },
+function button(label, tapAction) {
+  return { type: 'button', props: { label: label }, events: { tap: tapAction || 'refresh' },
     style: { width: '100%', height: 52, backgroundColor: '#FB7299', color: '#FFFFFF', borderRadius: 18, marginTop: 12, marginBottom: 16 } };
+}
+
+var detailCache = {};
+var playUrlCache = {};
+
+async function fetchVideoDetail(bvid, auth) {
+  if (detailCache[bvid] && (Date.now() - detailCache[bvid].time < 300000)) {
+    return detailCache[bvid].data;
+  }
+  var url = 'https://api.bilibili.com/x/web-interface/view?bvid=' + encodeURIComponent(bvid);
+  var result = await requestJson(url, auth);
+  if (!result || result.code !== 0 || !result.data) {
+    throw apiError(result);
+  }
+  var d = result.data;
+  var cid = d.cid || (Array.isArray(d.pages) && d.pages[0] && d.pages[0].cid) || 0;
+  var stat = d.stat || {};
+  var owner = d.owner || {};
+  var item = {
+    bvid: d.bvid || bvid,
+    aid: d.aid,
+    cid: cid,
+    title: safeText(d.title).slice(0, 100),
+    desc: safeText(d.desc || '暂无简介').slice(0, 300),
+    cover: coverUrl(d.pic),
+    rawPic: d.pic,
+    owner: safeText(owner.name || '未知 UP 主').slice(0, 40),
+    views: count(stat.view),
+    danmaku: count(stat.danmaku),
+    likes: count(stat.like),
+    coins: count(stat.coin),
+    favorites: count(stat.favorite),
+    duration: duration(d.duration)
+  };
+  detailCache[bvid] = { data: item, time: Date.now() };
+  return item;
+}
+
+async function fetchPlayUrl(bvid, cid, auth) {
+  var cacheKey = bvid + ':' + cid;
+  if (playUrlCache[cacheKey] && (Date.now() - playUrlCache[cacheKey].time < 120000)) {
+    return playUrlCache[cacheKey].url;
+  }
+  var keys = await wbiKeys(auth);
+  var params = {
+    bvid: bvid,
+    cid: cid,
+    qn: 16,
+    fnval: 0,
+    fnver: 0,
+    fourk: 0
+  };
+  var query = signWbi(params, keys.img, keys.sub, Math.floor(Date.now() / 1000));
+  var url = 'https://api.bilibili.com/x/player/wbi/playurl?' + query;
+  var result = await requestJson(url, auth);
+  if (!result || result.code !== 0 || !result.data) {
+    throw apiError(result);
+  }
+  var durl = result.data.durl;
+  if (!Array.isArray(durl) || !durl.length || !durl[0].url) {
+    throw new Error('未获取到视频播放流');
+  }
+  var streamUrl = durl[0].url;
+  playUrlCache[cacheKey] = { url: streamUrl, time: Date.now() };
+  return streamUrl;
+}
+
+function detailViewTree(detail, isPlaying, playUrl, errText) {
+  var children = [];
+  var bvid = detail.bvid;
+  var cid = detail.cid;
+
+  // 1. 顶部返回按钮
+  children.push({
+    id: 'detail_back',
+    type: 'button',
+    props: { label: '‹ 返回推荐' },
+    events: { tap: 'back_to_feed' },
+    style: {
+      width: '100%',
+      height: 44,
+      backgroundColor: '#242630',
+      color: '#B7BCCB',
+      borderRadius: 22,
+      marginBottom: 12
+    }
+  });
+
+  // 2. 视频媒体播放区域
+  if (isPlaying && playUrl) {
+    children.push({
+      id: 'video_player',
+      type: 'video',
+      props: {
+        src: playUrl,
+        poster: detail.cover,
+        autoplay: true,
+        controls: true,
+        width: '100%',
+        height: 180
+      },
+      style: {
+        width: '100%',
+        height: 180,
+        borderRadius: 14,
+        marginBottom: 8
+      },
+      events: {
+        finish: 'video_finish',
+        error: 'video_error'
+      }
+    });
+    children.push({
+      id: 'btn_stop_video',
+      type: 'button',
+      props: { label: '停止播放' },
+      events: { tap: 'open_video:' + bvid },
+      style: {
+        width: '100%',
+        height: 42,
+        backgroundColor: '#2E323C',
+        color: '#FFFFFF',
+        borderRadius: 21,
+        marginBottom: 12
+      }
+    });
+  } else {
+    if (detail.cover) {
+      children.push({
+        id: 'detail_cover',
+        type: 'image',
+        props: { src: detail.cover },
+        style: { width: '100%', height: 160, borderRadius: 14, marginBottom: 8 }
+      });
+    }
+    children.push({
+      id: 'btn_play_video',
+      type: 'button',
+      props: { label: '▶ 播放视频 (360P)' },
+      events: { tap: 'play_video:' + bvid + ':' + cid },
+      style: {
+        width: '100%',
+        height: 52,
+        backgroundColor: '#FB7299',
+        color: '#FFFFFF',
+        borderRadius: 18,
+        marginBottom: 12
+      }
+    });
+  }
+
+  if (errText) {
+    children.push(text(errText, 18, '#FFB4AB'));
+  }
+
+  // 3. 视频标题
+  children.push({
+    id: 'detail_title',
+    type: 'text',
+    props: { text: detail.title },
+    style: { fontSize: 24, color: '#FFFFFF', fontWeight: 'bold', marginBottom: 8 }
+  });
+
+  // 4. UP主 与 时长
+  children.push({
+    id: 'detail_owner_row',
+    type: 'text',
+    props: { text: 'UP: ' + detail.owner + ' · 时长: ' + detail.duration },
+    style: { fontSize: 18, color: '#BAC3FF', marginBottom: 12 }
+  });
+
+  // 5. 互动数据统计栏
+  children.push({
+    id: 'detail_stats',
+    type: 'column',
+    style: {
+      padding: 10,
+      backgroundColor: '#1E2028',
+      borderRadius: 14,
+      marginBottom: 12
+    },
+    children: [
+      {
+        type: 'text',
+        props: { text: '播放 ' + detail.views + ' · 弹幕 ' + detail.danmaku + ' · 点赞 ' + detail.likes },
+        style: { fontSize: 18, color: '#FFFFFF', textAlign: 'center' }
+      }
+    ]
+  });
+
+  // 6. 视频简介
+  children.push({
+    id: 'detail_desc_box',
+    type: 'column',
+    style: {
+      padding: 12,
+      backgroundColor: '#14161E',
+      borderRadius: 14,
+      marginBottom: 20
+    },
+    children: [
+      { type: 'text', props: { text: '简介' }, style: { fontSize: 20, color: '#FB7299', marginBottom: 6 } },
+      { type: 'text', props: { text: detail.desc }, style: { fontSize: 18, color: '#B7BCCB', lineHeight: 24 } }
+    ]
+  });
+
+  return {
+    title: '视频详情',
+    refreshMs: 0,
+    fab: {
+      icon: '/common/icons/refresh_32dp_FFFFFF_FILL0_wght400_GRAD0_opsz40.png',
+      tap: 'back_to_feed',
+      background: '#2E323C'
+    },
+    root: {
+      type: 'scroll',
+      props: { title: '视频详情' },
+      style: { padding: 18, backgroundColor: '#000000' },
+      media: {
+        circle: { paddingLeft: 42, paddingRight: 42, paddingTop: 16, paddingBottom: 100 },
+        pill: { padding: 14 }
+      },
+      children: children
+    }
+  };
 }
 
 function viewTree(children, title, fab) {
@@ -240,11 +465,58 @@ module.exports = {
         feedCache = null; wbiCache = null;
         return viewTree([text('尚未登录', 26), text('在手机或电脑的插件列表打开 HydroBili 界面，用哔哩哔哩客户端扫码登录。', 20, '#B7BCCB'), button('已登录，刷新')], '尚未登录', null);
       }
+
+      var handler = (req && req.event && req.event.handler) || '';
+
+      // 事件分支 1: 打开视频详情页
+      if (handler.startsWith('open_video:')) {
+        var openBvid = handler.slice('open_video:'.length);
+        try {
+          var openDetail = await fetchVideoDetail(openBvid, auth);
+          return detailViewTree(openDetail, false, null);
+        } catch (detailErr) {
+          return viewTree([
+            text('获取视频详情失败', 24, '#FFB4AB'),
+            text(safeText(detailErr && detailErr.message || '服务器无响应'), 18, '#B7BCCB'),
+            button('返回推荐', 'back_to_feed')
+          ], '视频详情', null);
+        }
+      }
+
+      // 事件分支 2: 播放视频 (获取 360P 视频流并嵌入播放器)
+      if (handler.startsWith('play_video:')) {
+        var playParts = handler.slice('play_video:'.length).split(':');
+        var playBvid = playParts[0];
+        var playCid = playParts[1];
+        try {
+          var playDetail = await fetchVideoDetail(playBvid, auth);
+          var playUrl = await fetchPlayUrl(playBvid, playCid || playDetail.cid, auth);
+          return detailViewTree(playDetail, true, playUrl);
+        } catch (playErr) {
+          try {
+            var fallbackDetail = await fetchVideoDetail(playBvid, auth);
+            return detailViewTree(fallbackDetail, false, null, '播放流获取失败: ' + safeText(playErr && playErr.message || '无法播放'));
+          } catch (e) {
+            return viewTree([
+              text('视频播放失败', 24, '#FFB4AB'),
+              text(safeText(playErr && playErr.message || '无法取得播放链接'), 18, '#B7BCCB'),
+              button('返回推荐', 'back_to_feed')
+            ], '视频播放', null);
+          }
+        }
+      }
+
+      // 事件分支 3: 播放完毕或关闭
+      if (handler === 'video_finish') {
+        return viewTree(children, '首页推荐');
+      }
+
       var force = !!(req && (
         req.trigger === 'event' ||
         req.trigger === 'refresh' ||
-        (req.event && req.event.handler === 'refresh')
+        handler === 'refresh'
       ));
+
       var items = await recommendations(auth, force);
       var children = [];
       items.forEach(function (video) {
@@ -257,8 +529,15 @@ module.exports = {
         }
         nodes.push({ id: cardId + '_title', type: 'text', props: { text: video.title || '无标题视频' }, style: { fontSize: 22, color: '#FFFFFF', marginBottom: 8 } });
         nodes.push({ id: cardId + '_owner', type: 'text', props: { text: video.owner || '未知 UP 主' }, style: { fontSize: 18, color: '#B7BCCB', marginBottom: 8 } });
-        nodes.push({ id: cardId + '_views', type: 'text', props: { text: video.views + '播放 · ' + video.duration }, style: { fontSize: 18, color: '#969CAD', marginBottom: 8 } });
-        children.push({ id: cardId, type: 'column', style: { padding: 12, backgroundColor: '#000000', borderRadius: 16, marginBottom: 16 }, children: nodes });
+        nodes.push({ id: cardId + '_views', type: 'text', props: { text: video.views + '播放 · ' + video.duration }, style: { fontSize: 18, color: '#969CAD', marginBottom: 6 } });
+        nodes.push({ id: cardId + '_action', type: 'text', props: { text: '查看详情 ›' }, style: { fontSize: 18, color: '#FB7299', textAlign: 'right' } });
+        children.push({
+          id: cardId,
+          type: 'column',
+          style: { padding: 12, backgroundColor: '#000000', borderRadius: 16, marginBottom: 16 },
+          events: { tap: 'open_video:' + video.bvid },
+          children: nodes
+        });
       });
       if (!items.length) {
         children.push(text('本批暂无视频推荐，请换一批。', 20, '#B7BCCB'));
