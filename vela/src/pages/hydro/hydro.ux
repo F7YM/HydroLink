@@ -22,7 +22,7 @@
       <!-- 滚动视图：根据 JS 测量精确总高度提供安全视口与底部留白 -->
       <scroll id="hydroScroll" if="{{ rootScroll }}" class="tree-scroll" style="{{ viewportStyle }}" scroll-y="true" bounces="true" onscroll="traceFirstScroll">
         <div id="hydroScrollContent" class="scroll-content-flat" style="{{ { height: totalHeight + 'px' } }}" onclick="rootTap">
-          <div for="{{ (i, node) in flatNodes }}" tid="id" class="abs-node" style="{{ node.wrapStyle }}">
+          <div for="{{ (i, node) in flatNodes }}" tid="id" class="abs-node" style="{{ node.wrapStyle }}" onclick="onNodeTap(node)">
             <!-- 容器背景 / 纯样式盒子 -->
             <div if="{{ node.kind === 'container_bg' || node.kind === 'box' }}" class="flat-box" style="{{ node.innerStyle }}" onclick="onNodeTap(node)"></div>
 
@@ -65,7 +65,7 @@
             </div>
 
             <!-- gif-player (本地双缓冲播放器组件) -->
-            <gif-player elif="{{ node.kind === 'gif-player' }}" player-data="{{ node.playerData }}" @playerready="onPlayerReady(node)" @playerfinish="onPlayerFinish(node)" @segmentchange="onPlayerSegmentChange(node)"></gif-player>
+            <gif-player elif="{{ node.kind === 'gif-player' }}" player-data="{{ node.playerData }}" @playerready="onPlayerReady(node)" @playerfinish="onPlayerFinish(node)" @segmentchange="onPlayerSegmentChange(node)" onclick="onNodeTap(node)"></gif-player>
 
             <!-- video (原生视频播放器组件) -->
             <video elif="{{ node.kind === 'video' }}" id="{{ node.id }}" class="flat-video" style="{{ node.videoStyle }}" src="{{ node.src }}" poster="{{ node.poster }}" autoplay="{{ node.autoplay }}" controls="{{ node.controls }}" muted="{{ node.muted }}" onstart="onVideoStart(node)" onpause="onVideoPause(node)" onfinish="onVideoFinish(node)" onerror="onVideoError(node)"></video>
@@ -78,7 +78,7 @@
 
       <!-- 静态非滚动视图 -->
       <div if="{{ !rootScroll }}" class="static-content-flat" style="{{ viewportStyle }}" onclick="rootTap">
-        <div for="{{ (i, node) in flatNodes }}" tid="id" class="abs-node" style="{{ node.wrapStyle }}">
+        <div for="{{ (i, node) in flatNodes }}" tid="id" class="abs-node" style="{{ node.wrapStyle }}" onclick="onNodeTap(node)">
           <div if="{{ node.kind === 'container_bg' || node.kind === 'box' }}" class="flat-box" style="{{ node.innerStyle }}" onclick="onNodeTap(node)"></div>
           <text elif="{{ node.kind === 'text' }}" class="flat-text" style="{{ node.textStyle }}" onclick="onNodeTap(node)">{{ node.text }}</text>
           <div elif="{{ node.kind === 'button' }}" class="flat-btn" style="{{ node.btnStyle }}" onclick="onNodeTap(node)">
@@ -98,7 +98,7 @@
           <div elif="{{ node.kind === 'nav' }}" class="flat-nav" style="{{ node.navStyle }}" onclick="onNavClick(node)">
             <text class="flat-nav-text" style="{{ node.navTextStyle }}">{{ node.navLabel }}</text>
           </div>
-          <gif-player elif="{{ node.kind === 'gif-player' }}" player-data="{{ node.playerData }}" @playerready="onPlayerReady(node)" @playerfinish="onPlayerFinish(node)" @segmentchange="onPlayerSegmentChange(node)"></gif-player>
+          <gif-player elif="{{ node.kind === 'gif-player' }}" player-data="{{ node.playerData }}" @playerready="onPlayerReady(node)" @playerfinish="onPlayerFinish(node)" @segmentchange="onPlayerSegmentChange(node)" onclick="onNodeTap(node)"></gif-player>
           <video elif="{{ node.kind === 'video' }}" id="{{ node.id }}" class="flat-video" style="{{ node.videoStyle }}" src="{{ node.src }}" poster="{{ node.poster }}" autoplay="{{ node.autoplay }}" controls="{{ node.controls }}" muted="{{ node.muted }}" onstart="onVideoStart(node)" onpause="onVideoPause(node)" onfinish="onVideoFinish(node)" onerror="onVideoError(node)"></video>
           <text elif="{{ node.kind === 'other' }}" class="flat-other">[{{ node.type }}]</text>
         </div>
@@ -106,7 +106,7 @@
     </div>
 
     <!-- 悬浮固定底部圆形图标按钮 (FAB) -->
-    <div if="{{ fabButton && !loading && !errorText }}" class="fab-container {{ isCircle ? 'fab-container-circle' : '' }}">
+    <div if="{{ fabButton && !loading && !errorText }}" class="fab-container {{ isCircle ? 'fab-container-circle' : '' }}" style="{{ fabContainerStyle }}">
       <div class="fab-circle" style="{{ fabCircleStyle }}" onclick="onFabTap">
         <image class="fab-icon" src="{{ fabButton.icon }}"></image>
       </div>
@@ -257,7 +257,7 @@
 
 .fab-container {
   position: absolute;
-  left: 211px;
+  left: 204px;
   width: 58px;
   height: 58px;
   bottom: 24px;
@@ -339,6 +339,7 @@ export default {
     _timeTimer: null,
     fabButton: null,
     fabCircleStyle: '',
+    fabContainerStyle: '',
     isCircle: true,
     refreshMs: 0,
     _timer: null,
@@ -576,10 +577,14 @@ export default {
           tap: rawFab.tap || rawFab.action || 'refresh',
           background: rawFab.background || rawFab.backgroundColor || '#FB7299'
         };
+        const fabSw = ctx && ctx.width > 0 ? ctx.width : 466;
+        const fabLeft = Math.max(0, Math.round((fabSw - 58) / 2));
         this.fabCircleStyle = 'background-color: ' + this.fabButton.background + ';';
+        this.fabContainerStyle = 'left: ' + fabLeft + 'px;';
       } else {
         this.fabButton = null;
         this.fabCircleStyle = '';
+        this.fabContainerStyle = '';
       }
 
       // 背景样式提升到整页容器

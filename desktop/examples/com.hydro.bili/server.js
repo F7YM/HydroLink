@@ -172,25 +172,42 @@ function duration(value) {
 async function recommendations(auth, force) {
   // 账号切换后绝不复用上一账号的推荐；缓存与凭据均不下发到手表存储。
   var identity = String(auth.uid || '') + ':' + auth.sessdata;
-  if (feedCache && feedCache.identity !== identity) { feedCache = null; wbiCache = null; }
-  if (!force && feedCache && Date.now() - feedCache.time < 120000) return feedCache.items;
+  if (feedCache && feedCache.identity !== identity) {
+    feedCache = null;
+    wbiCache = null;
+  }
+  if (!force && feedCache && Date.now() - feedCache.time < 120000 && Array.isArray(feedCache.items) && feedCache.items.length) {
+    return feedCache.items;
+  }
   var keys = await wbiKeys(auth);
-  var page = feedCache ? feedCache.page + 1 : 1;
+  var page = (feedCache && typeof feedCache.page === 'number') ? feedCache.page + 1 : 1;
+  if (force) {
+    // 强制刷新时重置本地缓存，确保击穿缓存
+    feedCache = null;
+  }
   var query = signWbi({ fresh_type: 4, ps: FEED_LIMIT, fresh_idx: page, fresh_idx_1h: page, brush: page, web_location: 1430650 }, keys.img, keys.sub, Math.floor(Date.now() / 1000));
   var result = await requestJson('https://api.bilibili.com/x/web-interface/wbi/index/top/feed/rcmd?' + query, auth);
   if (!result || result.code !== 0 || !result.data || !Array.isArray(result.data.item)) {
     wbiCache = null;
     throw apiError(result);
   }
+
   var seen = {};
   var items = result.data.item.filter(function (item) {
     if (!item || item.goto !== 'av' || !/^BV[a-zA-Z0-9]+$/.test(item.bvid || '') || item.business_info || seen[item.bvid]) return false;
     seen[item.bvid] = true;
     return true;
   }).slice(0, FEED_LIMIT).map(function (item) {
-    return { bvid: item.bvid, title: safeText(item.title).slice(0, 100), owner: safeText(item.owner && item.owner.name).slice(0, 40),
-      cover: coverUrl(item.pic), duration: duration(item.duration || item.duraion), views: count(item.stat && item.stat.view) };
+    return {
+      bvid: item.bvid,
+      title: safeText(item.title).slice(0, 100),
+      owner: safeText(item.owner && item.owner.name).slice(0, 40),
+      cover: coverUrl(item.pic),
+      duration: duration(item.duration || item.duraion),
+      views: count(item.stat && item.stat.view)
+    };
   });
+
   feedCache = { identity: identity, page: page, items: items, time: Date.now() };
   return items;
 }
@@ -411,17 +428,13 @@ function detailViewTree(detail, isPlaying, playUrl, errText) {
   return {
     title: '视频详情',
     refreshMs: 0,
-    fab: {
-      icon: '/common/icons/refresh_32dp_FFFFFF_FILL0_wght400_GRAD0_opsz40.png',
-      tap: 'back_to_feed',
-      background: '#2E323C'
-    },
+    fab: null,
     root: {
       type: 'scroll',
       props: { title: '视频详情' },
       style: { padding: 18, backgroundColor: '#000000' },
       media: {
-        circle: { paddingLeft: 42, paddingRight: 42, paddingTop: 16, paddingBottom: 100 },
+        circle: { paddingLeft: 42, paddingRight: 42, paddingTop: 16, paddingBottom: 60 },
         pill: { padding: 14 }
       },
       children: children
@@ -455,7 +468,7 @@ function viewTree(children, title, fab) {
 
 module.exports = {
   manifest: function () {
-    return { package: { id: PKG, name: 'HydroBili', version: '0.1.0' }, apps: [{ id: 'main', name: 'HydroBili', icon: 'assets/icon.png' }] };
+    return { package: { id: PKG, name: 'HydroBili', version: '0.1.1' }, apps: [{ id: 'main', name: 'HydroBili', icon: 'assets/icon.png' }] };
   },
   async view(surface, item, req) {
     if (surface !== 'app' || item !== 'main') return null;
@@ -466,7 +479,7 @@ module.exports = {
         return viewTree([text('尚未登录', 26), text('在手机或电脑的插件列表打开 HydroBili 界面，用哔哩哔哩客户端扫码登录。', 20, '#B7BCCB'), button('已登录，刷新')], '尚未登录', null);
       }
 
-      var handler = (req && req.event && req.event.handler) || '';
+      var handler = (req && req.event && req.event.handler) || (req && req.handler) || '';
 
       // 事件分支 1: 打开视频详情页
       if (handler.startsWith('open_video:')) {
@@ -476,9 +489,10 @@ module.exports = {
           return detailViewTree(openDetail, false, null);
         } catch (detailErr) {
           return viewTree([
+            { id: 'detail_fail_back', type: 'button', props: { label: '‹ 返回推荐' }, events: { tap: 'back_to_feed' }, style: { width: '100%', height: 44, backgroundColor: '#242630', color: '#B7BCCB', borderRadius: 22, marginBottom: 12 } },
             text('获取视频详情失败', 24, '#FFB4AB'),
             text(safeText(detailErr && detailErr.message || '服务器无响应'), 18, '#B7BCCB'),
-            button('返回推荐', 'back_to_feed')
+            button('重试', 'open_video:' + openBvid)
           ], '视频详情', null);
         }
       }
@@ -506,15 +520,13 @@ module.exports = {
         }
       }
 
-      // 事件分支 3: 播放完毕或关闭
-      if (handler === 'video_finish') {
-        // 播放结束默认回到推荐流
-        handler = '';
-      }
+      // 事件分支 3: 从详情页返回推荐流
+      var isBackToFeed = handler === 'back_to_feed' || handler === 'video_finish';
 
-      var force = !!(req && (
+      var force = !isBackToFeed && !!(req && (
         handler === 'refresh' ||
-        req.trigger === 'refresh'
+        req.trigger === 'refresh' ||
+        (req.event && req.event.handler === 'refresh')
       ));
 
       var items = await recommendations(auth, force);
