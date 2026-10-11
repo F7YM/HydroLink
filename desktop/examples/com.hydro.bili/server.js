@@ -206,7 +206,7 @@ function button(label) {
 
 function viewTree(children) {
   return { refreshMs: 0, root: { type: 'scroll', style: { padding: 18, backgroundColor: '#000000' },
-    media: { circle: { padding: 32 }, pill: { padding: 14 } }, children: [
+    media: { circle: { paddingLeft: 42, paddingRight: 42, paddingTop: 52, paddingBottom: 120 }, pill: { padding: 14 } }, children: [
       text('HydroBili', 30, '#FB7299')
     ].concat(children) } };
 }
@@ -223,23 +223,30 @@ module.exports = {
         feedCache = null; wbiCache = null;
         return viewTree([text('尚未登录', 26), text('在手机或电脑的插件列表打开 HydroBili 界面，用哔哩哔哩客户端扫码登录。', 20, '#B7BCCB'), button('已登录，刷新')]);
       }
-      var force = !!(req && req.trigger === 'event' && req.event && req.event.handler === 'refresh');
+      var force = !!(req && (
+        req.trigger === 'event' ||
+        req.trigger === 'refresh' ||
+        (req.event && req.event.handler === 'refresh')
+      ));
       var items = await recommendations(auth, force);
-      var children = [text('首页推荐', 24), button('换一批')];
+      var children = [text('首页推荐', 24)];
       items.forEach(function (video) {
+        var cardId = 'bili_' + (video.bvid || Math.random().toString(36).slice(2, 8));
         var nodes = [];
         if (Array.isArray(video.segments) && video.segments.length) {
-          nodes.push({ type: 'gif-player', props: { segments: video.segments, width: '100%', height: 166, loop: true, autoPlay: true }, style: { width: '100%', height: 166, borderRadius: 12, marginBottom: 10 } });
+          nodes.push({ id: cardId + '_gif', type: 'gif-player', props: { segments: video.segments, width: '100%', height: 166, loop: true, autoPlay: true }, style: { width: '100%', height: 166, borderRadius: 12, marginBottom: 10 } });
         } else if (video.cover) {
-          nodes.push({ type: 'image', props: { src: video.cover }, style: { width: '100%', height: 166, borderRadius: 12, marginBottom: 10 } });
+          nodes.push({ id: cardId + '_img', type: 'image', props: { src: video.cover }, style: { width: '100%', height: 166, borderRadius: 12, marginBottom: 10 } });
         }
-        nodes.push(text(video.title || '无标题视频', 22));
-        nodes.push(text(video.owner || '未知 UP 主', 18, '#B7BCCB'));
-        nodes.push(text(video.views + '播放 · ' + video.duration, 18, '#969CAD'));
-        children.push({ type: 'column', style: { padding: 12, backgroundColor: '#000000', borderRadius: 16, marginBottom: 16 }, children: nodes });
+        nodes.push({ id: cardId + '_title', type: 'text', props: { text: video.title || '无标题视频' }, style: { fontSize: 22, color: '#FFFFFF', marginBottom: 8 } });
+        nodes.push({ id: cardId + '_owner', type: 'text', props: { text: video.owner || '未知 UP 主' }, style: { fontSize: 18, color: '#B7BCCB', marginBottom: 8 } });
+        nodes.push({ id: cardId + '_views', type: 'text', props: { text: video.views + '播放 · ' + video.duration }, style: { fontSize: 18, color: '#969CAD', marginBottom: 8 } });
+        children.push({ id: cardId, type: 'column', style: { padding: 12, backgroundColor: '#000000', borderRadius: 16, marginBottom: 16 }, children: nodes });
       });
-      if (!items.length) children.push(text('本批暂无视频推荐，请换一批。', 20, '#B7BCCB'));
-      if (items.length) children.push(button('换一批'));
+      if (!items.length) {
+        children.push(text('本批暂无视频推荐，请换一批。', 20, '#B7BCCB'));
+      }
+      children.push(button('换一批'));
       return viewTree(children);
     } catch (error) {
       return viewTree([text('暂时无法加载', 26), text(safeText(error && error.message || '请稍后重试'), 20, '#B7BCCB'), button('重试')]);

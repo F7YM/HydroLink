@@ -138,3 +138,41 @@ console.log('--- 测试 4: uiPublisher 增量原地补丁 (In-Place Patching) --
 
   console.log('✓ uiPublisher In-Place 原地补丁验证通过');
 }
+
+console.log('--- 测试 5: normalizeUrl 与 toCssStyle 图片与背景 URL 归一化 ---');
+{
+  import('./uiLayout.js').then(({ normalizeUrl, toCssStyle }) => {
+    const ctx = { host: '192.168.1.100', port: 9000, shape: 'circle' };
+
+    // 1. 协议相对 URL 补充 https:
+    assert.equal(normalizeUrl('//i0.hdslb.com/bfs/archive/pic.jpg', ctx), 'https://i0.hdslb.com/bfs/archive/pic.jpg');
+
+    // 2. 本地 RPK / 内部协议保留
+    assert.equal(normalizeUrl('/common/icons/play.png', ctx), '/common/icons/play.png');
+    assert.equal(normalizeUrl('internal://files/test.png', ctx), 'internal://files/test.png');
+    assert.equal(normalizeUrl('data:image/png;base64,xxxx', ctx), 'data:image/png;base64,xxxx');
+
+    // 3. 服务端相对路径转为手表可达绝对地址
+    assert.equal(normalizeUrl('/api/music/art?size=466', ctx), 'http://192.168.1.100:9000/api/music/art?size=466');
+
+    // 4. 127.0.0.1 / localhost 替换为真实远端 host
+    assert.equal(
+      normalizeUrl('http://127.0.0.1:9000/api/music/art?size=466', ctx),
+      'http://192.168.1.100:9000/api/music/art?size=466'
+    );
+    assert.equal(
+      normalizeUrl('http://localhost:9000/api/music/art?size=466', ctx),
+      'http://192.168.1.100:9000/api/music/art?size=466'
+    );
+
+    // 5. toCssStyle 自动补齐 url(...) 包装并重写 localhost
+    const bgStyle = toCssStyle({
+      backgroundImage: 'http://127.0.0.1:9000/api/music/art?w=466',
+      backgroundColor: '#0b0d12'
+    }, ctx);
+    assert.ok(bgStyle.includes('background-image: url(http://192.168.1.100:9000/api/music/art?w=466)'), '应自动补齐 url() 包装与 host 重写');
+    assert.ok(bgStyle.includes('background-color: #0b0d12'));
+
+    console.log('✓ normalizeUrl 与 toCssStyle 背景/图片测试全部通过');
+  });
+}

@@ -71,13 +71,39 @@ export function resolveStyle(node, screenCtx) {
   return base;
 }
 
-export function toCssStyle(obj) {
+export function normalizeUrl(url, screenCtx) {
+  if (!url || typeof url !== 'string') return '';
+  let u = url.trim();
+  if (u.startsWith('//')) {
+    u = 'https:' + u;
+  }
+  if (u.startsWith('/common/') || u.startsWith('internal://') || u.startsWith('data:')) {
+    return u;
+  }
+  if (screenCtx && screenCtx.host && screenCtx.host !== 'localhost' && screenCtx.host !== '127.0.0.1') {
+    if (u.startsWith('/')) {
+      u = 'http://' + screenCtx.host + (screenCtx.port ? ':' + screenCtx.port : '') + u;
+    } else if (/^http:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?\//.test(u)) {
+      u = u.replace(/^http:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?/, 'http://' + screenCtx.host + (screenCtx.port ? ':' + screenCtx.port : ''));
+    }
+  }
+  return u;
+}
+
+export function toCssStyle(obj, screenCtx) {
   if (!obj || typeof obj !== 'object') return '';
   const out = [];
   for (const k in obj) {
-    const v = obj[k];
+    let v = obj[k];
     if (v === undefined || v === null || v === '') continue;
-    const kebab = k.replace(/([A-Z])/g, '-$1').toLowerCase();
+    let kebab = k === 'weight' ? 'font-weight' : k.replace(/([A-Z])/g, '-$1').toLowerCase();
+    if (kebab === 'background-image' && typeof v === 'string') {
+      let trimmed = v.trim();
+      if (!trimmed.startsWith('url(') && !trimmed.startsWith('linear-gradient') && !trimmed.startsWith('radial-gradient')) {
+        trimmed = normalizeUrl(trimmed, screenCtx);
+        v = 'url(' + trimmed + ')';
+      }
+    }
     if (typeof v === 'number') {
       out.push(kebab + ': ' + v + (UNITLESS_KEYS[k] ? '' : 'px'));
     } else {
@@ -130,15 +156,21 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
   const isScroll = root.type === 'scroll';
   const rootStyle = resolveStyle(root, screenCtx);
 
-  // 默认圆屏安全区内边距
+  // 默认圆屏安全区内边距与硬件最小保底
   const defaultPadX = isCircle ? 42 : 0;
   const defaultPadTop = isCircle ? 30 : 0;
-  const defaultPadBottom = isCircle ? 150 : 40;
+  const defaultPadBottom = isScroll ? (isCircle ? 120 : 40) : (isCircle ? 48 : 0);
+
+  const minPadT = isCircle ? 30 : 0;
+  const minPadB = isScroll ? (isCircle ? 120 : 40) : (isCircle ? 48 : 0);
 
   const rootPadL = parseUnit(rootStyle.paddingLeft !== undefined ? rootStyle.paddingLeft : rootStyle.padding, DESIGN_WIDTH, defaultPadX);
   const rootPadR = parseUnit(rootStyle.paddingRight !== undefined ? rootStyle.paddingRight : rootStyle.padding, DESIGN_WIDTH, defaultPadX);
-  const rootPadT = parseUnit(rootStyle.paddingTop !== undefined ? rootStyle.paddingTop : rootStyle.padding, viewportHeight, defaultPadTop);
-  const rootPadB = parseUnit(rootStyle.paddingBottom !== undefined ? rootStyle.paddingBottom : rootStyle.padding, viewportHeight, defaultPadBottom);
+  const rawPadT = parseUnit(rootStyle.paddingTop !== undefined ? rootStyle.paddingTop : rootStyle.padding, viewportHeight, defaultPadTop);
+  const rawPadB = parseUnit(rootStyle.paddingBottom !== undefined ? rootStyle.paddingBottom : rootStyle.padding, viewportHeight, defaultPadBottom);
+
+  const rootPadT = Math.max(minPadT, rawPadT);
+  const rootPadB = Math.max(minPadB, rawPadB);
 
   function makeId(node, path) {
     idCounter += 1;
@@ -347,7 +379,8 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
       }
       if (!leaf.h) leaf.h = 52;
     } else if (type === 'image') {
-      leaf.src = String(props.src || '');
+      const rawSrc = String(props.src || props.url || (node && (node.src || node.url)) || '');
+      leaf.src = normalizeUrl(rawSrc, screenCtx);
       leaf.radius = number(style.borderRadius, 0, 80, 0);
       leaf.tap = events.tap || '';
       leaf.w = w !== null ? w : 120;
@@ -423,12 +456,24 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
     if (box.kind === 'container') {
       const st = box.style;
       const bg = st.backgroundColor || st.background || '';
-      const hasBg = bg && bg !== 'transparent';
+      const hasBg = (bg && bg !== 'transparent') || !!st.backgroundImage;
       const hasBorder = !!(st.borderWidth || st.borderColor);
       const hasTap = !!(box.node.events && box.node.events.tap);
 
       // 非根容器如果具有背景、边框或点击事件，发射背景矩形节点
       if (!box.isRoot && (hasBg || hasBorder || hasTap)) {
+        let bgStyle = '';
+        if (bg) bgStyle += ` background-color: ${bg};`;
+        if (st.backgroundImage) {
+          const bgImg = normalizeUrl(st.backgroundImage, screenCtx);
+          bgStyle += ` ${toCssStyle({ backgroundImage: bgImg }, screenCtx)};`;
+          if (st.backgroundSize) bgStyle += ` background-size: ${st.backgroundSize};`;
+          if (st.backgroundPosition) bgStyle += ` background-position: ${st.backgroundPosition};`;
+        }
+        if (st.borderRadius) bgStyle += ` border-radius: ${st.borderRadius}px;`;
+        if (st.borderWidth) bgStyle += ` border-width: ${st.borderWidth}px; border-style: solid;`;
+        if (st.borderColor) bgStyle += ` border-color: ${st.borderColor};`;
+
         const bgNode = {
           id: box.id + ':bg',
           kind: 'container_bg',
@@ -439,11 +484,7 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
           borderWidth: number(st.borderWidth, 0, 20, 0),
           borderColor: st.borderColor || '',
           tap: (box.node.events && box.node.events.tap) || '',
-          wrapStyle: `position: absolute; left: ${x}px; top: ${y}px; width: ${w}px; height: ${h}px;` +
-            (bg ? ` background-color: ${bg};` : '') +
-            (st.borderRadius ? ` border-radius: ${st.borderRadius}px;` : '') +
-            (st.borderWidth ? ` border-width: ${st.borderWidth}px; border-style: solid;` : '') +
-            (st.borderColor ? ` border-color: ${st.borderColor};` : '')
+          wrapStyle: `position: absolute; left: ${x}px; top: ${y}px; width: ${w}px; height: ${h}px;` + bgStyle
         };
         nodes.push(bgNode);
       }
@@ -455,7 +496,8 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
       }
     } else {
       // 叶子节点
-      const wrapStyle = `position: absolute; left: ${x}px; top: ${y}px; width: ${w}px; height: ${h}px;`;
+      const radiusStyle = box.radius ? ` border-radius: ${box.radius}px; overflow: hidden;` : '';
+      const wrapStyle = `position: absolute; left: ${x}px; top: ${y}px; width: ${w}px; height: ${h}px;` + radiusStyle;
       const painted = Object.assign({}, box, {
         x, y, w, h,
         wrapStyle
@@ -469,9 +511,9 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
         painted.btnStyle = `background-color: ${box.background}; border-radius: ${box.radius}px; width: 100%; height: 100%; justify-content: center; align-items: center;`;
         painted.btnTextStyle = `color: ${box.btnColor}; font-size: ${box.btnSize}px; font-weight: bold;`;
       } else if (box.kind === 'image') {
-        painted.imgStyle = `width: 100%; height: 100%;` + (box.radius ? ` border-radius: ${box.radius}px;` : '');
+        painted.imgStyle = `width: ${w}px; height: ${h}px;` + (box.radius ? ` border-radius: ${box.radius}px;` : '');
       } else if (box.kind === 'icon') {
-        painted.iconStyle = `width: 100%; height: 100%;`;
+        painted.iconStyle = `width: ${w}px; height: ${h}px;`;
       } else if (box.kind === 'badge') {
         painted.badgeStyle = `background-color: ${box.background}; border-radius: ${box.radius}px; width: 100%; height: 100%; justify-content: center; align-items: center;`;
         painted.badgeTextStyle = `color: ${box.color}; font-size: 20px;`;

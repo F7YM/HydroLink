@@ -29,7 +29,7 @@
             </div>
 
             <!-- image -->
-            <image elif="{{ node.kind === 'image' }}" class="flat-img" style="{{ node.imgStyle }}" src="{{ node.src }}" onclick="onNodeTap(node)"></image>
+            <image elif="{{ node.kind === 'image' && node.src }}" class="flat-img" style="{{ node.imgStyle }}" src="{{ node.src }}" onclick="onNodeTap(node)"></image>
 
             <!-- icon -->
             <image elif="{{ node.kind === 'icon' && node.iconSrc }}" class="flat-icon" style="{{ node.iconStyle }}" src="{{ node.iconSrc }}" onclick="onNodeTap(node)"></image>
@@ -75,7 +75,7 @@
           <div elif="{{ node.kind === 'button' }}" class="flat-btn" style="{{ node.btnStyle }}" onclick="onNodeTap(node)">
             <text class="flat-btn-text" style="{{ node.btnTextStyle }}">{{ node.label }}</text>
           </div>
-          <image elif="{{ node.kind === 'image' }}" class="flat-img" style="{{ node.imgStyle }}" src="{{ node.src }}" onclick="onNodeTap(node)"></image>
+          <image elif="{{ node.kind === 'image' && node.src }}" class="flat-img" style="{{ node.imgStyle }}" src="{{ node.src }}" onclick="onNodeTap(node)"></image>
           <image elif="{{ node.kind === 'icon' && node.iconSrc }}" class="flat-icon" style="{{ node.iconStyle }}" src="{{ node.iconSrc }}" onclick="onNodeTap(node)"></image>
           <image elif="{{ node.kind === 'spinner' }}" class="flat-spin" src="/common/icons/progress-activity.png"></image>
           <div elif="{{ node.kind === 'badge' }}" class="flat-badge" style="{{ node.badgeStyle }}">
@@ -174,7 +174,11 @@
 .flat-btn-text {
   font-weight: bold;
 }
-.flat-img { width: 100%; height: 100%; }
+.flat-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .flat-icon { width: 100%; height: 100%; }
 .flat-spin {
   width: 100%; height: 100%;
