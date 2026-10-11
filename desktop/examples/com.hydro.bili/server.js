@@ -122,9 +122,9 @@ async function requestJson(url, auth) {
     })();
     return await Promise.race([operation, new Promise(function (_, reject) {
       timer = setTimeout(function () {
-        reject(new Error('请求超时，请检查服务端网络后重试'));
+        reject(new Error('服务器无响应'));
         if (controller) controller.abort();
-      }, 8000);
+      }, 5000);
     })]);
   } finally { clearTimeout(timer); }
 }
@@ -134,7 +134,7 @@ function apiError(result) {
   if (result && (result.code === -352 || result.code === -412 || (result.data && result.data.v_voucher))) {
     return new Error('B站暂时限制了本次请求，请稍后重试');
   }
-  return new Error('推荐获取失败（' + (result && typeof result.code === 'number' ? result.code : '响应异常') + '），请稍后重试');
+  return new Error('推荐获取失败（' + (result && typeof result.code === 'number' ? result.code : '服务器无响应') + '），请稍后重试');
 }
 
 async function wbiKeys(auth) {
@@ -204,11 +204,17 @@ function button(label) {
     style: { width: '100%', height: 52, backgroundColor: '#FB7299', color: '#FFFFFF', borderRadius: 18, marginTop: 12, marginBottom: 16 } };
 }
 
-function viewTree(children, title) {
+function viewTree(children, title, fab) {
   var pageTitle = title !== undefined ? title : '首页推荐';
+  var fabConfig = fab !== undefined ? fab : {
+    icon: '/common/icons/refresh_32dp_FFFFFF_FILL0_wght400_GRAD0_opsz40.png',
+    tap: 'refresh',
+    background: '#FB7299'
+  };
   return {
     title: pageTitle,
     refreshMs: 0,
+    fab: fabConfig,
     root: {
       type: 'scroll',
       props: { title: pageTitle },
@@ -232,7 +238,7 @@ module.exports = {
       var auth = await kit.storage.getItem(AUTH_KEY);
       if (!auth || !auth.sessdata) {
         feedCache = null; wbiCache = null;
-        return viewTree([text('尚未登录', 26), text('在手机或电脑的插件列表打开 HydroBili 界面，用哔哩哔哩客户端扫码登录。', 20, '#B7BCCB'), button('已登录，刷新')], '尚未登录');
+        return viewTree([text('尚未登录', 26), text('在手机或电脑的插件列表打开 HydroBili 界面，用哔哩哔哩客户端扫码登录。', 20, '#B7BCCB'), button('已登录，刷新')], '尚未登录', null);
       }
       var force = !!(req && (
         req.trigger === 'event' ||
@@ -257,10 +263,9 @@ module.exports = {
       if (!items.length) {
         children.push(text('本批暂无视频推荐，请换一批。', 20, '#B7BCCB'));
       }
-      children.push(button('换一批'));
       return viewTree(children, '首页推荐');
     } catch (error) {
-      return viewTree([text('暂时无法加载', 26), text(safeText(error && error.message || '请稍后重试'), 20, '#B7BCCB'), button('重试')], '首页推荐');
+      return viewTree([text('暂时无法加载', 26), text(safeText(error && error.message || '请稍后重试'), 20, '#B7BCCB'), button('重试')], '首页推荐', null);
     }
   }
 };

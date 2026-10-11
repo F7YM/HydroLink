@@ -39,7 +39,7 @@
       }
       var data;
       try { data = await response.json(); }
-      catch (_) { throw new Error('服务端返回了无法识别的响应。'); }
+      catch (_) { throw new Error('服务器无响应'); }
       return { data: data, cookies: response.headers.get('x-proxy-set-cookie') || '' };
     } finally {
       clearTimeout(timeout);

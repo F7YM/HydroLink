@@ -250,6 +250,18 @@ const _service = {
         if (pending.timer) clearTimeout(pending.timer)
         pending.resolve(msg)
       }
+    } else if (msg.type === 'proxy_http_response') {
+      const id = msg.id
+      const pending = _pending[id]
+      if (pending) {
+        delete _pending[id]
+        if (pending.timer) clearTimeout(pending.timer)
+        if (msg.error) {
+          pending.reject(msg.error)
+        } else {
+          pending.resolve(msg.data)
+        }
+      }
     }
   },
 

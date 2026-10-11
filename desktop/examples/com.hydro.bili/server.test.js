@@ -124,11 +124,10 @@ test('oversized API batches stay bounded on the watch and refresh replaces the b
   assert.equal(firstNodes.filter(n => n.type === 'text' && n.props.text.startsWith('首批视频')).length, 4);
   assert.equal(new URL(state.requests[1].url).searchParams.get('ps'), '4');
   assert.ok(!firstNodes.some(n => n.type === 'nav' && n.props.action === 'back'));
-  const refresh = firstNodes.find(n => n.type === 'button' && n.props.label === '换一批');
-  assert.ok(refresh);
+  assert.ok(first.fab && first.fab.tap === 'refresh');
   state.replies.push({ code: 0, data: { item: [{ ...video, bvid: 'BVnext', title: '下一批视频' }] } });
   const next = await plugin.view('app', 'main', {
-    trigger: 'event', event: { handler: refresh.events.tap, source: 'tap' }
+    trigger: 'event', event: { handler: first.fab.tap, source: 'tap' }
   });
   assert.match(JSON.stringify(next), /下一批视频/);
   assert.ok(!JSON.stringify(next).includes('首批视频'));

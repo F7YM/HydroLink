@@ -101,6 +101,13 @@
       </div>
     </div>
 
+    <!-- 悬浮固定底部圆形图标按钮 (FAB) -->
+    <div if="{{ fabButton && !loading && !errorText }}" class="fab-container {{ isCircle ? 'fab-container-circle' : '' }}" onclick="onFabTap">
+      <div class="fab-circle" style="{{ fabCircleStyle }}">
+        <image class="fab-icon" src="{{ fabButton.icon }}"></image>
+      </div>
+    </div>
+
     <div if="{{ eventStatus }}" class="event-status">
       <text class="event-status-text">{{ eventStatus }}</text>
     </div>
@@ -243,6 +250,34 @@
 .flat-nav-text { font-size: 26px; }
 .flat-other { color: #666666; font-size: 20px; }
 
+.fab-container {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  bottom: 24px;
+  justify-content: center;
+  align-items: center;
+  z-index: 99;
+}
+.fab-container-circle {
+  bottom: 30px;
+}
+.fab-circle {
+  width: 58px;
+  height: 58px;
+  border-radius: 29px;
+  background-color: #FB7299;
+  justify-content: center;
+  align-items: center;
+  border-width: 2px;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+.fab-icon {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
 @keyframes flat-spin-anim {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -273,7 +308,7 @@
 import router from '@system.router';
 import device from '@system.device';
 import deviceService from '../../services/deviceService.js';
-import { compileHydroUi, resolveStyle, toCssStyle } from './layout/uiLayout.js';
+import { compileHydroUi, resolveStyle, toCssStyle, normalizeUrl } from './layout/uiLayout.js';
 import { createUiPublisher } from './layout/uiPublisher.js';
 import { createClientSandbox } from './layout/clientRuntime.js';
 
@@ -296,6 +331,9 @@ export default {
     headerTitle: '',
     currentTime: '00:00',
     _timeTimer: null,
+    fabButton: null,
+    fabCircleStyle: '',
+    isCircle: true,
     refreshMs: 0,
     _timer: null,
     _busy: false,
@@ -340,6 +378,7 @@ export default {
   async _init() {
     this._screen = await this._readScreen();
     if (this._destroyed) return;
+    this.isCircle = !this._screen || this._screen.shape !== 'rect';
     this._updateViewport();
     this._watchStore = await deviceService.readPluginStore(this.plugin);
     if (this._destroyed) return;
@@ -487,7 +526,7 @@ export default {
   _failText(view) {
     if (typeof view === 'string' && view) return view.slice(0, 80);
     if (view && (view.message || view.error)) return String(view.message || view.error).slice(0, 80);
-    if (!view) return '服务端没响应（检查网络/服务是否在运行）';
+    if (!view) return '服务器无响应';
     return '返回数据异常：缺少 root';
   },
 
@@ -513,6 +552,25 @@ export default {
       (root && (root.title || (root.header && root.header.title))) || '';
     this.headerTitle = typeof title === 'string' ? title : '';
     this._updateViewport();
+
+    const rawFab = view ? (view.fab || (root && (root.fab || (root.props && root.props.fab)))) : null;
+    if (rawFab) {
+      let icon = rawFab.icon || rawFab.src || '/common/icons/refresh_32dp_FFFFFF_FILL0_wght400_GRAD0_opsz40.png';
+      if (icon.startsWith('assets/') || icon.startsWith('./assets/')) {
+        const cleanPath = icon.replace(/^\.\//, '');
+        icon = '/api/hydro/worker/asset?package=' + encodeURIComponent(this.plugin) + '&path=' + encodeURIComponent(cleanPath);
+      }
+      icon = normalizeUrl(icon, ctx);
+      this.fabButton = {
+        icon: icon,
+        tap: rawFab.tap || rawFab.action || 'refresh',
+        background: rawFab.background || rawFab.backgroundColor || '#FB7299'
+      };
+      this.fabCircleStyle = 'background-color: ' + this.fabButton.background + ';';
+    } else {
+      this.fabButton = null;
+      this.fabCircleStyle = '';
+    }
 
     this.rootScroll = !!(root && root.type === 'scroll');
     const ctx = this._screenCtx();
@@ -667,6 +725,17 @@ export default {
     this._send({ handler: node.events.segmentChange, source: 'segmentChange', detail });
   },
 
+  onFabTap(evt) {
+    if (evt && typeof evt.stopPropagation === 'function') evt.stopPropagation();
+    if (!this.fabButton) return;
+    const tapAction = this.fabButton.tap || 'refresh';
+    console.info('[hydro] fab tap action=' + tapAction);
+    if (this._sandbox && this._sandbox.invoke(tapAction, this.fabButton)) {
+      return;
+    }
+    this._send({ handler: tapAction, source: 'tap' });
+  },
+
   async _send(ev) {
     console.info('[hydro] event dispatch handler=' + ev.handler + ' busy=' + this._busy + ' destroyed=' + this._destroyed);
     if (this._busy || this._destroyed) return;
@@ -684,10 +753,14 @@ export default {
         this.eventStatus = '';
       } else {
         this.eventStatus = this._failText(view);
+        setTimeout(() => { if (!this._destroyed) this.eventStatus = ''; }, 2500);
       }
     } catch (err) {
       console.warn('[hydro] event failed', err);
-      if (!this._destroyed) this.eventStatus = '更新失败，请重试';
+      if (!this._destroyed) {
+        this.eventStatus = '服务器无响应';
+        setTimeout(() => { if (!this._destroyed) this.eventStatus = ''; }, 2500);
+      }
     } finally {
       this._busy = false;
       this._startTimer();
