@@ -292,6 +292,23 @@ class PluginStoreTest {
     }
 
     @Test
+    fun installsRealHydroBiliPackage() {
+        val hpk = realHpk("com.hydro.bili.hpk")
+        org.junit.Assume.assumeTrue("仓库里没有 bili .hpk，跳过", hpk != null)
+        val s = store()
+        val info = s.install(hpk!!)
+        assertEquals("com.hydro.bili", info.id)
+        assertEquals("HydroBili", info.name)
+        assertEquals("js", info.runtime)
+        assertEquals("server.js", info.entry)
+        assertTrue("server.js 应当解压出来", File(info.dir, "server.js").length() > 0)
+        assertTrue("assets/slice.wasm 切片模块应当解压出来", File(info.dir, "assets/slice.wasm").length() > 0)
+        assertTrue("安装包带 web/index.html", info.hasWeb)
+        assertTrue(info.permissions.contains("storage"))
+        assertTrue(info.permissions.contains("fetch"))
+    }
+
+    @Test
     fun comparesVersionsLikeDesktop() {
         assertEquals(0, PluginStore.compareVersions("1.0", "1.0.0"))
         assertEquals(-1, PluginStore.compareVersions("1.9.0", "1.10.0"))

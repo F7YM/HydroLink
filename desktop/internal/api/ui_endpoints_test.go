@@ -259,4 +259,19 @@ func TestInstallAndUninstallPlugin(t *testing.T) {
 			t.Fatal("插件卸载后仍在列表里")
 		}
 	}
+
+	// 验证 com.hydro.bili.hpk 包含 assets/slice.wasm 且能正常安装
+	biliHpk := filepath.Join("..", "..", "examples", "com.hydro.bili.hpk")
+	if _, err := os.Stat(biliHpk); err == nil {
+		biliAbs, err := filepath.Abs(biliHpk)
+		if err == nil {
+			biliRec := doJSON(t, srv, http.MethodPost, "/api/plugins/install", map[string]string{"path": biliAbs})
+			if biliRec.Code == http.StatusOK {
+				wasmPath := filepath.Join(srv.store.PluginsDir(), "com.hydro.bili", "assets", "slice.wasm")
+				if info, err := os.Stat(wasmPath); err != nil || info.Size() == 0 {
+					t.Fatalf("com.hydro.bili.hpk 安装后缺少 assets/slice.wasm: %v", err)
+				}
+			}
+		}
+	}
 }
