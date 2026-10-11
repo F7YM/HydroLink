@@ -216,5 +216,35 @@ console.log('--- 测试 5: normalizeUrl 与 toCssStyle 图片与背景 URL 归�
     assert.equal(videoNode.events.start, 'onStart');
     assert.equal(videoNode.events.finish, 'onFinish');
     console.log('✓ video 组件测量与样式编译全部通过');
+
+    console.log('--- 测试 7: 容器 tap 事件继承打平传递 ---');
+    const cardTree = {
+      type: 'scroll',
+      children: [
+        {
+          id: 'card_col',
+          type: 'column',
+          events: { tap: 'open_video:BV12345' },
+          style: { padding: 12 },
+          children: [
+            { id: 'card_img', type: 'image', props: { src: 'https://i0.hdslb.com/cover.jpg' } },
+            { id: 'card_title', type: 'text', props: { text: '点击卡片标题' } },
+            { id: 'card_owner', type: 'text', props: { text: 'UP主名字' } }
+          ]
+        }
+      ]
+    };
+    const cardRes = compileHydroUi(cardTree, ctx);
+    const bgNode = cardRes.flatNodes.find(n => n.id === 'card_col:bg');
+    const titleNode = cardRes.flatNodes.find(n => n.id === 'card_title');
+    const imgNode = cardRes.flatNodes.find(n => n.id === 'card_img');
+    const ownerNode = cardRes.flatNodes.find(n => n.id === 'card_owner');
+
+    assert.ok(bgNode, '应发射卡片背景节点');
+    assert.equal(bgNode.tap, 'open_video:BV12345', '背景节点必须具备 tap');
+    assert.equal(titleNode.tap, 'open_video:BV12345', '标题文字必须继承父容器 tap');
+    assert.equal(imgNode.tap, 'open_video:BV12345', '图片必须继承父容器 tap');
+    assert.equal(ownerNode.tap, 'open_video:BV12345', 'UP主文字必须继承父容器 tap');
+    console.log('✓ 容器 tap 事件向下继承打平验证通过');
   });
 }

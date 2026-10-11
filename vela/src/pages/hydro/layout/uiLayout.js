@@ -179,7 +179,7 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
   }
 
   // 测量与布局计算
-  function layoutNode(node, containerInnerWidth, path, inRow, isRoot) {
+  function layoutNode(node, containerInnerWidth, path, inRow, isRoot, inheritedTap) {
     if (!node) return null;
     const type = node.type || 'box';
     const id = makeId(node, path);
@@ -187,7 +187,10 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
     const props = node.props || {};
     const events = node.events || {};
 
+    const effectiveTap = events.tap || (isRoot ? '' : (inheritedTap || ''));
+
     if (events.tap) handlers[id] = events.tap;
+    else if (effectiveTap) handlers[id] = effectiveTap;
     if (events.change) handlers[id] = events.change;
 
     const isAbs = style.position === 'absolute';
@@ -224,7 +227,7 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
         children.forEach((c, idx) => {
           const cStyle = resolveStyle(c, screenCtx);
           const flex = Number(cStyle.flexGrow !== undefined ? cStyle.flexGrow : cStyle.flex);
-          const cBox = layoutNode(c, innerW, id + '.' + idx, true, false);
+          const cBox = layoutNode(c, innerW, id + '.' + idx, true, false, effectiveTap);
           if (!cBox) return;
           measured.push({ child: c, box: cBox, flex: isFinite(flex) && flex > 0 ? flex : 0 });
           if (isFinite(flex) && flex > 0) {
@@ -291,7 +294,7 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
         });
 
         return {
-          id, kind: 'container', type, isAbs, node, style, isRoot,
+          id, kind: 'container', type, isAbs, node, style, isRoot, effectiveTap,
           w: boxW, h: boxH, marginL, marginR, marginT, marginB,
           padL, padT, children: childBoxes
         };
@@ -299,7 +302,7 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
         // ---- 列布局 ----
         let curY = padT;
         children.forEach((c, idx) => {
-          const cBox = layoutNode(c, innerW, id + '.' + idx, false, false);
+          const cBox = layoutNode(c, innerW, id + '.' + idx, false, false, effectiveTap);
           if (!cBox) return;
           if (cBox.isAbs) {
             cBox.x = parseUnit(cBox.style.left, innerW, 0) + padL;
@@ -318,7 +321,7 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
           : parseUnit(style.height, viewportHeight, Math.max(0, naturalH + padB));
 
         return {
-          id, kind: 'container', type, isAbs, node, style, isRoot,
+          id, kind: 'container', type, isAbs, node, style, isRoot, effectiveTap,
           w: boxW, h: boxH, marginL, marginR, marginT, marginB,
           padL, padT, padB, children: childBoxes
         };
@@ -326,10 +329,10 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
     }
 
     // 叶子组件测量
-    return measureLeaf(node, type, id, style, props, events, containerInnerWidth, isAbs, marginL, marginR, marginT, marginB, inRow);
+    return measureLeaf(node, type, id, style, props, events, containerInnerWidth, isAbs, marginL, marginR, marginT, marginB, inRow, effectiveTap);
   }
 
-  function measureLeaf(node, type, id, style, props, events, containerInnerWidth, isAbs, marginL, marginR, marginT, marginB, inRow) {
+  function measureLeaf(node, type, id, style, props, events, containerInnerWidth, isAbs, marginL, marginR, marginT, marginB, inRow, inheritedTap) {
     let w = parseUnit(style.width, containerInnerWidth, null);
     let h = parseUnit(style.height, viewportHeight, 0);
 
@@ -350,6 +353,7 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
       leaf.lineHeight = lineHeight;
       leaf.align = style.textAlign || 'left';
       leaf.bold = style.fontWeight === 'bold' || style.fontWeight >= 600 || style.weight >= 600 ? 'bold' : 'normal';
+      leaf.tap = events.tap || inheritedTap || '';
 
       const visualWidth = measureTextWidth(textVal, fontSize);
       if (w === null) {
@@ -371,7 +375,7 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
       leaf.btnSize = number(style.fontSize, 14, 40, 24);
       leaf.background = style.backgroundColor || style.background || '#BAC3FF';
       leaf.radius = number(style.borderRadius, 0, 80, 26);
-      leaf.tap = events.tap || '';
+      leaf.tap = events.tap || inheritedTap || '';
       if (w === null) {
         leaf.w = inRow ? Math.ceil(measureTextWidth(leaf.label, leaf.btnSize) + 48) : containerInnerWidth;
       } else {
@@ -382,13 +386,13 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
       const rawSrc = String(props.src || props.url || (node && (node.src || node.url)) || '');
       leaf.src = normalizeUrl(rawSrc, screenCtx);
       leaf.radius = number(style.borderRadius, 0, 80, 0);
-      leaf.tap = events.tap || '';
+      leaf.tap = events.tap || inheritedTap || '';
       leaf.w = w !== null ? w : 120;
       if (!leaf.h) leaf.h = 120;
     } else if (type === 'icon') {
       const iconName = props.name || '';
       leaf.iconSrc = ICON_MAP[iconName] || '';
-      leaf.tap = events.tap || '';
+      leaf.tap = events.tap || inheritedTap || '';
       leaf.w = w !== null ? w : 28;
       if (!leaf.h) leaf.h = 28;
     } else if (type === 'badge') {
@@ -397,6 +401,7 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
       leaf.background = style.backgroundColor || '#434659';
       leaf.color = style.color || '#FFFFFF';
       leaf.radius = number(style.borderRadius, 0, 40, 16);
+      leaf.tap = events.tap || inheritedTap || '';
       if (!leaf.h) leaf.h = 28;
       leaf.w = w !== null ? w : Math.round(measureTextWidth(label, 20) + 28);
     } else if (type === 'switch') {
@@ -431,6 +436,7 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
     } else if (type === 'gif-player') {
       leaf.playerData = props;
       leaf.events = events;
+      leaf.tap = events.tap || inheritedTap || '';
       leaf.w = w !== null ? w : parseUnit(props.width, containerInnerWidth, 320);
       if (!leaf.h) leaf.h = parseUnit(props.height, viewportHeight, 240);
     } else if (type === 'video') {
@@ -441,7 +447,7 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
       leaf.muted = !!props.muted;
       leaf.loop = !!props.loop;
       leaf.radius = number(style.borderRadius, 0, 80, 0);
-      leaf.tap = events.tap || '';
+      leaf.tap = events.tap || inheritedTap || '';
       leaf.events = events;
       leaf.w = w !== null ? w : containerInnerWidth;
       if (!leaf.h) leaf.h = parseUnit(props.height, viewportHeight, 200);
@@ -449,7 +455,7 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
       // 纯样式盒子或占位
       leaf.background = style.backgroundColor || style.background || 'transparent';
       leaf.radius = number(style.borderRadius, 0, 80, 0);
-      leaf.tap = events.tap || '';
+      leaf.tap = events.tap || inheritedTap || '';
       leaf.w = w !== null ? w : (inRow ? 20 : containerInnerWidth);
       if (!leaf.h) leaf.h = 8;
     }
@@ -470,7 +476,7 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
       const bg = st.backgroundColor || st.background || '';
       const hasBg = (bg && bg !== 'transparent') || !!st.backgroundImage;
       const hasBorder = !!(st.borderWidth || st.borderColor);
-      const hasTap = !!(box.node.events && box.node.events.tap);
+      const hasTap = !!((box.node.events && box.node.events.tap) || box.effectiveTap);
 
       // 非根容器如果具有背景、边框或点击事件，发射背景矩形节点
       if (!box.isRoot && (hasBg || hasBorder || hasTap)) {
@@ -495,7 +501,7 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
           radius: number(st.borderRadius, 0, 80, 0),
           borderWidth: number(st.borderWidth, 0, 20, 0),
           borderColor: st.borderColor || '',
-          tap: (box.node.events && box.node.events.tap) || '',
+          tap: (box.node.events && box.node.events.tap) || box.effectiveTap || '',
           wrapStyle: `position: absolute; left: ${x}px; top: ${y}px; width: ${w}px; height: ${h}px;` + bgStyle
         };
         nodes.push(bgNode);
@@ -551,7 +557,7 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
   }
 
   // 启动编译
-  const rootBox = layoutNode(root, DESIGN_WIDTH, 'root', false, true);
+  const rootBox = layoutNode(root, DESIGN_WIDTH, 'root', false, true, '');
   let totalContentH = viewportHeight;
 
   if (rootBox) {

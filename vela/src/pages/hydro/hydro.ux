@@ -106,8 +106,8 @@
     </div>
 
     <!-- 悬浮固定底部圆形图标按钮 (FAB) -->
-    <div if="{{ fabButton && !loading && !errorText }}" class="fab-container {{ isCircle ? 'fab-container-circle' : '' }}" onclick="onFabTap">
-      <div class="fab-circle" style="{{ fabCircleStyle }}">
+    <div if="{{ fabButton && !loading && !errorText }}" class="fab-container {{ isCircle ? 'fab-container-circle' : '' }}">
+      <div class="fab-circle" style="{{ fabCircleStyle }}" onclick="onFabTap">
         <image class="fab-icon" src="{{ fabButton.icon }}"></image>
       </div>
     </div>
@@ -257,8 +257,9 @@
 
 .fab-container {
   position: absolute;
-  left: 0;
-  width: 100%;
+  left: 211px;
+  width: 58px;
+  height: 58px;
   bottom: 24px;
   justify-content: center;
   align-items: center;

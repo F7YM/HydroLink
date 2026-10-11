@@ -81,6 +81,8 @@ test('homepage recommendation filters other surfaces and duplicates, caches, and
   assert.match(serialized, /1.2万播放 · 2:05/);
   assert.match(serialized, /160w_90h_1c_70q.jpg/);
   assert.ok(!serialized.includes(auth.sessdata));
+  assert.ok(!serialized.includes('查看详情'), '卡片中不应存在“查看详情”多余文字');
+  assert.match(serialized, /open_video:BV1xx411c7m9/, '卡片必须包含 open_video 点击事件');
   assert.equal(view.storage, undefined);
   assert.equal(view.refreshMs, 0);
   assert.equal(state.requests.length, 2);
@@ -275,4 +277,25 @@ test('play_video fetches WBI-signed playurl and returns native video component',
   assert.equal(playReqUrl.searchParams.get('qn'), '16');
   assert.equal(playReqUrl.searchParams.get('fnval'), '0');
   assert.match(playReqUrl.searchParams.get('w_rid'), /^[a-f0-9]{32}$/);
+});
+
+test('back_to_feed event returns feed without forcing fresh network request', async () => {
+  const { state, plugin } = harness();
+  state.auth = auth;
+  state.replies.push(nav, { code: 0, data: { item: [video] } });
+  // 1. 首次打开推荐
+  const feed1 = await plugin.view('app', 'main', {});
+  assert.equal(state.requests.length, 2);
+  assert.equal(feed1.title, '首页推荐');
+  assert.match(JSON.stringify(feed1), /测试视频/);
+
+  // 2. 模拟从详情页点击“‹ 返回推荐”
+  const backView = await plugin.view('app', 'main', {
+    trigger: 'event',
+    event: { handler: 'back_to_feed', source: 'tap' }
+  });
+  assert.equal(backView.title, '首页推荐');
+  assert.match(JSON.stringify(backView), /测试视频/);
+  // 不应触发强制刷新外部请求，请求数仍为 2
+  assert.equal(state.requests.length, 2, 'back_to_feed 应复用缓存，不应触发多余的外部网络请求');
 });

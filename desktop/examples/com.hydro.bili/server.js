@@ -508,34 +508,34 @@ module.exports = {
 
       // 事件分支 3: 播放完毕或关闭
       if (handler === 'video_finish') {
-        return viewTree(children, '首页推荐');
+        // 播放结束默认回到推荐流
+        handler = '';
       }
 
       var force = !!(req && (
-        req.trigger === 'event' ||
-        req.trigger === 'refresh' ||
-        handler === 'refresh'
+        handler === 'refresh' ||
+        req.trigger === 'refresh'
       ));
 
       var items = await recommendations(auth, force);
       var children = [];
       items.forEach(function (video) {
         var cardId = 'bili_' + (video.bvid || Math.random().toString(36).slice(2, 8));
+        var openEvent = { tap: 'open_video:' + video.bvid };
         var nodes = [];
         if (Array.isArray(video.segments) && video.segments.length) {
-          nodes.push({ id: cardId + '_gif', type: 'gif-player', props: { segments: video.segments, width: '100%', height: 140, loop: true, autoPlay: true }, style: { width: '100%', height: 140, borderRadius: 12, marginBottom: 8 } });
+          nodes.push({ id: cardId + '_gif', type: 'gif-player', props: { segments: video.segments, width: '100%', height: 140, loop: true, autoPlay: true }, events: openEvent, style: { width: '100%', height: 140, borderRadius: 12, marginBottom: 8 } });
         } else if (video.cover) {
-          nodes.push({ id: cardId + '_img', type: 'image', props: { src: video.cover }, style: { width: '100%', height: 140, borderRadius: 12, marginBottom: 8 } });
+          nodes.push({ id: cardId + '_img', type: 'image', props: { src: video.cover }, events: openEvent, style: { width: '100%', height: 140, borderRadius: 12, marginBottom: 8 } });
         }
-        nodes.push({ id: cardId + '_title', type: 'text', props: { text: video.title || '无标题视频' }, style: { fontSize: 22, color: '#FFFFFF', marginBottom: 8 } });
-        nodes.push({ id: cardId + '_owner', type: 'text', props: { text: video.owner || '未知 UP 主' }, style: { fontSize: 18, color: '#B7BCCB', marginBottom: 8 } });
-        nodes.push({ id: cardId + '_views', type: 'text', props: { text: video.views + '播放 · ' + video.duration }, style: { fontSize: 18, color: '#969CAD', marginBottom: 6 } });
-        nodes.push({ id: cardId + '_action', type: 'text', props: { text: '查看详情 ›' }, style: { fontSize: 18, color: '#FB7299', textAlign: 'right' } });
+        nodes.push({ id: cardId + '_title', type: 'text', props: { text: video.title || '无标题视频' }, events: openEvent, style: { fontSize: 22, color: '#FFFFFF', marginBottom: 8 } });
+        nodes.push({ id: cardId + '_owner', type: 'text', props: { text: video.owner || '未知 UP 主' }, events: openEvent, style: { fontSize: 18, color: '#B7BCCB', marginBottom: 8 } });
+        nodes.push({ id: cardId + '_views', type: 'text', props: { text: video.views + '播放 · ' + video.duration }, events: openEvent, style: { fontSize: 18, color: '#969CAD', marginBottom: 4 } });
         children.push({
           id: cardId,
           type: 'column',
           style: { padding: 12, backgroundColor: '#000000', borderRadius: 16, marginBottom: 16 },
-          events: { tap: 'open_video:' + video.bvid },
+          events: openEvent,
           children: nodes
         });
       });
