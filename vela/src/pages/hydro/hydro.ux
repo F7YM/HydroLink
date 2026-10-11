@@ -1,8 +1,8 @@
-<import name="hydro-leaf" src="../../components/HydroLeaf/HydroLeaf"></import>
+<import name="gif-player" src="../../components/GifPlayer/GifPlayer"></import>
 <template>
-  <div class="page" style="{{ pageStyle }}">
+  <div id="hydroPage" class="page" style="{{ pageStyle }}" ontouchstart="traceFirstTouch">
 
-    <!-- 加载 / 错误（头部下方垂直居中，不与返回栏重叠） -->
+    <!-- 加载 / 错误（垂直居中） -->
     <div class="center-area" if="{{ loading && !errorText }}">
       <image class="spin" src="/common/icons/progress-activity.png"></image>
     </div>
@@ -11,46 +11,92 @@
       <text class="hint" onclick="goBack">‹ 返回</text>
     </div>
 
-    <!-- 组件树：滚动由插件声明（根节点 type:'scroll'）；非 scroll 根按内容流动（可能被裁） -->
+    <!-- 组件树：单层绝对定位扁平渲染 (JSLab 纯 JS 布局引擎) -->
     <div class="tree-area" show="{{ !loading && !errorText }}">
-      <div class="safe {{ safeClass }}">
-        <scroll if="{{ rootScroll }}" class="tree-scroll" scroll-y="true" bounces="true">
-          <div class="content" style="{{ contentStyle }}">
-            <div for="{{ (i1, l1) in ui }}" style="{{ l1.ws }}">
-              <!-- L1 容器 -->
-              <div if="{{ l1.c }}" style="{{ l1.s }}">
-                <div for="{{ (i2, l2) in l1.kids }}" style="{{ l2.ws }}">
-                  <!-- L2 容器 -->
-                  <div if="{{ l2.c }}" style="{{ l2.s }}">
-                    <div for="{{ (i3, l3) in l2.kids }}" style="{{ l3.ws }}">
-                      <hydro-leaf leaf="{{ l3 }}" @hydrotap="leafTap" @change="leafChange" @hydroinput="leafInput" @hydronav="leafNav"></hydro-leaf>
-                    </div>
-                  </div>
-                  <hydro-leaf if="{{ !l2.c }}" leaf="{{ l2 }}" @hydrotap="leafTap" @change="leafChange" @hydroinput="leafInput" @hydronav="leafNav"></hydro-leaf>
-                </div>
-              </div>
-              <hydro-leaf if="{{ !l1.c }}" leaf="{{ l1 }}" @hydrotap="leafTap" @change="leafChange" @hydroinput="leafInput" @hydronav="leafNav"></hydro-leaf>
+      <!-- 滚动视图：根据 JS 测量精确总高度提供安全视口与底部留白 -->
+      <scroll id="hydroScroll" if="{{ rootScroll }}" class="tree-scroll" style="{{ viewportStyle }}" scroll-y="true" bounces="true" onscroll="traceFirstScroll">
+        <div id="hydroScrollContent" class="scroll-content-flat" style="{{ { height: totalHeight + 'px' } }}" onclick="rootTap">
+          <div for="{{ (i, node) in flatNodes }}" tid="id" class="abs-node" style="{{ node.wrapStyle }}">
+            <!-- 容器背景 / 纯样式盒子 -->
+            <div if="{{ node.kind === 'container_bg' || node.kind === 'box' }}" class="flat-box" style="{{ node.innerStyle }}" onclick="onNodeTap(node)"></div>
+
+            <!-- text -->
+            <text elif="{{ node.kind === 'text' }}" class="flat-text" style="{{ node.textStyle }}" onclick="onNodeTap(node)">{{ node.text }}</text>
+
+            <!-- button -->
+            <div elif="{{ node.kind === 'button' }}" class="flat-btn" style="{{ node.btnStyle }}" onclick="onNodeTap(node)">
+              <text class="flat-btn-text" style="{{ node.btnTextStyle }}">{{ node.label }}</text>
             </div>
-          </div>
-        </scroll>
-        <div if="{{ !rootScroll }}" class="content" style="{{ contentStyle }}">
-          <div for="{{ (i1, l1) in ui }}" style="{{ l1.ws }}">
-            <!-- L1 容器 -->
-            <div if="{{ l1.c }}" style="{{ l1.s }}">
-              <div for="{{ (i2, l2) in l1.kids }}" style="{{ l2.ws }}">
-                <!-- L2 容器 -->
-                <div if="{{ l2.c }}" style="{{ l2.s }}">
-                  <div for="{{ (i3, l3) in l2.kids }}" style="{{ l3.ws }}">
-                    <hydro-leaf leaf="{{ l3 }}" @hydrotap="leafTap" @change="leafChange" @hydroinput="leafInput" @hydronav="leafNav"></hydro-leaf>
-                  </div>
-                </div>
-                <hydro-leaf if="{{ !l2.c }}" leaf="{{ l2 }}" @hydrotap="leafTap" @change="leafChange" @hydroinput="leafInput" @hydronav="leafNav"></hydro-leaf>
-              </div>
+
+            <!-- image -->
+            <image elif="{{ node.kind === 'image' }}" class="flat-img" style="{{ node.imgStyle }}" src="{{ node.src }}" onclick="onNodeTap(node)"></image>
+
+            <!-- icon -->
+            <image elif="{{ node.kind === 'icon' && node.iconSrc }}" class="flat-icon" style="{{ node.iconStyle }}" src="{{ node.iconSrc }}" onclick="onNodeTap(node)"></image>
+
+            <!-- spinner -->
+            <image elif="{{ node.kind === 'spinner' }}" class="flat-spin" src="/common/icons/progress-activity.png"></image>
+
+            <!-- badge -->
+            <div elif="{{ node.kind === 'badge' }}" class="flat-badge" style="{{ node.badgeStyle }}">
+              <text class="flat-badge-text" style="{{ node.badgeTextStyle }}">{{ node.badgeText }}</text>
             </div>
-            <hydro-leaf if="{{ !l1.c }}" leaf="{{ l1 }}" @hydrotap="leafTap" @change="leafChange" @hydroinput="leafInput" @hydronav="leafNav"></hydro-leaf>
+
+            <!-- switch -->
+            <switch elif="{{ node.kind === 'switch' }}" class="flat-switch" checked="{{ node.checked }}" @change="onSwitchChange(node)"></switch>
+
+            <!-- input -->
+            <div elif="{{ node.kind === 'input' }}" class="flat-input" style="{{ node.inputStyle }}" onclick="onInputClick(node)">
+              <text class="flat-input-text" style="{{ node.inputTextStyle }}">{{ node.value || node.placeholder || '点击输入' }}</text>
+            </div>
+
+            <!-- progress -->
+            <progress elif="{{ node.kind === 'progress' }}" class="flat-progress" style="{{ node.progressStyle }}" percent="{{ node.percent }}" type="{{ node.variant }}"></progress>
+
+            <!-- nav -->
+            <div elif="{{ node.kind === 'nav' }}" class="flat-nav" style="{{ node.navStyle }}" onclick="onNavClick(node)">
+              <text class="flat-nav-text" style="{{ node.navTextStyle }}">{{ node.navLabel }}</text>
+            </div>
+
+            <!-- gif-player (本地双缓冲播放器组件) -->
+            <gif-player elif="{{ node.kind === 'gif-player' }}" player-data="{{ node.playerData }}" @playerready="onPlayerReady(node)" @playerfinish="onPlayerFinish(node)" @segmentchange="onPlayerSegmentChange(node)"></gif-player>
+
+            <!-- fallback other -->
+            <text elif="{{ node.kind === 'other' }}" class="flat-other">[{{ node.type }}]</text>
           </div>
         </div>
+      </scroll>
+
+      <!-- 静态非滚动视图 -->
+      <div if="{{ !rootScroll }}" class="static-content-flat" style="{{ viewportStyle }}" onclick="rootTap">
+        <div for="{{ (i, node) in flatNodes }}" tid="id" class="abs-node" style="{{ node.wrapStyle }}">
+          <div if="{{ node.kind === 'container_bg' || node.kind === 'box' }}" class="flat-box" style="{{ node.innerStyle }}" onclick="onNodeTap(node)"></div>
+          <text elif="{{ node.kind === 'text' }}" class="flat-text" style="{{ node.textStyle }}" onclick="onNodeTap(node)">{{ node.text }}</text>
+          <div elif="{{ node.kind === 'button' }}" class="flat-btn" style="{{ node.btnStyle }}" onclick="onNodeTap(node)">
+            <text class="flat-btn-text" style="{{ node.btnTextStyle }}">{{ node.label }}</text>
+          </div>
+          <image elif="{{ node.kind === 'image' }}" class="flat-img" style="{{ node.imgStyle }}" src="{{ node.src }}" onclick="onNodeTap(node)"></image>
+          <image elif="{{ node.kind === 'icon' && node.iconSrc }}" class="flat-icon" style="{{ node.iconStyle }}" src="{{ node.iconSrc }}" onclick="onNodeTap(node)"></image>
+          <image elif="{{ node.kind === 'spinner' }}" class="flat-spin" src="/common/icons/progress-activity.png"></image>
+          <div elif="{{ node.kind === 'badge' }}" class="flat-badge" style="{{ node.badgeStyle }}">
+            <text class="flat-badge-text" style="{{ node.badgeTextStyle }}">{{ node.badgeText }}</text>
+          </div>
+          <switch elif="{{ node.kind === 'switch' }}" class="flat-switch" checked="{{ node.checked }}" @change="onSwitchChange(node)"></switch>
+          <div elif="{{ node.kind === 'input' }}" class="flat-input" style="{{ node.inputStyle }}" onclick="onInputClick(node)">
+            <text class="flat-input-text" style="{{ node.inputTextStyle }}">{{ node.value || node.placeholder || '点击输入' }}</text>
+          </div>
+          <progress elif="{{ node.kind === 'progress' }}" class="flat-progress" style="{{ node.progressStyle }}" percent="{{ node.percent }}" type="{{ node.variant }}"></progress>
+          <div elif="{{ node.kind === 'nav' }}" class="flat-nav" style="{{ node.navStyle }}" onclick="onNavClick(node)">
+            <text class="flat-nav-text" style="{{ node.navTextStyle }}">{{ node.navLabel }}</text>
+          </div>
+          <gif-player elif="{{ node.kind === 'gif-player' }}" player-data="{{ node.playerData }}" @playerready="onPlayerReady(node)" @playerfinish="onPlayerFinish(node)" @segmentchange="onPlayerSegmentChange(node)"></gif-player>
+          <text elif="{{ node.kind === 'other' }}" class="flat-other">[{{ node.type }}]</text>
+        </div>
       </div>
+    </div>
+
+    <div if="{{ eventStatus }}" class="event-status">
+      <text class="event-status-text">{{ eventStatus }}</text>
     </div>
   </div>
 </template>
@@ -62,24 +108,38 @@
   background-color: #000;
   position: relative;
 }
-/* 树区：整页；滚动与导航都来自插件树（导航节点 type:"nav"） */
 .tree-area {
   position: absolute;
+  width: 100%;
+  height: 100%;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
 }
 .tree-scroll {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
-}
-.content {
-  width: 100%;
   flex-direction: column;
-  color: #ffffff;
 }
-/* 加载/错误块：整页垂直居中 */
+.scroll-content-flat {
+  width: 100%;
+  position: relative;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+.static-content-flat {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  flex-direction: column;
+}
+.abs-node {
+  position: absolute;
+}
 .center-area {
   position: absolute;
   left: 0; right: 0;
@@ -88,259 +148,75 @@
   align-items: center;
   justify-content: center;
 }
-/* 圆屏安全区（由 device.getInfo 的 shape 驱动，JS 侧计算）。
-   数值按 466px(233dp) 圆面弧边测算：顶部 30px 起内容可见（留给居中的导航），
-   左右 42px 保证 y≈100px 处左对齐行不被切，底部 48px 顶出最后一行。
-   box-sizing 必须 border-box：否则 padding 会把滚动区高度撑出页面，
-   底部内容被推出屏幕（此前"刷新"被裁的根因）。 */
-.safe { width: 100%; height: 100%; box-sizing: border-box; }
-.safe-circle { padding-top: 30px; padding-left: 42px; padding-right: 42px; padding-bottom: 48px; }
 .spin { width: 56px; height: 56px; }
 .err { color: #ffb4ab; font-size: 24px; margin-bottom: 8px; }
 .hint { color: #666; font-size: 20px; }
+.event-status {
+  position: absolute;
+  left: 48px;
+  right: 48px;
+  top: 30px;
+  padding: 8px;
+  background-color: #242630;
+  border-radius: 12px;
+  justify-content: center;
+}
+.event-status-text { color: #ffffff; font-size: 20px; }
 
-/* 方屏/圆角矩形：无额外安全区（插件按需自留边距） */
-@media (shape: rect) {
-  .safe-circle { padding: 0; }
+/* 扁平节点内部元素样式 */
+.flat-box { width: 100%; height: 100%; }
+.flat-text { width: 100%; height: 100%; }
+.flat-btn {
+  width: 100%; height: 100%;
+  align-items: center;
+  justify-content: center;
+}
+.flat-btn-text {
+  font-weight: bold;
+}
+.flat-img { width: 100%; height: 100%; }
+.flat-icon { width: 100%; height: 100%; }
+.flat-spin {
+  width: 100%; height: 100%;
+  animation-name: flat-spin-anim;
+  animation-duration: 900ms;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+.flat-badge {
+  width: 100%; height: 100%;
+  align-items: center;
+  justify-content: center;
+}
+.flat-badge-text { font-size: 20px; }
+.flat-switch { width: 100%; height: 100%; }
+.flat-input {
+  width: 100%; height: 100%;
+  align-items: center;
+  justify-content: center;
+}
+.flat-input-text { font-size: 22px; color: #BAC3FF; }
+.flat-progress { width: 100%; height: 100%; }
+.flat-nav {
+  width: 100%; height: 100%;
+  align-items: center;
+}
+.flat-nav-text { font-size: 26px; }
+.flat-other { color: #666666; font-size: 20px; }
+
+@keyframes flat-spin-anim {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 </style>
 
 <script>
-import router from '@system.router'
-import device from '@system.device'
-import deviceService from '../../services/deviceService.js'
-
-// 已知内置图标 -> 本地资源（其余未知图标不显示）
-const ICON_MAP = {
-  play: '/common/icons/play-custom.png',
-  pause: '/common/icons/pause-custom.png',
-  next: '/common/icons/skip-next-custom.png',
-  prev: '/common/icons/skip-previous-custom.png',
-  music: '/common/icons/music-circle-custom.png',
-  lock: '/common/icons/lock-custom.png',
-  gauge: '/common/icons/gauge-custom.png',
-  battery: '/common/icons/battery-custom.png',
-  laptop: '/common/icons/laptop.png',
-  desktop: '/common/icons/desktop.png',
-  mobile: '/common/icons/mobile.png'
-}
-
-// 数值单位：角度类（startAngle/totalAngle…）补 deg，其余补 px；
-// 字符串原样透传（调用方可自带单位，如 "240deg"）
-// 绝对定位相关样式：在包装层生效（见 buildLeaf 注释）
-const POSITION_KEYS = ['position', 'top', 'left', 'right', 'bottom', 'zIndex']
-
-// 无单位属性必须原样输出：补了 px 会被 Vela 当成非法值整条丢掉，
-// 于是 font-weight:700px、lines:1px、opacity:0.5px、z-index:5px 全都静默失效
-const UNITLESS_KEYS = [
-  'lines', 'opacity', 'flexGrow', 'flexShrink', 'flex', 'order',
-  'weight', 'fontWeight', 'zIndex'
-]
-
-// 行容器里真正参与布局的是 wrapper（叶子在自定义组件内部，不是行的直接 flex item）。
-// 这些「item 在行里怎么摆」的属性必须上提到 wrapper：
-//   · width:'%' 相对内容宽度的 wrapper 解析不出来（退化成最小宽度、文字竖排）
-//   · margin 留在叶子上会把 width:100% 的叶子挤窄（带 margin 的按钮变竖椭圆）
-//   · flex/alignSelf 作用在叶子上对行的分配没有任何影响
-const ROW_ITEM_KEYS = [
-  'width', 'flex', 'flexGrow', 'flexShrink', 'flexBasis', 'alignSelf',
-  'margin', 'marginLeft', 'marginRight', 'marginTop', 'marginBottom'
-]
-
-// 布局类节点：即使没有 children 也不该退化成 "[row]" 这种占位文本
-const LAYOUT_TYPES = ['row', 'column', 'scroll', 'card']
-
-function liftRowItem(from, to) {
-  ROW_ITEM_KEYS.forEach((k) => {
-    if (from[k] !== undefined) { to[k] = from[k]; delete from[k] }
-  })
-}
-
-// 根节点之外还有没有 scroll 节点（用于提示"不支持嵌套滚动"）
-function findNestedScroll(node) {
-  if (!node || !node.children) return false
-  for (let i = 0; i < node.children.length; i++) {
-    const c = node.children[i]
-    if (!c) continue
-    if (c.type === 'scroll') return true
-    if (findNestedScroll(c)) return true
-  }
-  return false
-}
-
-function cssVal(key, v) {
-  if (typeof v === 'number') {
-    if (/angle$/i.test(key)) return v + 'deg'
-    if (UNITLESS_KEYS.indexOf(key) !== -1) return String(v)
-    return v + 'px'
-  }
-  return String(v)
-}
-function toCssStyle(obj) {
-  if (!obj || typeof obj !== 'object') return ''
-  const parts = []
-  Object.keys(obj).forEach((k) => {
-    const v = obj[k]
-    if (v === null || v === undefined) return
-    // Vela 用 font-weight；协议里允许简写 weight
-    const prop = k === 'weight' ? 'font-weight' : k.replace(/([A-Z])/g, '-$1').toLowerCase()
-    parts.push(prop + ': ' + cssVal(k, v))
-  })
-  return parts.join('; ')
-}
-
-// 按屏幕形状合并且节点的 media 覆盖：base style < 形状键（circle/rect/pill）
-function resolveStyle(n, ctx) {
-  const style = Object.assign({}, n.style || {})
-  const media = n.media
-  if (!media || typeof media !== 'object' || !ctx) return style
-  const apply = (m) => {
-    if (!m || typeof m !== 'object') return
-    Object.keys(m).forEach((k) => { style[k] = m[k] })
-  }
-  if (ctx.shape && media[ctx.shape]) apply(media[ctx.shape])
-  return style
-}
-
-// 节点 -> 叶子渲染条目（容器由模板展开）
-function buildLeaf(n, inRow, ctx) {
-  const p = n.props || {}
-  const type = n.type || ''
-  const isText = type === 'text'
-  const isBtn = type === 'button'
-  const isSw = type === 'switch'
-  const isBadge = type === 'badge'
-  const isSpin = type === 'spinner'
-  const isIcon = type === 'icon'
-  const isImg = type === 'image'
-  const isInput = type === 'input'
-  const isNav = type === 'nav'
-  const isProgress = type === 'progress'
-  const isBox = type === 'box'
-  const iconSrc = isIcon ? (ICON_MAP[p.name] || '') : ''
-  const st = resolveStyle(n, ctx)
-  // 绝对定位样式**上提到包装 div**：叶子在自定义组件内部没有定位上下文
-  // （包含块尺寸为 0，left/right 过约束会把宽高算成 0 → 完全不渲染）。
-  // 包装层是普通 div，包含块正常（.tree-area / .page）。
-  const isAbs = !!(st && st.position === 'absolute')
-  const wrapPos = {}
-  const leafSt = Object.assign({}, st)
-  if (isAbs) {
-    POSITION_KEYS.forEach((k) => {
-      if (st[k] !== undefined) { wrapPos[k] = st[k]; delete leafSt[k] }
-    })
-  }
-  // 行布局：wrapper 才是行的 flex item，把宽度/flex/margin 上提到 wrapper，
-  // 叶子填满 wrapper（见 ROW_ITEM_KEYS 注释）。
-  let hasRowWidth = false
-  if (inRow && !isAbs) {
-    hasRowWidth = leafSt.width !== undefined
-    liftRowItem(leafSt, wrapPos)
-    if (hasRowWidth) {
-      // 有确定宽度才需要防挤压；只 flex-grow 的项应保持默认可收缩
-      if (wrapPos.flexShrink === undefined) wrapPos.flexShrink = 0
-      leafSt.width = '100%'
-    }
-  }
-  // 容器默认主题：文本未指定颜色时用白色（Vela 默认文本色是灰的）
-  let s = toCssStyle(leafSt)
-  if (isText && !(leafSt && typeof leafSt.color === 'string')) {
-    s = 'color: #FFFFFF; ' + s
-  }
-  let ws = toCssStyle(wrapPos)
-  // 行里没显式宽度/flex 的文本自动撑满，把后面的控件顶到右侧
-  // （Vela 内联 justify-content 不生效，用 flex-grow 实现）
-  if (inRow && isText && !hasRowWidth && wrapPos.flexGrow === undefined && wrapPos.flex === undefined) {
-    ws = ws ? ws + '; flex-grow: 1' : 'flex-grow: 1'
-  }
-  return {
-    c: false,
-    t: type,
-    s: s,
-    ws: ws,
-    // 行容器里的文本叶子自动撑满剩余宽度，把后面的控件顶到右侧
-    // （Vela 内联 justify-content 不生效，用 flex-grow 实现）
-    grow: !!(inRow && isText),
-    v: (isInput ? (p.value || '') : (p.text || '')),
-    label: p.label || '',
-    placeholder: p.placeholder || '',
-    chk: !!(p.checked),
-    src: p.src || '',
-    iconSrc: iconSrc,
-    tap: (n.events && n.events.tap) || '',
-    change: (n.events && n.events.change) || '',
-    isText: isText,
-    isBtn: isBtn,
-    isSw: isSw,
-    isBadge: isBadge,
-    isSpin: isSpin,
-    isIcon: isIcon,
-    isImg: isImg,
-    isInput: isInput,
-    isNav: isNav,
-    isProgress: isProgress,
-    isBox: isBox,
-    percent: (typeof p.percent === 'number' ? p.percent : parseFloat(p.percent) || 0),
-    variant: p.variant === 'arc' ? 'arc' : 'horizontal',
-    navAction: p.action || '',
-    navLabel: p.label || (p.action === 'open' ? '›' : '‹'),
-    navSurface: p.surface || 'app',
-    navItem: p.item || '',
-    isOther: !(isText || isBtn || isSw || isBadge || isSpin || isIcon || isImg || isInput || isNav || isProgress || isBox)
-  }
-}
-
-function build(n, inRow, ctx) {
-  if (!n) return null
-  const hasKids = !!(n.children && n.children.length)
-  if (hasKids) {
-    // Vela 的 div 默认按内容收窄，容器必须显式撑满父级，
-    // 行内才有剩余空间供 flex-grow / space-between 分配
-    const dir = n.type === 'row' ? 'row' : 'column'
-    const cst = resolveStyle(n, ctx)
-    const cWrap = {}
-    const cSt = Object.assign({}, cst)
-    const isAbs = !!(cst && cst.position === 'absolute')
-    if (isAbs) {
-      POSITION_KEYS.forEach((k) => {
-        if (cst[k] !== undefined) { cWrap[k] = cst[k]; delete cSt[k] }
-      })
-    }
-    // 行里的容器同样是 flex item：宽度/flex/margin 上提（与 buildLeaf 同一套规则）
-    if (inRow && !isAbs) {
-      const hadWidth = cSt.width !== undefined
-      liftRowItem(cSt, cWrap)
-      if (hadWidth) {
-        if (cWrap.flexShrink === undefined) cWrap.flexShrink = 0
-        cSt.width = '100%'
-      }
-    }
-    // 列布局里的容器（如 scroll 下的列表卡片）：高度与防挤压属性同样需要上提到 wrapper，
-    // 防止快应用原生 Flexbox 对直接子项执行默认 flex-shrink: 1 导致多项时挤压压扁
-    if (!inRow && !isAbs) {
-      if (cSt.height !== undefined) cWrap.height = cSt.height
-      if (cSt.minHeight !== undefined) cWrap.minHeight = cSt.minHeight
-      if (cSt.flexShrink !== undefined) cWrap.flexShrink = cSt.flexShrink
-      else if (cSt.height !== undefined || cSt.minHeight !== undefined) cWrap.flexShrink = 0
-    }
-    return {
-      c: true,
-      sc: n.type === 'scroll',
-      s: 'width: 100%; flex-direction: ' + dir + '; ' + toCssStyle(cSt),
-      ws: toCssStyle(cWrap),
-      kids: n.children.map((c) => build(c, n.type === 'row', ctx))
-    }
-  }
-  // 空容器（row/column/scroll/card 但没有 children）：按空盒子渲染，别退化成
-  // "[row]" 文本占位；样式（背景/高度）照常生效
-  if (LAYOUT_TYPES.indexOf(n.type) !== -1) {
-    const empty = buildLeaf(n, inRow, ctx)
-    empty.isBox = true
-    empty.isOther = false
-    return empty
-  }
-  return buildLeaf(n, inRow, ctx)
-}
+import router from '@system.router';
+import device from '@system.device';
+import deviceService from '../../services/deviceService.js';
+import { compileHydroUi, resolveStyle, toCssStyle } from './layout/uiLayout.js';
+import { createUiPublisher } from './layout/uiPublisher.js';
+import { createClientSandbox } from './layout/clientRuntime.js';
 
 export default {
   protected: {
@@ -353,43 +229,65 @@ export default {
   },
 
   private: {
-    ui: [],
-    contentStyle: '',
+    flatNodes: [],
+    totalHeight: 480,
+    _rootTap: '',
     loading: true,
     errorText: '',
     refreshMs: 0,
     _timer: null,
     _busy: false,
+    _refreshing: false,
+    eventStatus: '',
     _started: false,
+    _visible: false,
+    _destroyed: false,
     _inputItem: null,
     _screen: null,
     _watchStore: null,
-    safeClass: '',
+    viewportStyle: 'height: 480px',
     rootScroll: false,
     pageStyle: '',
-    _warnedNestedScroll: false
+    _publisher: null,
+    _previousNodes: null,
+    _cache: null,
+    _handlers: {},
+    _sandbox: null,
+    _lastView: null
   },
 
   onInit() {
-    this._init()
+    this._publisher = createUiPublisher();
+    this._sandbox = createClientSandbox({
+      onLocalStateChange: () => this._applyLocal(),
+      getStore: (k, def) => (this._watchStore && this._watchStore[k] !== undefined ? this._watchStore[k] : def),
+      setStore: (k, val) => {
+        if (!this._watchStore) this._watchStore = {};
+        this._watchStore[k] = val;
+        deviceService.writePluginStore(this.plugin, this._watchStore);
+      },
+      sendServerEvent: (ev) => this._send(ev)
+    });
+    this._init();
   },
 
-  // 先取屏幕信息（形状/分辨率/DPR），再加载视图；
-  // 屏幕信息同时用于请求参数(A) 和 media 解析(B)
   async _init() {
-    this._screen = await this._readScreen()
-    this.safeClass = this._screen && this._screen.shape === 'circle' ? 'safe-circle' : ''
-    // 插件手表端存储（scope:'watch'）：请求上送快照，响应落盘
-    this._watchStore = await deviceService.readPluginStore(this.plugin)
-    await this.load()
+    this._screen = await this._readScreen();
+    if (this._destroyed) return;
+    if (this._screen.width > 0 && this._screen.height > 0) {
+      this.viewportStyle = 'height: ' + (480 * this._screen.height / this._screen.width) + 'px';
+    }
+    this._watchStore = await deviceService.readPluginStore(this.plugin);
+    if (this._destroyed) return;
+    await this.load();
   },
 
   _storeHeader() {
-    return { 'X-Hydro-Store': JSON.stringify(this._watchStore || {}) }
+    return { 'X-Hydro-Store': JSON.stringify(this._watchStore || {}) };
   },
 
   _readScreen() {
-    const empty = { shape: '', width: 0, height: 0, dpr: 0, deviceType: '' }
+    const empty = { shape: '', width: 0, height: 0, dpr: 0, deviceType: '' };
     return new Promise((resolve) => {
       try {
         device.getInfo({
@@ -401,219 +299,314 @@ export default {
             deviceType: d.deviceType || ''
           }),
           fail: () => resolve(empty)
-        })
+        });
       } catch (e) {
-        resolve(empty)
+        resolve(empty);
       }
-    })
+    });
   },
 
   _normShape(s) {
-    const v = String(s || '').toLowerCase()
-    if (v === 'pill-shaped' || v === 'pillshape') return 'pill'
-    return v
+    const v = String(s || '').toLowerCase();
+    if (v === 'pill-shaped' || v === 'pillshape') return 'pill';
+    return v;
   },
 
   _screenCtx() {
-    return { shape: this._screen ? this._screen.shape : '' }
+    return {
+      shape: this._screen ? this._screen.shape : '',
+      width: this._screen ? this._screen.width : 0,
+      height: this._screen ? this._screen.height : 0,
+      dpr: this._screen ? this._screen.dpr : 0
+    };
   },
 
   onDestroy() {
-    this._clearTimer()
+    this._destroyed = true;
+    this._visible = false;
+    this._clearTimer();
+    this.flatNodes = [];
+    if (this._publisher) this._publisher.clear();
+    if (this._sandbox) {
+      this._sandbox.destroy();
+      this._sandbox = null;
+    }
+    this._previousNodes = null;
+    this._cache = null;
+    this._inputItem = null;
+    this._watchStore = null;
+    this._lastView = null;
   },
 
   onHide() {
-    this._clearTimer()
+    this._visible = false;
+    this._clearTimer();
   },
 
   onShow() {
-    // 键盘返回结果（输入框）
-    const appDef = this.$app && this.$app.$def
-    const res = appDef ? appDef.keyboardResult : null
+    this._visible = true;
+    const appDef = this.$app && this.$app.$def;
+    const res = appDef ? appDef.keyboardResult : null;
     if (res && res.field === 'hydro_input') {
-      appDef.keyboardResult = null
-      const it = this._inputItem
+      appDef.keyboardResult = null;
+      const it = this._inputItem;
       if (it && it.change) {
-        this._send({ handler: it.change, source: 'change', value: res.value })
+        this._send({ handler: it.change, source: 'change', value: res.value });
       }
-      this._inputItem = null
+      this._inputItem = null;
     }
-    if (this._started && this.refreshMs > 0 && !this.errorText && !this._timer) this._startTimer()
+    if (this._started && this.refreshMs > 0 && !this.errorText && !this._timer) this._startTimer();
   },
 
   _clearTimer() {
-    if (this._timer) { clearInterval(this._timer); this._timer = null }
+    if (this._timer) { clearInterval(this._timer); this._timer = null; }
   },
 
   _startTimer() {
-    this._clearTimer()
-    if (this.refreshMs > 0) {
-      this._timer = setInterval(() => this.refresh(), this.refreshMs)
+    this._clearTimer();
+    if (this._visible && !this._destroyed && this.refreshMs > 0) {
+      this._timer = setInterval(() => this.refresh(), this.refreshMs);
     }
   },
 
   path(action) {
-    let p = '/api/hydro/' + this.plugin + '/' + this.surface + '/' + this.item + '/' + action
-    const sc = this._screen
-    // 递增序号：轮询/事件用同一路径，避免 WebView 或中间层缓存 GET 响应
-    // （否则切歌、CPU 变化等宿主状态更新不会反映到界面）
-    this._seq = (this._seq || 0) + 1
-    let q = '_=' + this._seq
+    let p = '/api/hydro/' + this.plugin + '/' + this.surface + '/' + this.item + '/' + action;
+    const sc = this._screen;
+    this._seq = (this._seq || 0) + 1;
+    let q = '_=' + this._seq;
     if (sc && sc.shape) {
       q = 'shape=' + encodeURIComponent(sc.shape) +
         '&width=' + sc.width +
         '&height=' + sc.height +
         '&dpr=' + sc.dpr +
         '&dt=' + encodeURIComponent(sc.deviceType || '') +
-        '&' + q
+        '&' + q;
     }
-    return p + '?' + q
+    return p + '?' + q;
   },
 
   async load() {
-    this.loading = true
-    this.errorText = ''
-    const view = await deviceService.hydro(this.host, this.port, this.path('view'), 'GET', null, this._storeHeader())
-    this.loading = false
+    if (this._destroyed) return;
+    this.loading = true;
+    this.errorText = '';
+    const view = await deviceService.hydro(this.host, this.port, this.path('view'), 'GET', null, this._storeHeader());
+    if (this._destroyed) return;
+    this.loading = false;
     if (!view || !view.root) {
-      this.errorText = this._failText(view)
-      return
+      this.errorText = this._failText(view);
+      return;
     }
-    this._apply(view)
-    this._started = true
-    this._startTimer()
+    this._apply(view);
+    this._started = true;
+    this._startTimer();
   },
 
-  /**
-   * 失败时把手表能拿到的最有用的信息显示出来，而不是一句"请检查服务端"。
-   * 服务端 404 时会回纯文本原因（例如 "hydrokit: plugin x worker is offline"），
-   * 互联通道/其它错误会回对象；两者都原样展示——上一版统一文案把
-   * "worker 没起来"和"网络不通"混成了一句，排查时白绕了很久。
-   */
   _failText(view) {
-    if (typeof view === 'string' && view) return view.slice(0, 80)
-    if (view && (view.message || view.error)) return String(view.message || view.error).slice(0, 80)
-    if (!view) return '服务端没响应（检查网络/服务是否在运行）'
-    return '返回数据异常：缺少 root'
+    if (typeof view === 'string' && view) return view.slice(0, 80);
+    if (view && (view.message || view.error)) return String(view.message || view.error).slice(0, 80);
+    if (!view) return '服务端没响应（检查网络/服务是否在运行）';
+    return '返回数据异常：缺少 root';
   },
 
   async refresh() {
-    const view = await deviceService.hydro(this.host, this.port, this.path('refresh'), 'GET', null, this._storeHeader())
-    if (view && view.root) this._apply(view)
+    if (!this._visible || this._destroyed || this._busy || this._refreshing) return;
+    this._refreshing = true;
+    const eventGeneration = this._eventGeneration || 0;
+    try {
+      const view = await deviceService.hydro(this.host, this.port, this.path('refresh'), 'GET', null, this._storeHeader());
+      if (this._visible && !this._destroyed && eventGeneration === (this._eventGeneration || 0) && view && view.root) {
+        this._apply(view);
+      }
+    } finally {
+      this._refreshing = false;
+    }
   },
 
   _apply(view) {
-    const root = view.root
-    this.rootScroll = !!(root && root.type === 'scroll')
-    const ctx = this._screenCtx()
-    // 根节点的背景样式提升到整页容器（全屏背景层，不受安全区内边距限制）
-    const rootStyle = root ? resolveStyle(root, ctx) : {}
-    const bgKeys = ['backgroundImage', 'backgroundSize', 'backgroundPosition', 'backgroundRepeat', 'backgroundColor']
-    const pageBg = {}
-    const contentStyle = Object.assign({}, rootStyle)
+    if (this._destroyed) return;
+    const root = view.root;
+    this.rootScroll = !!(root && root.type === 'scroll');
+    const ctx = this._screenCtx();
+
+    // 背景样式提升到整页容器
+    const rootStyle = root ? resolveStyle(root, ctx) : {};
+    const bgKeys = ['backgroundImage', 'backgroundSize', 'backgroundPosition', 'backgroundRepeat', 'backgroundColor'];
+    const pageBg = {};
     bgKeys.forEach((k) => {
-      if (rootStyle[k] !== undefined) {
-        pageBg[k] = rootStyle[k]
-        delete contentStyle[k]
-      }
-    })
-    this.pageStyle = toCssStyle(pageBg)
-    if (root && root.children && root.children.length) {
-      // 根节点的 type 决定内容主轴：root.type:'row' 必须是横排。
-      // （`.content` 的 CSS 默认 column，这里用行内样式覆盖；root.style 里
-      //   显式写了 flexDirection 的话排在后面，优先级更高。）
-      const dir = root.type === 'row' ? 'row' : 'column'
-      const inRow = dir === 'row'
-      this.ui = root.children.map((c) => build(c, inRow, ctx))
-      this.contentStyle = 'flex-direction: ' + dir + '; ' + toCssStyle(contentStyle)
-    } else {
-      this.ui = root ? [build(root, false, ctx)] : []
-      this.contentStyle = ''
+      if (rootStyle[k] !== undefined) pageBg[k] = rootStyle[k];
+    });
+    this.pageStyle = toCssStyle(pageBg);
+    this._rootTap = (root && root.events && root.events.tap) || '';
+
+    // JSLab 扁平排版引擎编译
+    const compiled = compileHydroUi(root, ctx, this._previousNodes, this._cache);
+    this._previousNodes = compiled.flatNodes;
+    this._cache = compiled.cache;
+    this._handlers = compiled.handlers;
+    this.totalHeight = compiled.totalHeight;
+
+    // 增量 In-place patch 发布
+    this.flatNodes = this._publisher.update(compiled.flatNodes, this.flatNodes);
+
+    this._applyWatchStore(view);
+    this._lastView = view;
+
+    // 若下发了客户端微脚本，载入沙盒执行
+    if (view && (view.script || view.clientScript)) {
+      if (this._sandbox) this._sandbox.evaluate(view.script || view.clientScript);
     }
-    // 嵌套 scroll 暂不支持（Vela 的 scroll 是页面级；模板只渲染根滚动）。
-    // 这里明确提示一次，别让插件作者以为写了 scroll 就会滚。
-    if (!this._warnedNestedScroll && root && findNestedScroll(root)) {
-      this._warnedNestedScroll = true
-      console.warn('[hydro] 暂不支持嵌套 scroll（仅根节点可滚动）:', this.plugin)
-    }
-    // 手表端存储写入：合并并持久化到设备本机
-    this._applyWatchStore(view)
-    this.refreshMs = view.refreshMs || 0
-    this._startTimer()
+
+    this.refreshMs = view.refreshMs || 0;
+    this._startTimer();
+  },
+
+  _applyLocal() {
+    if (this._destroyed || !this._lastView || !this._lastView.root) return;
+    const ctx = this._screenCtx();
+    const compiled = compileHydroUi(this._lastView.root, ctx, this._previousNodes, this._cache);
+    this._previousNodes = compiled.flatNodes;
+    this._cache = compiled.cache;
+    this._handlers = compiled.handlers;
+    this.totalHeight = compiled.totalHeight;
+    this.flatNodes = this._publisher.update(compiled.flatNodes, this.flatNodes);
   },
 
   _applyWatchStore(view) {
-    if (!view || !view.storage || typeof view.storage !== 'object') return
-    const merged = Object.assign({}, this._watchStore || {}, view.storage)
-    this._watchStore = merged
-    deviceService.writePluginStore(this.plugin, merged)
+    if (!view || !view.storage || typeof view.storage !== 'object') return;
+    const merged = Object.assign({}, this._watchStore || {}, view.storage);
+    this._watchStore = merged;
+    deviceService.writePluginStore(this.plugin, merged);
   },
 
-  // 页面导航：协议节点 type:"nav"（back / open 动作），由插件声明
-  leafNav(evt) {
-    const item = this._unwrap(evt)
-    if (!item) return
-    if (item.navAction === 'back') {
-      router.back()
-    } else if (item.navAction === 'open') {
-      router.push({
-        uri: '/pages/hydro',
-        params: {
-          plugin: this.plugin,
-          surface: item.navSurface || 'app',
-          item: item.navItem || '',
-          host: this.host || '',
-          port: String(this.port || 0),
-          deviceId: this.deviceId || ''
-        }
-      })
-    }
-  },
-
-  // Vela 自定义组件 $emit 的 payload 包在 evt.detail 里（见组件事件文档/
-  // NumPad 用法），这里统一解包
   _unwrap(evt) {
-    return evt && evt.detail !== undefined && evt.detail !== null ? evt.detail : evt
+    return evt && evt.detail !== undefined && evt.detail !== null ? evt.detail : evt;
   },
 
-  // HydroLeaf 事件（由组件 $emit 上来）
-  leafTap(evt) {
-    const item = this._unwrap(evt)
-    if (item && item.tap) this._send({ handler: item.tap, source: 'tap' })
+  traceFirstTouch() {
+    if (this._touchTraced) return;
+    this._touchTraced = true;
+    console.info('[hydro] native touch reached flat page');
   },
-  leafChange(evt) {
-    const item = this._unwrap(evt)
-    if (item && item.change) this._send({ handler: item.change, source: 'change' })
+
+  traceFirstScroll() {
+    if (this._scrollTraced) return;
+    this._scrollTraced = true;
+    console.info('[hydro] native scroll fired');
   },
-  leafInput(evt) {
-    const item = this._unwrap(evt)
-    if (!item || !item.change) return
-    this._inputItem = item
+
+  rootTap(evt) {
+    if (!this._rootTap) return;
+    if (evt && typeof evt.stopPropagation === 'function') evt.stopPropagation();
+    this._send({ handler: this._rootTap, source: 'tap' });
+  },
+
+  onNodeTap(node, evt) {
+    if (evt && typeof evt.stopPropagation === 'function') evt.stopPropagation();
+    console.info('[hydro] flat node tap handler=' + (node && node.tap || '(none)'));
+    if (!node || !node.tap) return;
+    // 优先尝试客户端沙盒本地拦截（0ms 响应，免蓝牙/网络往返）
+    if (this._sandbox && this._sandbox.invoke(node.tap, node)) {
+      console.info('[hydro] intercepted locally by client sandbox: ' + node.tap);
+      return;
+    }
+    this._send({ handler: node.tap, source: 'tap' });
+  },
+
+  onSwitchChange(node, evt) {
+    const checked = evt && evt.checked !== undefined ? evt.checked : !node.checked;
+    node.checked = checked;
+    if (!node || !node.change) return;
+    if (this._sandbox && this._sandbox.invoke(node.change, checked)) {
+      console.info('[hydro] switch change intercepted locally: ' + node.change);
+      return;
+    }
+    this._send({ handler: node.change, source: 'change', value: checked });
+  },
+
+  onInputClick(node, evt) {
+    if (evt && typeof evt.stopPropagation === 'function') evt.stopPropagation();
+    if (!node || !node.change) return;
+    this._inputItem = node;
     router.push({
       uri: '/pages/keyboard',
       params: {
         field: 'hydro_input',
-        label: item.label || '输入',
-        value: item.v || ''
+        label: node.placeholder || '输入',
+        value: node.value || ''
       }
-    })
+    });
+  },
+
+  onNavClick(node, evt) {
+    if (evt && typeof evt.stopPropagation === 'function') evt.stopPropagation();
+    if (!node) return;
+    if (node.navAction === 'back') {
+      router.back();
+    } else if (node.navAction === 'open') {
+      router.push({
+        uri: '/pages/hydro',
+        params: {
+          plugin: this.plugin,
+          surface: node.navSurface || 'app',
+          item: node.navItem || '',
+          host: this.host || '',
+          port: String(this.port || 0),
+          deviceId: this.deviceId || ''
+        }
+      });
+    }
+  },
+
+  onPlayerReady(node, evt) {
+    const detail = this._unwrap(evt);
+    if (detail && detail.controller && this._sandbox) {
+      this._sandbox.setPlayerController(detail.controller);
+    }
+  },
+
+  onPlayerFinish(node, evt) {
+    const detail = this._unwrap(evt);
+    if (!node || !node.events || !node.events.finish) return;
+    if (this._sandbox && this._sandbox.invoke(node.events.finish, detail)) return;
+    this._send({ handler: node.events.finish, source: 'playerFinish', detail });
+  },
+
+  onPlayerSegmentChange(node, evt) {
+    const detail = this._unwrap(evt);
+    if (!node || !node.events || !node.events.segmentChange) return;
+    if (this._sandbox && this._sandbox.invoke(node.events.segmentChange, detail)) return;
+    this._send({ handler: node.events.segmentChange, source: 'segmentChange', detail });
   },
 
   async _send(ev) {
-    if (this._busy) return
-    this._busy = true
+    console.info('[hydro] event dispatch handler=' + ev.handler + ' busy=' + this._busy + ' destroyed=' + this._destroyed);
+    if (this._busy || this._destroyed) return;
+    this._busy = true;
+    this._eventGeneration = (this._eventGeneration || 0) + 1;
+    this.eventStatus = '正在更新…';
+    this._clearTimer();
     try {
-      const view = await deviceService.hydro(this.host, this.port, this.path('event'), 'POST', { event: ev }, this._storeHeader())
-      if (view && view.root) this._apply(view)
+      const view = await deviceService.hydro(this.host, this.port, this.path('event'), 'POST', { event: ev }, this._storeHeader());
+      if (this._destroyed) return;
+      if (view && view.root) {
+        this._apply(view);
+        this.eventStatus = '';
+      } else if (view && typeof view === 'object' && !view.error && !view.message && Object.keys(view).length === 0) {
+        this.eventStatus = '';
+      } else {
+        this.eventStatus = this._failText(view);
+      }
     } catch (err) {
-      console.warn('[hydro] event failed', err)
+      console.warn('[hydro] event failed', err);
+      if (!this._destroyed) this.eventStatus = '更新失败，请重试';
     } finally {
-      this._busy = false
+      this._busy = false;
+      this._startTimer();
     }
   },
 
   goBack() {
-    router.back()
+    router.back();
   }
-}
+};
 </script>

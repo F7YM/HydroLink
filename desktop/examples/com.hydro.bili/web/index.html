@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>HydroBili · 登录</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 36px 20px; background: #101116; color: #edf0f8; font-family: system-ui, sans-serif; }
+    main { max-width: 480px; margin: auto; }
+    header { display: flex; gap: 16px; align-items: center; margin-bottom: 30px; }
+    .logo { background: #fb7299; color: #fff; border-radius: 18px; width: 64px; height: 64px; display: grid; place-items: center; font-size: 27px; font-weight: 800; }
+    h1 { margin: 0 0 6px; font-size: 30px; }
+    h2 { margin: 0 0 16px; font-size: 22px; }
+    p { line-height: 1.7; }
+    .muted { color: #aeb5c7; margin: 0; }
+    section { padding: 26px; border: 1px solid #303340; background: #1b1d26; border-radius: 22px; margin-bottom: 20px; }
+    #qr { width: 224px; height: 224px; padding: 12px; margin: 22px auto; background: white; border-radius: 12px; }
+    #qr img, #qr canvas { display: block; }
+    #status { min-height: 54px; text-align: center; }
+    button { cursor: pointer; border: none; border-radius: 12px; background: #fb7299; color: #17121a; padding: 14px 20px; font: inherit; font-weight: 650; width: 100%; margin-top: 10px; }
+    button.secondary { background: #303342; color: #edf0f8; }
+    button:disabled { cursor: wait; opacity: .5; }
+    button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+    [hidden] { display: none !important; }
+    #notice { color: #ffd2df; overflow-wrap: anywhere; }
+    .account { display: flex; gap: 14px; align-items: center; margin: 22px 0; }
+    #avatar { width: 60px; height: 60px; border-radius: 50%; }
+    #name { font-size: 20px; font-weight: 700; overflow-wrap: anywhere; }
+    footer { font-size: 13px; color: #939bad; text-align: center; }
+    @media (max-width: 360px) { body { padding: 22px 12px; } section { padding: 20px 14px; } }
+  </style>
+  <script src="qrcode.min.js" defer></script>
+  <script src="login.js" defer></script>
+</head>
+<body>
+  <main>
+    <header><div class="logo" aria-hidden="true">HB</div><div><h1>HydroBili</h1><p class="muted">把首页推荐带到手腕上</p></div></header>
+    <p id="notice" role="alert" hidden></p>
+    <section id="loginCard">
+      <h2>扫码登录</h2>
+      <p class="muted">使用哔哩哔哩手机客户端扫描二维码，并在手机上确认登录。</p>
+      <div id="qr" aria-label="哔哩哔哩登录二维码" hidden></div>
+      <p id="status" role="status" aria-live="polite">正在检查登录状态…</p>
+      <button id="generate" disabled>获取登录二维码</button>
+    </section>
+    <section id="accountCard" hidden>
+      <h2>已登录</h2>
+      <div class="account"><img id="avatar" alt="账号头像" hidden><div><div id="name"></div><p id="uid" class="muted"></p></div></div>
+      <p class="muted">在手表应用列表打开 HydroBili，即可查看首页推荐；点击「换一批」更新视频列表。</p>
+      <button id="check" class="secondary">检查登录状态</button>
+      <button id="logout" class="secondary">退出 HydroBili 登录</button>
+    </section>
+    <section><h2>开始使用</h2><p class="muted">登录信息保存在当前 HydroLink 服务端。登录后，手表端点击「已登录，刷新」。本版本提供首页视频推荐浏览，包括封面、标题、UP 主、播放量和时长。</p></section>
+    <footer>HydroBili · 非哔哩哔哩官方客户端</footer>
+  </main>
+</body>
+</html>

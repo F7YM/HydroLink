@@ -5,7 +5,7 @@
 
     <!-- button -->
     <div if="{{ leaf.isBtn }}" class="btn" style="{{ leaf.s }}" onclick="emitTap">
-      <text class="btn-text">{{ leaf.label }}</text>
+      <text class="btn-text" style="{{ leaf.btnTextS }}">{{ leaf.label }}</text>
     </div>
 
     <!-- badge -->
@@ -36,7 +36,7 @@
       percent="{{ leaf.percent }}" type="{{ leaf.variant }}"></progress>
 
     <!-- 空盒子（协议节点 type:"box"：纯样式块，用于进度条/分隔线/占位） -->
-    <div if="{{ leaf.isBox }}" class="leaf-box" style="{{ leaf.s }}"></div>
+    <div if="{{ leaf.isBox }}" class="leaf-box" style="{{ leaf.s }}" onclick="emitTap"></div>
 
     <!-- 页面导航（协议节点 type:"nav"：action=back/open）。
          样式作用于容器 div（Vela 文本元素上 width 行为不可靠）；
@@ -103,18 +103,31 @@
 <script>
 export default {
   props: ['leaf'],
-  emitTap() {
+  stopClick(evt) {
+    if (evt && typeof evt.stopPropagation === 'function') evt.stopPropagation()
+  },
+  emitTap(evt) {
+    console.info('[hydro] native leaf click handler=' + (this.leaf && this.leaf.tap || '(none)'))
     // 'tap' 是 Vela 的手势保留名，$emit('tap') 收不上去，改用非保留名
-    if (this.leaf && this.leaf.tap) this.$emit('hydrotap', this.leaf)
+    if (this.leaf && this.leaf.tap) {
+      this.stopClick(evt)
+      this.$emit('hydrotap', this.leaf)
+    }
   },
   emitChange() {
     if (this.leaf && this.leaf.change) this.$emit('change', this.leaf)
   },
-  emitOpenInput() {
-    if (this.leaf && this.leaf.change) this.$emit('hydroinput', this.leaf)
+  emitOpenInput(evt) {
+    if (this.leaf && this.leaf.change) {
+      this.stopClick(evt)
+      this.$emit('hydroinput', this.leaf)
+    }
   },
-  emitNav() {
-    if (this.leaf && this.leaf.navAction) this.$emit('hydronav', this.leaf)
+  emitNav(evt) {
+    if (this.leaf && this.leaf.navAction) {
+      this.stopClick(evt)
+      this.$emit('hydronav', this.leaf)
+    }
   }
 }
 </script>

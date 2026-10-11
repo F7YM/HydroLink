@@ -1,0 +1,18 @@
+{
+  "id": "com.hydro.bili",
+  "name": "HydroBili",
+  "author": "HydroLink",
+  "version": "0.1.0",
+  "entry": "server.js",
+  "apps": [
+    {
+      "id": "main",
+      "name": "HydroBili",
+      "icon": "assets/icon.png"
+    }
+  ],
+  "permissions": [
+    "storage",
+    "fetch"
+  ]
+}

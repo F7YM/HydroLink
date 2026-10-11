@@ -1,0 +1,279 @@
+<template>
+  <div class="gif-player-wrap" onclick="togglePlay">
+    <!-- Ping-Pong 双槽位交叉缓冲池：无缝切帧、零黑屏闪烁 -->
+    <!-- Slot 0 -->
+    <image class="player-slot" show="{{ activeSlot === 0 }}" src="{{ slot0Src }}"></image>
+    <!-- Slot 1 -->
+    <image class="player-slot" show="{{ activeSlot === 1 }}" src="{{ slot1Src }}"></image>
+
+    <!-- 本地即时交互覆盖层：暂停图标 (0ms 本地响应，无需蓝牙回包) -->
+    <div if="{{ !isPlaying }}" class="pause-overlay">
+      <image class="pause-icon" src="/common/icons/pause-custom.png"></image>
+    </div>
+
+    <!-- 底部微型进度指示器 -->
+    <div if="{{ totalSegments > 1 }}" class="progress-bar">
+      <div class="progress-fill" style="{{ { width: progressPercent + '%' } }}"></div>
+    </div>
+  </div>
+</template>
+
+<style>
+.gif-player-wrap {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background-color: #000000;
+  border-radius: 12px;
+  overflow: hidden;
+  justify-content: center;
+  align-items: center;
+}
+.player-slot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.pause-overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.4);
+  justify-content: center;
+  align-items: center;
+}
+.pause-icon {
+  width: 48px;
+  height: 48px;
+  opacity: 0.9;
+}
+.progress-bar {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 6px;
+  height: 4px;
+  background-color: rgba(255, 255, 255, 0.25);
+  border-radius: 2px;
+}
+.progress-fill {
+  height: 100%;
+  background-color: #FB7299;
+  border-radius: 2px;
+}
+</style>
+
+<script>
+export default {
+  props: ['playerData', 'player-data'],
+
+  data() {
+    return {
+      activeSlot: 0,
+      slot0Src: '',
+      slot1Src: '',
+      isPlaying: true,
+      currentIndex: 0,
+      totalSegments: 0,
+      progressPercent: 0,
+      _timer: null,
+      _segmentStartTime: 0,
+      _remainingMs: 0
+    };
+  },
+
+  onInit() {
+    this._setupPlayer();
+    if (typeof this.$watch === 'function') {
+      this.$watch('playerData', '_onDataChanged');
+      this.$watch('player-data', '_onDataChanged');
+    }
+    this.$emit('playerready', {
+      controller: {
+        play: () => this.play(),
+        pause: () => this.pause(),
+        toggle: () => this.togglePlay(),
+        next: () => this.next(),
+        prev: () => this.prev(),
+        getIndex: () => this.getIndex()
+      }
+    });
+  },
+
+  _onDataChanged() {
+    this._setupPlayer();
+  },
+
+  onDestroy() {
+    this._clearTimer();
+    this.slot0Src = '';
+    this.slot1Src = '';
+  },
+
+  _getData() {
+    return this.playerData || this['player-data'] || {};
+  },
+
+  _setupPlayer() {
+    this._clearTimer();
+    const data = this._getData();
+    const segs = Array.isArray(data.segments) ? data.segments : [];
+    this.totalSegments = segs.length;
+    if (segs.length === 0) {
+      this.slot0Src = '';
+      this.slot1Src = '';
+      this.progressPercent = 0;
+      return;
+    }
+
+    this.currentIndex = 0;
+    this.activeSlot = 0;
+    this.isPlaying = data.autoPlay !== false;
+    this.slot0Src = segs[0].src || '';
+
+    // 后台 Slot 1 预加载下一段 (滑动窗口最多常驻 2 段，防止 OOM)
+    if (segs.length > 1) {
+      this.slot1Src = segs[1].src || '';
+    } else {
+      this.slot1Src = '';
+    }
+
+    this._updateProgress();
+
+    if (this.isPlaying) {
+      const duration = Number(segs[0].duration) || 3000;
+      this._scheduleNext(duration);
+    }
+  },
+
+  _scheduleNext(ms) {
+    this._clearTimer();
+    this._segmentStartTime = Date.now();
+    this._remainingMs = ms;
+    this._timer = setTimeout(() => {
+      this._advanceSegment();
+    }, ms);
+  },
+
+  _clearTimer() {
+    if (this._timer) {
+      clearTimeout(this._timer);
+      this._timer = null;
+    }
+  },
+
+  _advanceSegment() {
+    const data = this.playerData || {};
+    const segs = Array.isArray(data.segments) ? data.segments : [];
+    if (!segs.length) return;
+
+    const nextIndex = this.currentIndex + 1;
+    if (nextIndex >= segs.length) {
+      if (data.loop) {
+        this.currentIndex = 0;
+      } else {
+        this.isPlaying = false;
+        this._clearTimer();
+        this.$emit('playerfinish', { index: this.currentIndex });
+        return;
+      }
+    } else {
+      this.currentIndex = nextIndex;
+    }
+
+    // 交叉切换槽位
+    this.activeSlot = this.activeSlot === 0 ? 1 : 0;
+    this._updateProgress();
+    this.$emit('segmentchange', { index: this.currentIndex, segment: segs[this.currentIndex] });
+
+    // 释放已播完旧槽位，预加载下下一段 (双缓冲防 OOM)
+    const preloadIndex = this.currentIndex + 1;
+    if (preloadIndex < segs.length) {
+      if (this.activeSlot === 0) {
+        this.slot1Src = segs[preloadIndex].src || '';
+      } else {
+        this.slot0Src = segs[preloadIndex].src || '';
+      }
+    } else if (data.loop && segs.length > 1) {
+      if (this.activeSlot === 0) {
+        this.slot1Src = segs[0].src || '';
+      } else {
+        this.slot0Src = segs[0].src || '';
+      }
+    } else {
+      // 无后续分段，清空闲置槽位强制释放显存
+      if (this.activeSlot === 0) this.slot1Src = '';
+      else this.slot0Src = '';
+    }
+
+    const duration = Number(segs[this.currentIndex].duration) || 3000;
+    this._scheduleNext(duration);
+  },
+
+  _updateProgress() {
+    if (this.totalSegments <= 1) {
+      this.progressPercent = 100;
+      return;
+    }
+    this.progressPercent = Math.min(100, Math.round(((this.currentIndex + 1) / this.totalSegments) * 100));
+  },
+
+  play() {
+    if (this.isPlaying) return;
+    const data = this._getData();
+    const segs = Array.isArray(data.segments) ? data.segments : [];
+    if (!segs.length) return;
+    this.isPlaying = true;
+    const ms = this._remainingMs > 0 ? this._remainingMs : (Number(segs[this.currentIndex].duration) || 3000);
+    this._scheduleNext(ms);
+  },
+
+  pause() {
+    if (!this.isPlaying) return;
+    this._clearTimer();
+    const data = this._getData();
+    const segs = Array.isArray(data.segments) ? data.segments : [];
+    const elapsed = Date.now() - this._segmentStartTime;
+    const currentDuration = segs[this.currentIndex] ? (Number(segs[this.currentIndex].duration) || 3000) : 3000;
+    this._remainingMs = Math.max(100, currentDuration - elapsed);
+    this.isPlaying = false;
+  },
+
+  next() {
+    this._clearTimer();
+    this._advanceSegment();
+  },
+
+  prev() {
+    const data = this._getData();
+    const segs = Array.isArray(data.segments) ? data.segments : [];
+    if (segs.length <= 1) return;
+    this._clearTimer();
+    this.currentIndex = (this.currentIndex - 1 + segs.length) % segs.length;
+    this.activeSlot = this.activeSlot === 0 ? 1 : 0;
+    if (this.activeSlot === 0) this.slot0Src = segs[this.currentIndex].src || '';
+    else this.slot1Src = segs[this.currentIndex].src || '';
+    this._updateProgress();
+    this.$emit('segmentchange', { index: this.currentIndex, segment: segs[this.currentIndex] });
+    if (this.isPlaying) {
+      const duration = Number(segs[this.currentIndex].duration) || 3000;
+      this._scheduleNext(duration);
+    }
+  },
+
+  getIndex() {
+    return this.currentIndex;
+  },
+
+  togglePlay(evt) {
+    if (evt && typeof evt.stopPropagation === 'function') evt.stopPropagation();
+    if (this.isPlaying) this.pause();
+    else this.play();
+  }
+};
+</script>

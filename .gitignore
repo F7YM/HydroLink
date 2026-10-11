@@ -47,3 +47,8 @@ hydromarket-index/
 
 # Go telemetry/本地构建缓存
 desktop/go/
+
+# Rust 构建产物
+target/
+**/target/
+
