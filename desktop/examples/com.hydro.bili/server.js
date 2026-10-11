@@ -9,6 +9,49 @@ var wbiCache = null;
 // 手表同时持有整棵视图树和解码封面；每批限制数量，避免一次创建十二张卡片。
 var FEED_LIMIT = 4;
 
+// 宿主端 WASM 视频切片压制器缓存
+var slicerCache = null;
+
+async function getSlicer() {
+  if (slicerCache) return slicerCache;
+  if (!kit || typeof kit.loadWasm !== 'function') return null;
+  try {
+    var wasm = await kit.loadWasm('assets/slice.wasm');
+    if (wasm && wasm.exports) {
+      slicerCache = wasm.exports;
+      return slicerCache;
+    }
+  } catch (err) {
+    console.warn('[bili] 加载 slice.wasm 失败:', err);
+  }
+  return null;
+}
+
+async function sliceFramesToGif(rgbaBuffer, opts) {
+  var slicer = await getSlicer();
+  if (!slicer || !rgbaBuffer) return null;
+  var mem = slicer.memory;
+  var ptr = slicer.hydro_alloc(rgbaBuffer.length);
+  if (!ptr) return null;
+  new Uint8Array(mem.buffer, ptr, rgbaBuffer.length).set(rgbaBuffer);
+
+  var outPtr = slicer.slice_video_frames_to_gif(
+    ptr, rgbaBuffer.length,
+    opts.srcWidth, opts.srcHeight,
+    opts.dstWidth, opts.dstHeight,
+    opts.frameCount, opts.fps || 10
+  );
+
+  slicer.hydro_free(ptr, rgbaBuffer.length);
+  if (!outPtr) return null;
+
+  var view = new DataView(mem.buffer);
+  var len = view.getUint32(outPtr, true);
+  var bytes = new Uint8Array(mem.buffer, outPtr + 4, len).slice();
+  slicer.hydro_free(outPtr, 4 + len);
+  return bytes;
+}
+
 // MD5 用于 WBI 请求签名；不依赖 Node 模块或宿主 crypto 扩展。
 function md5(text) {
   var bytes = unescape(encodeURIComponent(text));

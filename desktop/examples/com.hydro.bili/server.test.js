@@ -9,10 +9,17 @@ function harness() {
   const state = { auth: null, requests: [], replies: [] };
   const context = vm.createContext({
     module: { exports: {} }, console, setTimeout, clearTimeout, AbortController,
-    kit: { storage: { async getItem(key) {
-      assert.equal(key, 'bili_auth');
-      return state.auth;
-    } } },
+    kit: {
+      storage: { async getItem(key) {
+        assert.equal(key, 'bili_auth');
+        return state.auth;
+      } },
+      async loadWasm(assetPath) {
+        const wasmBuf = fs.readFileSync(path.join(__dirname, assetPath));
+        const mod = await WebAssembly.instantiate(wasmBuf);
+        return { exports: mod.instance.exports };
+      }
+    },
     async fetch(url, options) {
       state.requests.push({ url, options });
       assert.ok(state.replies.length, 'Unexpected network request');
@@ -140,4 +147,25 @@ test('expired login and verification responses produce actionable errors', async
     assert.ok(!result.includes('test-session-only'));
     assert.ok(!result.includes('test-voucher'));
   }
+});
+
+test('packaged slice.wasm can be loaded and slices RGBA frames to GIF', async () => {
+  const { context } = harness();
+  assert.ok(typeof context.getSlicer === 'function', 'getSlicer must be defined in server.js');
+  const slicer = await context.getSlicer();
+  assert.ok(slicer, 'slice.wasm must load successfully through kit.loadWasm');
+  assert.ok(typeof slicer.slice_video_frames_to_gif === 'function', 'WASM module must export slice_video_frames_to_gif');
+
+  // 测试单帧快速压制
+  const w = 40, h = 40;
+  const frameBytes = new Uint8Array(w * h * 4);
+  frameBytes.fill(128);
+  const gif = await context.sliceFramesToGif(frameBytes, {
+    srcWidth: w, srcHeight: h,
+    dstWidth: 20, dstHeight: 20,
+    frameCount: 1, fps: 10
+  });
+
+  assert.ok(gif && gif.length > 50, 'GIF 压缩数据必须存在且大于 50B');
+  assert.equal(Buffer.from(gif.slice(0, 6)).toString('ascii'), 'GIF89a', '切片结果必须是合法的 GIF89a');
 });
