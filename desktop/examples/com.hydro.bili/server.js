@@ -193,11 +193,40 @@ async function recommendations(auth, force) {
   }
 
   var seen = {};
-  var items = result.data.item.filter(function (item) {
+  var rawList = result.data.item.filter(function (item) {
     if (!item || item.goto !== 'av' || !/^BV[a-zA-Z0-9]+$/.test(item.bvid || '') || item.business_info || seen[item.bvid]) return false;
     seen[item.bvid] = true;
     return true;
-  }).slice(0, FEED_LIMIT).map(function (item) {
+  }).slice(0, FEED_LIMIT);
+
+  // 关键：将推荐列表中的完整视频详情直接存入 detailCache，点击卡片时 0ms 秒开详情页，彻底免去二次网络请求与风控拦截
+  rawList.forEach(function (item) {
+    if (!item || !item.bvid) return;
+    var stat = item.stat || {};
+    var owner = item.owner || {};
+    var cid = item.cid || 0;
+    detailCache[item.bvid] = {
+      data: {
+        bvid: item.bvid,
+        aid: item.id || item.aid,
+        cid: cid,
+        title: safeText(item.title).slice(0, 100),
+        desc: safeText(item.desc || item.title || '暂无简介').slice(0, 300),
+        cover: coverUrl(item.pic),
+        rawPic: item.pic,
+        owner: safeText(owner.name || '未知 UP 主').slice(0, 40),
+        views: count(stat.view),
+        danmaku: count(stat.danmaku),
+        likes: count(stat.like),
+        coins: count(stat.coin),
+        favorites: count(stat.favorite),
+        duration: duration(item.duration || item.duraion)
+      },
+      time: Date.now()
+    };
+  });
+
+  var items = rawList.map(function (item) {
     return {
       bvid: item.bvid,
       title: safeText(item.title).slice(0, 100),
@@ -468,7 +497,7 @@ function viewTree(children, title, fab) {
 
 module.exports = {
   manifest: function () {
-    return { package: { id: PKG, name: 'HydroBili', version: '0.1.1' }, apps: [{ id: 'main', name: 'HydroBili', icon: 'assets/icon.png' }] };
+    return { package: { id: PKG, name: 'HydroBili', version: '0.1.2' }, apps: [{ id: 'main', name: 'HydroBili', icon: 'assets/icon.png' }] };
   },
   async view(surface, item, req) {
     if (surface !== 'app' || item !== 'main') return null;
@@ -542,7 +571,21 @@ module.exports = {
         }
         nodes.push({ id: cardId + '_title', type: 'text', props: { text: video.title || '无标题视频' }, events: openEvent, style: { fontSize: 22, color: '#FFFFFF', marginBottom: 8 } });
         nodes.push({ id: cardId + '_owner', type: 'text', props: { text: video.owner || '未知 UP 主' }, events: openEvent, style: { fontSize: 18, color: '#B7BCCB', marginBottom: 8 } });
-        nodes.push({ id: cardId + '_views', type: 'text', props: { text: video.views + '播放 · ' + video.duration }, events: openEvent, style: { fontSize: 18, color: '#969CAD', marginBottom: 4 } });
+        nodes.push({ id: cardId + '_views', type: 'text', props: { text: video.views + '播放 · ' + video.duration }, events: openEvent, style: { fontSize: 18, color: '#969CAD', marginBottom: 8 } });
+        nodes.push({
+          id: cardId + '_play_btn',
+          type: 'button',
+          props: { label: '▶ 观看视频' },
+          events: openEvent,
+          style: {
+            width: '100%',
+            height: 42,
+            backgroundColor: '#FB7299',
+            color: '#FFFFFF',
+            borderRadius: 21,
+            marginTop: 4
+          }
+        });
         children.push({
           id: cardId,
           type: 'column',
