@@ -351,10 +351,14 @@ async function fetchPlayUrl(bvid, cid, auth) {
  *  · 失败就**如实抛错**，由调用方回退静态封面 —— 不拿假帧糊弄。
  */
 async function prepareVideoSegments(bvid, cid, auth, detail) {
+  // 排障日志：插件跑在宿主里，console.log 会进桌面端应用日志（手表侧没有日志出口）
+  console.log('[bili] 缓冲开始 bvid=' + bvid + ' cid=' + cid);
   if (!kit || !kit.media || typeof kit.media.prepareVideo !== 'function') {
+    console.warn('[bili] 宿主没有 kit.media.prepareVideo，回退静态封面');
     throw new Error('当前宿主不支持视频切片');
   }
   var stream = await fetchPlayUrl(bvid, cid, auth);
+  console.log('[bili] 取到播放地址 ' + (stream.url || '').slice(0, 80) + '…');
   var job = await kit.media.prepareVideo({
     url: stream.url,
     headers: stream.headers,
@@ -366,8 +370,13 @@ async function prepareVideoSegments(bvid, cid, auth, detail) {
     maxSegments: MAX_SEGMENTS
   });
   if (!job || job.error || !Array.isArray(job.segments) || !job.segments.length) {
-    throw new Error((job && job.error) || '宿主未返回视频分段');
+    var why = (job && job.error) || '宿主未返回视频分段';
+    console.warn('[bili] 切片失败: ' + why);
+    throw new Error(why);
   }
+  console.log('[bili] 切片就绪 job=' + job.job + ' 段数=' + job.segments.length +
+    ' 尺寸=' + (job.width || '?') + 'x' + (job.height || '?') +
+    ' 首段=' + (job.segments[0] && job.segments[0].url || ''));
   var segments = job.segments.map(function (s) {
     return {
       src: s.url,
@@ -596,7 +605,9 @@ module.exports = {
         var prefix = handler.startsWith('buffer_video:') ? 'buffer_video:' : 'play_video:';
         var playParts = handler.slice(prefix.length).split(':');
         var playBvid = playParts[0];
-        var playCid = playParts[1];
+        // cid 必须是正整数才信：假 cid（0/空/乱码）直接当没有，用详情里的真 cid 兜底。
+        // 塞假 cid 给 B 站只会换来 -400「请求错误」，报错还不如自己兜住。
+        var playCid = /^\d+$/.test(playParts[1] || '') && playParts[1] !== '0' ? playParts[1] : '';
         try {
           // 每次缓冲都重新拉起作业：重新缓冲时换一批新 URL（旧的段可能已被挤出
           // 或过期），手表播放器按 URL 变化重取，缓存也顺带打散。
@@ -605,8 +616,11 @@ module.exports = {
           var playDetail = await fetchVideoDetail(playBvid, auth);
           var segs = await prepareVideoSegments(playBvid, playCid || playDetail.cid, auth, playDetail);
           playDetail.segments = segs;
+          console.log('[bili] 缓冲完成 bvid=' + playBvid + ' → 发 ' + segs.length + ' 段给手表');
           return detailViewTree(playDetail, false, null);
         } catch (playErr) {
+          console.warn('[bili] 缓冲失败 bvid=' + playBvid + ': ' +
+            safeText(playErr && playErr.message || '无法压制') + '（回退静态封面）');
           try {
             var fallbackDetail = await fetchVideoDetail(playBvid, auth);
             return detailViewTree(fallbackDetail, false, '切片缓冲失败: ' + safeText(playErr && playErr.message || '无法压制'));

@@ -37,6 +37,45 @@
     } catch (e) {}
   }
 
+  // 插件自己的 console.* 也要进宿主日志：桌面端 OffscreenWebView 没有 console 钩子，
+  // 不接管就全丢了（手表侧没有日志出口，排障只能看宿主这一头）。
+  // 原生 console 照常输出（Node e2e 的断言输出不受影响），只是加一路 __hkLog 转发；
+  // 转发失败/缺失时静默降级，绝不影响插件运行。调用时才查 __hkLog，晚注入也接得住。
+  function bridgeConsole() {
+    try {
+      if (typeof console === "undefined") return;
+      var guard = false;
+      ["log", "info", "warn", "error"].forEach(function (level) {
+        var orig = console[level];
+        if (typeof orig !== "function") return;
+        console[level] = function () {
+          try {
+            if (!guard && typeof __hkLog === "function") {
+              guard = true; // __hkLog 内部若再打 console，别绕成死循环
+              var parts = [];
+              for (var i = 0; i < arguments.length; i++) {
+                var a = arguments[i];
+                parts.push(typeof a === "string" ? a : (function () {
+                  try {
+                    return JSON.stringify(a);
+                  } catch (e) {
+                    return String(a);
+                  }
+                })());
+              }
+              __hkLog(parts.join(" "));
+              guard = false;
+            }
+          } catch (e) {
+            guard = false;
+          }
+          return orig.apply(console, arguments);
+        };
+      });
+    } catch (e) {}
+  }
+  bridgeConsole();
+
   function req(path, opts) {
     // charset 必须写：安卓服务端是 NanoHTTPD，请求体没有 charset 时它按 US-ASCII
     // 解码，中文/emoji 会变成 U+FFFD（服务端也补了一道，见 normalizeRequestBodyCharset）
@@ -540,7 +579,7 @@
           report("worker ready: " + PKG + " (" + RUNTIME + ")");
         }
       } catch (e) {
-        report("worker 循环出错: " + (e && e.message ? e.message : e));
+        report("worker 循环出错: " + (e && e.stack ? e.stack : (e && e.message ? e.message : e)));
         await new Promise(function (res) { setTimeout(res, 2000); });
       }
     }

@@ -1,0 +1,304 @@
+<import name="gif-player" src="../../components/GifPlayer/GifPlayer"></import>
+
+<template>
+  <div class="player-page">
+    <!-- 顶栏：‹ 返回 + 标题 + 段进度 -->
+    <div class="header">
+      <text
+        class="back pressable {{ pressedKey === 'back' ? 'is-down press-down' : '' }} {{ releasedKey === 'back' ? 'press-up' : '' }}"
+        ontouchstart="pressDown('back')"
+        ontouchend="pressRelease('back')"
+        ontouchcancel="pressCancel('back')"
+        onclick="goBack"
+      >‹</text>
+      <text class="title">{{ title || '播放' }}</text>
+      <text class="seg-counter" if="{{ totalSegments > 1 }}">{{ currentIndex + 1 }}/{{ totalSegments }}</text>
+    </div>
+
+    <!-- 播放区：直接用平台播放器组件（双缓冲窗口 ≤2 段，与插件内嵌同一套引擎） -->
+    <div class="stage">
+      <gif-player
+        if="{{ ready }}"
+        player-data="{{ playerData }}"
+        @playerready="onPlayerReady"
+        @playerfinish="onPlayerFinish"
+        @segmentchange="onSegmentChange"
+      ></gif-player>
+      <div class="hint-box" if="{{ !ready }}">
+        <text class="hint-title">{{ errorText ? '无法播放' : '正在准备…' }}</text>
+        <text class="hint-sub" if="{{ errorText }}">{{ errorText }}</text>
+        <text class="hint-sub" if="{{ !errorText }}">缓冲视频切片</text>
+      </div>
+    </div>
+
+    <!-- 底栏：轻量控制（点播放区=暂停/继续，这里补显式按钮） -->
+    <div class="controls" if="{{ ready }}">
+      <text class="ctrl pressable {{ pressedKey === 'prev' ? 'is-down press-down' : '' }} {{ releasedKey === 'prev' ? 'press-up' : '' }}"
+        if="{{ totalSegments > 1 }}"
+        ontouchstart="pressDown('prev')" ontouchend="pressRelease('prev')" ontouchcancel="pressCancel('prev')"
+        onclick="onPrev">‹‹</text>
+      <text class="ctrl ctrl-main pressable {{ pressedKey === 'toggle' ? 'is-down press-down' : '' }} {{ releasedKey === 'toggle' ? 'press-up' : '' }}"
+        ontouchstart="pressDown('toggle')" ontouchend="pressRelease('toggle')" ontouchcancel="pressCancel('toggle')"
+        onclick="onToggle">{{ playing ? '暂停' : '播放' }}</text>
+      <text class="ctrl pressable {{ pressedKey === 'next' ? 'is-down press-down' : '' }} {{ releasedKey === 'next' ? 'press-up' : '' }}"
+        if="{{ totalSegments > 1 }}"
+        ontouchstart="pressDown('next')" ontouchend="pressRelease('next')" ontouchcancel="pressCancel('next')"
+        onclick="onNext">››</text>
+    </div>
+  </div>
+</template>
+
+<style>
+.player-page {
+  width: 100%;
+  height: 100%;
+  background-color: #000000;
+  flex-direction: column;
+}
+.header {
+  width: 100%;
+  height: 64px;
+  flex-direction: row;
+  align-items: center;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+.back {
+  font-size: 34px;
+  color: #ffffff;
+  width: 48px;
+  height: 48px;
+  text-align: center;
+}
+.title {
+  flex: 1;
+  font-size: 22px;
+  color: #ffffff;
+  lines: 1;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+.seg-counter {
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.5);
+  width: 48px;
+  text-align: right;
+}
+.stage {
+  width: 100%;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+}
+.hint-box {
+  flex-direction: column;
+  align-items: center;
+}
+.hint-title {
+  font-size: 22px;
+  color: #ffffff;
+}
+.hint-sub {
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 8px;
+  lines: 2;
+  text-overflow: ellipsis;
+}
+.controls {
+  width: 100%;
+  height: 72px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  padding-bottom: 12px;
+}
+.ctrl {
+  font-size: 22px;
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.12);
+  border-radius: 22px;
+  width: 88px;
+  height: 44px;
+  text-align: center;
+  margin-left: 12px;
+  margin-right: 12px;
+}
+.ctrl-main {
+  background-color: #FB7299;
+  color: #000000;
+  width: 104px;
+}
+.pressable {
+  border-radius: 22px;
+}
+.is-down {
+  transform: scale(0.9);
+  opacity: 0.7;
+}
+.press-down {
+  transform: scale(0.9);
+  opacity: 0.7;
+}
+.press-up {
+  transform: scale(1);
+  opacity: 1;
+}
+</style>
+
+<script>
+import router from '@system.router'
+
+/**
+ * 全局播放器服务（平台页，形态对齐 /pages/keyboard 输入法）。
+ *
+ * 任何页面（插件页 hydro、将来桌搭/音乐页）都能拉起全屏播放，不必各自写播放器：
+ *   this.$app.$def.playerRequest = { segments: [...], title: 'xxx', index: 0 };
+ *   router.push({ uri: '/pages/player' });
+ * 退出时写回 this.$app.$def.playerResult = { index, finished }（对应 keyboardResult）。
+ *
+ * 播放引擎是 components/GifPlayer（双缓冲窗口 ≤2 段、src 不重写、失败 ?r=N 重试 ≤2 次），
+ * 这一页只负责：请求编排、控制栏、把组件事件写回 playerResult。
+ * console.* 会经胶水 __hkLog 进宿主应用日志——手表侧没有日志出口，排障看宿主那一头。
+ */
+export default {
+  public: {
+    title: '',
+    segments: '',
+    index: 0
+  },
+
+  private: {
+    ready: false,
+    playing: true,
+    currentIndex: 0,
+    totalSegments: 0,
+    errorText: '',
+    playerData: {},
+    pressedKey: '',
+    releasedKey: '',
+    _controller: null,
+    _finished: false
+  },
+
+  onInit() {
+    // 请求优先走全局对象（段清单是 URL 数组，走 router 参数会被截断/转义）；
+    // 同时兼容简单场景用页面参数传 JSON 串。
+    const appDef = this.$app && this.$app.$def;
+    let req = appDef ? appDef.playerRequest : null;
+    if (!req && this.segments) {
+      try { req = JSON.parse(this.segments); } catch (e) { req = null; }
+    }
+    if (!req || !Array.isArray(req.segments) || !req.segments.length) {
+      console.error('[player] 没有可播的分段（playerRequest.segments 为空）');
+      this.errorText = '没有可播的分段';
+      return;
+    }
+    if (appDef) appDef.playerRequest = null;
+
+    const segs = req.segments.map(function (s) {
+      return (s && typeof s === 'object') ? s : { src: String(s), duration: 1200 };
+    });
+    this.title = req.title || this.title || '';
+    const start = Math.min(Math.max(0, Number(req.index) || 0), segs.length - 1);
+    this.currentIndex = start;
+    this.totalSegments = segs.length;
+    this.playerData = {
+      segments: segs,
+      loop: req.loop !== false,
+      autoPlay: req.autoPlay !== false
+    };
+    this.playing = this.playerData.autoPlay;
+    this.ready = true;
+    console.log('[player] 打开播放器：' + segs.length + ' 段，从第 ' + start + ' 段起（' + this.title + '）');
+  },
+
+  onPlayerReady(evt) {
+    const detail = this._unwrap(evt);
+    if (detail && detail.controller) {
+      this._controller = detail.controller;
+      if (this.currentIndex > 0 && this._controller) {
+        // 起播位置不是第 0 段：组件从 0 开始，这里手动推到位（next 是循环推进）
+        const target = this.currentIndex;
+        for (let i = 0; i < target; i++) {
+          if (this._controller.next) this._controller.next();
+        }
+        if (this._controller.getIndex) this.currentIndex = this._controller.getIndex();
+      }
+    }
+  },
+
+  onSegmentChange(evt) {
+    const detail = this._unwrap(evt);
+    if (detail && typeof detail.index === 'number') {
+      this.currentIndex = detail.index;
+    }
+  },
+
+  onPlayerFinish(evt) {
+    // 播到尽头（非循环）：写回结果并退出，把"看完了"这件事交回调用方
+    const detail = this._unwrap(evt);
+    this._finished = true;
+    console.log('[player] 播放完毕（index=' + (detail && detail.index) + '）');
+    this._writeResult(true);
+  },
+
+  onToggle(evt) {
+    if (evt && typeof evt.stopPropagation === 'function') evt.stopPropagation();
+    if (!this._controller) return;
+    if (this.playing) {
+      this._controller.pause();
+    } else {
+      this._controller.play();
+    }
+    this.playing = !this.playing;
+  },
+
+  onNext(evt) {
+    if (evt && typeof evt.stopPropagation === 'function') evt.stopPropagation();
+    if (this._controller && this._controller.next) this._controller.next();
+  },
+
+  onPrev(evt) {
+    if (evt && typeof evt.stopPropagation === 'function') evt.stopPropagation();
+    if (this._controller && this._controller.prev) this._controller.prev();
+  },
+
+  goBack() {
+    this._writeResult(this._finished);
+  },
+
+  _writeResult(finished) {
+    const appDef = this.$app && this.$app.$def;
+    if (appDef) {
+      appDef.playerResult = {
+        index: (this._controller && this._controller.getIndex)
+          ? this._controller.getIndex()
+          : this.currentIndex,
+        finished: !!finished
+      };
+    }
+    router.back();
+  },
+
+  pressDown(key) {
+    this.releasedKey = '';
+    this.pressedKey = key;
+  },
+
+  pressRelease(key) {
+    this.pressedKey = '';
+    this.releasedKey = key;
+    setTimeout(() => { this.releasedKey = ''; }, 120);
+  },
+
+  pressCancel(key) {
+    this.pressedKey = '';
+    this.releasedKey = '';
+  },
+
+  _unwrap(evt) {
+    return (evt && evt.detail !== undefined) ? evt.detail : evt;
+  }
+};
+</script>

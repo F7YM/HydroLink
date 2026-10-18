@@ -523,6 +523,19 @@ export default {
       }
       this._inputItem = null;
     }
+    // 全局播放器退出回结果（形态同 keyboardResult）：节点带 finish 事件就回传插件，
+    // 否则只记日志——手表侧没有日志出口，播放器退出状态排障靠这条（进宿主应用日志）
+    const pres = appDef ? appDef.playerResult : null;
+    if (pres) {
+      appDef.playerResult = null;
+      console.log('[hydro] 播放器返回: index=' + pres.index + ' finished=' + pres.finished);
+      const pn = this._playerNode;
+      this._playerNode = null;
+      if (pn && pn.events && pn.events.finish) {
+        if (this._sandbox && this._sandbox.invoke(pn.events.finish, pres)) return;
+        this._send({ handler: pn.events.finish, source: 'playerFinish', detail: pres });
+      }
+    }
     if (this._started && this.refreshMs > 0 && !this.errorText && !this._timer) this._startTimer();
   },
 
@@ -752,6 +765,23 @@ export default {
         console.warn('[hydro] video tap start error:', videoTapErr);
       }
     }
+    // gif-player 无自定义 tap 时，点按 = 打开**全局播放器服务**（/pages/player）：
+    // 平台自带全屏播放（暂停/上一段/下一段/退出回结果），插件不必各自写播放器。
+    // 带 tap 事件的节点（如 bili 卡片"点开视频"）保持原行为，交给插件。
+    if (node && node.kind === 'gif-player' && !node.tap && node.playerData &&
+        Array.isArray(node.playerData.segments) && node.playerData.segments.length) {
+      const appDef = this.$app && this.$app.$def;
+      if (appDef) {
+        appDef.playerRequest = {
+          segments: node.playerData.segments,
+          title: this._playerTitle(node),
+          loop: node.playerData.loop !== false
+        };
+      }
+      this._playerNode = node;
+      router.push({ uri: '/pages/player' });
+      return;
+    }
     if (!node || !node.tap) return;
     // 优先尝试客户端沙盒本地拦截（0ms 响应，免蓝牙/网络往返）
     if (this._sandbox && this._sandbox.invoke(node.tap, node)) {
@@ -759,6 +789,12 @@ export default {
       return;
     }
     this._send({ handler: node.tap, source: 'tap' });
+  },
+
+  /** 全局播放器的标题：优先节点自带标题，退回插件页标题。 */
+  _playerTitle(node) {
+    if (node && node.playerData && node.playerData.title) return String(node.playerData.title);
+    return this.headerTitle || '播放';
   },
 
   onSwitchChange(node, evt) {

@@ -91,6 +91,9 @@
       "pages/hydro": {
         "component": "hydro"
       },
+      "pages/player": {
+        "component": "player"
+      },
       "pages/hydro_launcher": {
         "component": "hydro_launcher"
       },

@@ -23,6 +23,7 @@ function loadComponentOptions() {
 }
 
 /** 建一个"组件实例"：绑定方法 + 铺 data() + 记账用的 setter 间谍与 $emit。 */
+const created = [];
 function createPlayer(segments, extra = {}) {
   const options = loadComponentOptions();
   const instance = {};
@@ -44,7 +45,17 @@ function createPlayer(segments, extra = {}) {
       set: (next) => { value = next; instance.srcWrites += 1; }
     });
   }
+  created.push(instance);
   return instance;
+}
+
+// 收尾：把每个实例的定时器收掉，测试自己要能退出（_advanceSegment 尾部会 _scheduleNext，
+// loop:true 时那条链会自我续期，进程永不退出 —— 用 timeout 杀等于把挂起当通过）。
+function drainPlayers() {
+  for (const p of created) {
+    try { p.onDestroy(); } catch (e) {}
+  }
+  created.length = 0;
 }
 
 /** 当前常驻在双槽里的段（去重后就是显存里真实持有的切片集合）。 */
@@ -137,4 +148,5 @@ function resident(instance) {
   assert.deepEqual(player._retries, {});
 }
 
+drainPlayers();
 console.log('✓ GifPlayer 单元测试全部通过！');

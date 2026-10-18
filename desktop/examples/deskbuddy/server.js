@@ -31,6 +31,7 @@ var sp = {
   lines: [], posMs: 0, posAt: 0, playing: false, title: '', artist: '', hasTrack: false
 };
 var spLastState = '';
+var lastBgKey = null;
 
 function spConnected() { return sp.state === 'open'; }
 
@@ -331,6 +332,12 @@ function buildTree(screen, cfg, music, lyric) {
   // 宿主给的 artUrl 是手表可达的封面地址（kit.music.now 的 artUrl / artBlur）
   var art = hasMedia ? (music.artUrl || '') : '';
   var key = trackKey(title, artist);
+  // 排障日志：只在背景图真的变了才打一条（500ms 刷新不能条条记）。
+  // 手表侧没有日志出口，这条是判断「背景 URL 有没有给到手表」的唯一线索。
+  if (key !== lastBgKey) {
+    lastBgKey = key;
+    console.log('[deskbuddy] 背景 key=' + key + ' art=' + (art ? art.slice(0, 90) : '（无封面，退纯色）'));
+  }
   var withQuery = function (u, q) { return u + (u.indexOf('?') >= 0 ? '&' : '?') + q; };
   var background = art
     ? withQuery(art, 'w=' + Math.round(sw) + '&h=' + Math.round(sh) +
