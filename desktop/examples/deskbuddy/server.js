@@ -478,8 +478,10 @@ module.exports = {
     var music = {};
     try { music = (await kit.music.now()) || {}; } catch (e) { music = {}; }
 
-    // SPlayer 常常不注册系统媒体会话（Electron）：系统侧没歌时用它的曲目兜底，
-    // 但**不**给封面地址 —— 封面归系统接口管，给个取不到的地址只会白铺一张黑图。
+    // 系统会话优先：SPlayer 在 Linux 注册 MPRIS、Windows 注册 SMTC，正常情况下
+    // 上面 kit.music.now() 就已经有歌名和封面了。只有系统侧读不到（播放器没注册
+    // 会话，或会话被别的播放器抢走）才用 SPlayer 的曲目兜底，且**不**给封面地址
+    // —— 宿主的 /api/music/art 只认系统会话的封面，给个取不到的地址只会白铺一张黑图。
     if (!music.hasMedia && spConnected() && sp.title) {
       music = { hasMedia: true, title: sp.title, artist: sp.artist, playing: sp.playing, artUrl: '' };
     }
