@@ -20,13 +20,37 @@ CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w -H=wi
 echo "== 3. 校验并同步 Compose 应用 Jar 库 =="
 APP_SOURCE="$ROOT/desktop-compose/build/compose/binaries/main/app/HydroLink/lib/app"
 if [ -d "$APP_SOURCE" ]; then
-    mkdir -p "$STAGE/lib"
-    rsync -a --delete --exclude="*.so" --exclude="*.so.*" "$APP_SOURCE" "$STAGE/lib/" 2>/dev/null || cp -a "$APP_SOURCE" "$STAGE/lib/"
+    mkdir -p "$STAGE/lib/app"
+    rsync -a --delete --exclude="*.so" --exclude="*.so.*" "$APP_SOURCE/" "$STAGE/lib/app/" 2>/dev/null \
+        || cp -a "$APP_SOURCE/." "$STAGE/lib/app/"
 fi
 
-echo "== 4. 打包 Java 运行时（自包含：目标机器不必装 Java）=="
+echo "== 4. 解出 skiko 原生库（skiko.library.path 指向 lib/app，缺 dll = 启动就炸）=="
+# 启动器给 java 传 `-Dskiko.library.path=<安装目录>/lib/app`，skiko 就**只**从这里找
+# skiko-windows-x64.dll —— 找不到直接 UnsatisfiedLinkError（真机表现就是「HydroLink 启动异常：
+# Can't load library: …\lib\app\skiko-windows-x64.dll」）。dll 一直只在 jar 里，
+# 所以这里解出来；.sha256 与 icudtl.dat 一并放好。
+python3 - "$STAGE/lib/app" <<'PY'
+import glob, os, sys, zipfile
+out = sys.argv[1]
+jars = sorted(glob.glob(os.path.join(out, 'skiko-awt-runtime-windows-x64-*.jar')))
+if not jars:
+    print('!! 找不到 skiko-awt-runtime-windows-x64 jar：Windows 端会起不来')
+    sys.exit(0)
+z = zipfile.ZipFile(jars[-1])
+for name in ('skiko-windows-x64.dll', 'skiko-windows-x64.dll.sha256', 'icudtl.dat'):
+    if name not in z.namelist():
+        continue
+    with z.open(name) as src, open(os.path.join(out, name), 'wb') as f:
+        f.write(src.read())
+    print('   解出', name)
+PY
+# Linux 侧原生库是打包机带过来的死重，Windows 包里不要
+rm -f "$STAGE/lib/app"/libskiko-linux-x64.so* "$STAGE/lib/app"/skiko-awt-runtime-linux-x64*.jar
+
+echo "== 5. 打包 Java 运行时（自包含：目标机器不必装 Java）=="
 RUNTIME="$STAGE/lib/runtime"
-if [ -x "$RUNTIME/bin/javaw.exe" ]; then
+if [ -f "$RUNTIME/bin/javaw.exe" ]; then
     echo "已有内嵌运行时：$RUNTIME/bin/javaw.exe（跳过下载）"
 else
     # 应用要求 JVM 21（desktop-compose 的 jvmToolchain(21)）。启动器第一优先级就是
@@ -70,7 +94,7 @@ PY
     fi
 fi
 
-echo "== 5. 拷贝许可证与清理不需要的文件 (严格不打包 README) =="
+echo "== 6. 拷贝许可证与清理不需要的文件 (严格不打包 README) =="
 cp "$ROOT/LICENSE" "$STAGE/LICENSE"
 rm -f "$STAGE/README.md" "$STAGE"/*.md
 
