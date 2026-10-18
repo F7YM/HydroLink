@@ -4,6 +4,9 @@
 set -e
 cd "$(dirname "$0")"
 
+echo "== test =="
+node --test server.test.js
+
 echo "== package .hpk =="
 python3 - <<'PY'
 import zipfile, os

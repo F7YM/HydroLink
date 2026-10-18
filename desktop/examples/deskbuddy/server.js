@@ -339,12 +339,16 @@ function buildTree(screen, cfg, music, lyric) {
     : '';
   var coverSrc = art ? withQuery(art, 'size=' + Math.round(sw) + '&k=' + key) : '';
 
-  var rootStyle = {
-    backgroundColor: '#0b0d12',
-    backgroundSize: 'cover',
-    backgroundPosition: 'center'
-  };
-  if (background) rootStyle.backgroundImage = background;
+  // 背景图**不走 CSS background-image**：手表端对远程 URL 的 CSS 背景图渲染不可靠
+  // （实测同一时刻：封面 <image> 能出、CSS 背景出不来；Vela 文档里背景图示例也全是
+  // 本地资源）。可靠路径是 <image> 节点（.flat-img 自带 object-fit: cover），铺在最底层。
+  // 坐标按引擎的 480 基准宽；left/top 取负值抵消根容器的内边距，保证铺满整屏。
+  var rootStyle = { backgroundColor: '#0b0d12' };
+  var bgNode = background ? {
+    type: 'image',
+    props: { src: background },
+    style: { position: 'absolute', left: -80, top: -80, width: 640, height: 640 }
+  } : null;
 
   var titleText = title || 'HydroLink';
 
@@ -380,7 +384,7 @@ function buildTree(screen, cfg, music, lyric) {
       root: {
         type: 'scroll',
         style: style,
-        children: [
+        children: (bgNode ? [bgNode] : []).concat([
           { type: 'text', props: { text: clockText() },
             style: { fontSize: f(36), fontWeight: 700, color: '#FFFFFF', textAlign: 'center', width: '100%' } },
           { type: 'text', props: { text: titleText },
@@ -388,7 +392,7 @@ function buildTree(screen, cfg, music, lyric) {
           { type: 'text', props: { text: artist },
             style: { fontSize: f(22), color: 'rgba(255,255,255,0.4)', textAlign: 'center', width: '100%', marginTop: 4 } },
           cover
-        ]
+        ])
       }
     };
   }
@@ -437,7 +441,7 @@ function buildTree(screen, cfg, music, lyric) {
     root: {
       type: 'column',
       style: rootStyle,
-      children: [
+      children: (bgNode ? [bgNode] : []).concat([
         { type: 'text', props: { text: clockText() },
           style: { position: 'absolute', top: Math.round(D_CLOCK_TOP * s) - insetTop, left: 0, right: 0,
             width: Math.round(canvasW2), fontSize: f(36), fontWeight: 700, color: '#FFFFFF', textAlign: 'center' } },
@@ -449,7 +453,7 @@ function buildTree(screen, cfg, music, lyric) {
             { type: 'column', style: { width: textWidth, marginLeft: gap, alignItems: 'flex-start' },
               children: textKids }
           ] }
-      ]
+      ])
     }
   };
 }
