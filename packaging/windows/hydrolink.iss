@@ -73,7 +73,7 @@ SolidCompression=yes
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-UninstallDisplayIcon={app}\{#MyAppExeName}
+UninstallDisplayIcon={app}\icon.ico
 UninstallDisplayName={#MyAppName}
 ; 安装器自身的图标（用仓库里的 icon.ico）
 SetupIconFile={#MyRepoRoot}\desktop\icon.ico
@@ -93,17 +93,17 @@ Name: "chinese"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
-Name: "autostart"; Description: "开机自动启动（开机后在托盘常驻，方便手表随时连接）"; GroupDescription: "启动选项："; Flags: unchecked
+Name: "autostart"; Description: "开机自动启动"; GroupDescription: "启动选项："; Flags: unchecked
 
 [Files]
 Source: "{#MyPayload}"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion
 Source: "{#MyRepoRoot}\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#MyRepoRoot}\README.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#MyRepoRoot}\desktop\icon.ico"; DestDir: "{app}"; DestName: "icon.ico"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\icon.ico"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\icon.ico"; Tasks: desktopicon
 
 [Registry]
 ; 开机自启（可选任务）：HKCU Run 项，卸载时自动清掉

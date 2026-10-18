@@ -15,20 +15,21 @@ SolidCompression=yes
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-UninstallDisplayIcon={app}\HydroLink.exe
+UninstallDisplayIcon={app}\icon.ico
 UninstallDisplayName=HydroLink
 SetupIconFile=..\..\desktop\icon.ico
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
-Name: "autostart"; Description: "开机自动启动（开机后在托盘常驻）"; GroupDescription: "启动选项："; Flags: unchecked
+Name: "autostart"; Description: "开机自动启动"; GroupDescription: "启动选项："; Flags: unchecked
 
 [Files]
-Source: "..\build\compose-windows\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\build\compose-windows\*"; DestDir: "{app}"; Excludes: "README.md,*.md"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\desktop\icon.ico"; DestDir: "{app}"; DestName: "icon.ico"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\HydroLink"; Filename: "{app}\HydroLink.exe"
-Name: "{autodesktop}\HydroLink"; Filename: "{app}\HydroLink.exe"; Tasks: desktopicon
+Name: "{autoprograms}\HydroLink"; Filename: "{app}\HydroLink.exe"; IconFilename: "{app}\icon.ico"
+Name: "{autodesktop}\HydroLink"; Filename: "{app}\HydroLink.exe"; IconFilename: "{app}\icon.ico"; Tasks: desktopicon
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "HydroLink"; ValueData: """{app}\HydroLink.exe"""; Flags: uninsdeletevalue; Tasks: autostart
