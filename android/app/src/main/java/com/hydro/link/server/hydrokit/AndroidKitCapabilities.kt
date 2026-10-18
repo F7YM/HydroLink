@@ -52,16 +52,7 @@ class AndroidKitCapabilities(
             val totalMb = mem.totalMem / (1024 * 1024)
             val availMb = mem.availMem / (1024 * 1024)
             val usedMb = totalMb - availMb
-            val cpu = try {
-                // 没有 os.getloadavg 时用 1 分钟负载近似（与桌面 cpu 字段口径一致即可）
-                val load: Double = java.io.File("/proc/loadavg").readText().trim()
-                    .split(" ").firstOrNull()?.toDoubleOrNull() ?: 0.0
-                // 注意：本包内也有个 Runtime（HydroKit 注册表），所以必须全限定 java.lang.Runtime
-                val cores: Int = java.lang.Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
-                (load / cores.toDouble() * 100.0).coerceIn(0.0, 100.0)
-            } catch (e: Exception) {
-                0.0
-            }
+            val cpu = com.hydro.link.server.util.CpuUsageMonitor.getCpuUsage().toDouble()
             mapOf<String, Any?>(
                 "cpu" to cpu,
                 "memPercent" to if (totalMb > 0) (usedMb * 100.0 / totalMb) else 0.0,

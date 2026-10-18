@@ -826,47 +826,11 @@ class HydroHttpServer(
     }
 
     /**
-     * CPU usage via /proc/stat delta sampling. The old `top -n 1` parse returns
-     * 0 on many devices (top unavailable / different output format).
+     * CPU usage via CpuUsageMonitor. Supports /proc/stat, root/Shizuku,
+     * cpufreq scaling dynamic load, and /proc/loadavg fallback.
      */
     private fun getCpuUsage(): Float {
-        return try {
-            val c1 = readCpuTicks() ?: return 0f
-            Thread.sleep(500)
-            val c2 = readCpuTicks() ?: return 0f
-            val totalDelta = c2.total - c1.total
-            if (totalDelta <= 0) return 0f
-            val idleDelta = c2.idle - c1.idle
-            ((totalDelta - idleDelta).toFloat() / totalDelta) * 100f
-        } catch (e: Exception) {
-            0f
-        }
-    }
-
-    private data class CpuTicks(val total: Long, val idle: Long)
-
-    private fun readCpuTicks(): CpuTicks? {
-        return try {
-            for (line in java.io.File("/proc/stat").readLines()) {
-                if (line.startsWith("cpu ")) {
-                    val parts = line.trim().split(Regex("\\s+")).drop(1)
-                    if (parts.size < 4) return null
-                    val user = parts[0].toLongOrNull() ?: 0L
-                    val nice = parts.getOrNull(1)?.toLongOrNull() ?: 0L
-                    val system = parts.getOrNull(2)?.toLongOrNull() ?: 0L
-                    val idle = parts.getOrNull(3)?.toLongOrNull() ?: 0L
-                    val iowait = parts.getOrNull(4)?.toLongOrNull() ?: 0L
-                    val irq = parts.getOrNull(5)?.toLongOrNull() ?: 0L
-                    val softirq = parts.getOrNull(6)?.toLongOrNull() ?: 0L
-                    val steal = parts.getOrNull(7)?.toLongOrNull() ?: 0L
-                    val total = user + nice + system + idle + iowait + irq + softirq + steal
-                    return CpuTicks(total, idle + iowait)
-                }
-            }
-            null
-        } catch (e: Exception) {
-            null
-        }
+        return com.hydro.link.server.util.CpuUsageMonitor.getCpuUsage()
     }
 
     private fun getMemoryInfo(): Triple<Float, Long, Long> {
