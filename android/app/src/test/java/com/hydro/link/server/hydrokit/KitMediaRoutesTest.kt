@@ -142,8 +142,11 @@ class KitMediaRoutesTest {
 
         assertEquals(5_000L, body.get("durationMs").asLong)
         assertEquals(20, body.get("fps").asInt)          // 夹到上限
-        assertEquals(480, body.get("width").asInt)       // 夹到上限
-        assertEquals(40, body.get("height").asInt)       // 本来就合法
+        // width/height 是**实际输出尺寸**（盒子等比内缩、不放大，见 SegmentPlan.outputSize）：
+        // 传进来的盒子 9999x40 先夹到 480x40，320x180 的源等比内缩进去 → 71x40。
+        // 这就是插件按"播放区盒子"传参的语义：直接拉伸到盒子会把 16:9 画面压扁。
+        assertEquals(71, body.get("width").asInt)
+        assertEquals(40, body.get("height").asInt)
         assertEquals(25, body.get("segmentCount").asInt) // 5000ms / 200ms
 
         val segments = body.getAsJsonArray("segments")
@@ -159,7 +162,10 @@ class KitMediaRoutesTest {
         assertEquals(200, got.status)
         assertEquals("image/gif", got.contentType)
         assertEquals("GIF89a", String(got.bytes!!, 0, 6, Charsets.US_ASCII))
-        assertEquals(480, com.hydro.link.server.media.GifProbe.parse(got.bytes!!).width)
+        // 画幅 = 实际输出尺寸（等比内缩进盒子、不放大）：71x40，而不是拉伸成 480x40
+        val gif = com.hydro.link.server.media.GifProbe.parse(got.bytes!!)
+        assertEquals(71, gif.width)
+        assertEquals(40, gif.height)
     }
 
     @Test

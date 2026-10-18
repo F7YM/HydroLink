@@ -152,6 +152,25 @@ object SegmentPlan {
         if (remaining <= 0) return 0
         return minOf(spec.segmentMs.toLong(), remaining).toInt()
     }
+
+    /**
+     * 实际输出尺寸：**等比内缩进盒子、且不放大**（CSS 的 contain 语义）。
+     *
+     * 插件传的 width/height 是"播放区盒子"（如 448×160），不是"输出尺寸"：
+     * 直接拉伸到盒子会把 16:9 的画面压扁。源比盒子小就保持原样——放大只会糊
+     * 且白占带宽。取整**截断**（与桌面端 imaging.Fit 同口径），两端必须一致。
+     */
+    fun outputSize(spec: VideoSliceSpec, srcW: Int, srcH: Int): Pair<Int, Int> {
+        if (srcW <= 0 || srcH <= 0) return spec.width to spec.height
+        if (srcW <= spec.width && srcH <= spec.height) return srcW to srcH
+        val scale = minOf(
+            spec.width.toDouble() / srcW.toDouble(),
+            spec.height.toDouble() / srcH.toDouble(),
+        )
+        val w = maxOf(1, (srcW * scale).toInt())
+        val h = maxOf(1, (srcH * scale).toInt())
+        return w to h
+    }
 }
 
 /** 切片作业的错误：带 HTTP 语义，路由层直接映射（400/404/410/500/501）。 */

@@ -518,8 +518,8 @@ class KitRoutes(
             "srcHeight" to job.info.height,
             "segmentMs" to job.spec.segmentMs,
             "fps" to job.spec.fps,
-            "width" to job.spec.width,
-            "height" to job.spec.height,
+            "width" to job.outWidth,
+            "height" to job.outHeight,
             "segmentCount" to job.segmentCount,
             "segments" to segments,
         )

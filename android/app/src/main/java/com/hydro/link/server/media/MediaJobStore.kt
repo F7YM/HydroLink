@@ -47,6 +47,9 @@ class MediaJobStore(
         val info: VideoInfo,
         /** 预计能切几段（时长未知时 = spec.maxSegments）。 */
         val segmentCount: Int,
+        /** 实际输出尺寸：盒子等比内缩、不放大（[SegmentPlan.outputSize]），prepare 响应回的就是它。 */
+        val outWidth: Int,
+        val outHeight: Int,
     )
 
     private class JobState(val job: Job) {
@@ -92,9 +95,11 @@ class MediaJobStore(
 
         val segmentCount = SegmentPlan.segmentCount(spec, info.durationMs)
         if (segmentCount <= 0) throw MediaError.badRequest("起始时间超出视频长度")
+        // 盒子 → 实际输出（等比内缩、不放大）：prepare 响应回的 width/height 就是它
+        val (outW, outH) = SegmentPlan.outputSize(spec, info.width, info.height)
 
         val id = newId()
-        val state = JobState(Job(id, owner, spec, info, segmentCount))
+        val state = JobState(Job(id, owner, spec, info, segmentCount, outW, outH))
         synchronized(lock) {
             expireLocked()
             while (jobs.size >= maxJobs) evictOldestLocked()
@@ -113,7 +118,7 @@ class MediaJobStore(
                 log("hydrokit: media 作业 $id 预热第 $i 段失败: ${e.message}")
             }
         }
-        log("hydrokit: media 作业 $id 就绪（${spec.width}x${spec.height} ${spec.fps}fps ${spec.segmentMs}ms × $segmentCount 段）")
+        log("hydrokit: media 作业 $id 就绪（${state.job.outWidth}x${state.job.outHeight} ${spec.fps}fps ${spec.segmentMs}ms × $segmentCount 段）")
         return state.job
     }
 
@@ -249,8 +254,8 @@ class MediaJobStore(
             batch.rgba,
             batch.srcWidth,
             batch.srcHeight,
-            spec.width,
-            spec.height,
+            state.job.outWidth,
+            state.job.outHeight,
             batch.frameCount,
             spec.fps,
         )
