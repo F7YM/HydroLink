@@ -24,7 +24,53 @@ if [ -d "$APP_SOURCE" ]; then
     rsync -a --delete --exclude="*.so" --exclude="*.so.*" "$APP_SOURCE" "$STAGE/lib/" 2>/dev/null || cp -a "$APP_SOURCE" "$STAGE/lib/"
 fi
 
-echo "== 4. 拷贝许可证与清理不需要的文件 (严格不打包 README) =="
+echo "== 4. 打包 Java 运行时（自包含：目标机器不必装 Java）=="
+RUNTIME="$STAGE/lib/runtime"
+if [ -x "$RUNTIME/bin/javaw.exe" ]; then
+    echo "已有内嵌运行时：$RUNTIME/bin/javaw.exe（跳过下载）"
+else
+    # 应用要求 JVM 21（desktop-compose 的 jvmToolchain(21)）。启动器第一优先级就是
+    # lib/runtime/bin/javaw.exe，没有才会去 JAVA_HOME / PATH 里探测——所以把 JRE 打进去，
+    # 安装包才能在"干净的 Windows"上直接跑起来。
+    # 这里用 Azul Zulu 的 Windows x64 JRE：**不走 GitHub**（Adoptium 的下载会 302 到
+    # github.com，在连不上 GitHub 的网络里直接失败），Zulu 的包挂在 cdn.azul.com。
+    JRE_URL="$(curl -s -m 30 'https://api.azul.com/metadata/v1/zulu/packages/?java_version=21&os=windows&arch=x64&java_package_type=jre&archive_type=zip&javafx_bundled=false&latest=true&release_status=ga&page_size=1' \
+        | python3 -c 'import json,sys
+d = json.load(sys.stdin)
+p = d[0] if isinstance(d, list) else d["packages"][0]
+print(p["download_url"])' 2>/dev/null)"
+    if [ -z "$JRE_URL" ]; then
+        echo "!! 拿不到 JRE 下载地址（api.azul.com 不可达？）"
+        echo "!! 安装包仍会生成，但目标机器需要自装 Java 21"
+    else
+        JRE_ZIP="$(mktemp --suffix=.zip)"
+        echo "下载内嵌运行时: $JRE_URL"
+        curl -s -m 900 -o "$JRE_ZIP" "$JRE_URL"
+        python3 - "$JRE_ZIP" "$RUNTIME" <<'PY'
+import os, shutil, sys, zipfile
+z = zipfile.ZipFile(sys.argv[1])
+names = z.namelist()
+root = names[0].split('/')[0]
+out = sys.argv[2]
+os.makedirs(out, exist_ok=True)
+for n in names:
+    rel = n[len(root) + 1:] if n.startswith(root + '/') else n
+    if not rel:
+        continue
+    dst = os.path.join(out, rel)
+    if n.endswith('/'):
+        os.makedirs(dst, exist_ok=True)
+        continue
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    with z.open(n) as src, open(dst, 'wb') as f:
+        shutil.copyfileobj(src, f)
+PY
+        rm -f "$JRE_ZIP"
+        echo "内嵌运行时就绪: $RUNTIME/bin/javaw.exe"
+    fi
+fi
+
+echo "== 5. 拷贝许可证与清理不需要的文件 (严格不打包 README) =="
 cp "$ROOT/LICENSE" "$STAGE/LICENSE"
 rm -f "$STAGE/README.md" "$STAGE"/*.md
 
