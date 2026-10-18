@@ -5,19 +5,51 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { test } = require('node:test');
 
-function harness() {
-  const state = { auth: null, requests: [], replies: [] };
+function harness(options = {}) {
+  const state = { auth: null, requests: [], replies: [], media: { prepare: [], hints: [], releases: [] }, wasmLoads: 0 };
   const context = vm.createContext({
-    module: { exports: {} }, console, setTimeout, clearTimeout, AbortController,
+    module: { exports: {} }, console, setTimeout, clearTimeout, AbortController, URL,
     kit: {
       storage: { async getItem(key) {
         assert.equal(key, 'bili_auth');
         return state.auth;
       } },
+      // 切片能力已经收归宿主：插件**不允许**再加载插件侧切片 WASM。
+      // 这里故意做成一加载就抛错 + 记数，测试末尾断言它从没被碰过。
       async loadWasm(assetPath) {
-        const wasmBuf = fs.readFileSync(path.join(__dirname, assetPath));
-        const mod = await WebAssembly.instantiate(wasmBuf);
-        return { exports: mod.instance.exports };
+        state.wasmLoads += 1;
+        throw new Error('插件不应再加载 WASM: ' + assetPath);
+      },
+      media: {
+        async prepareVideo(opts) {
+          state.media.prepare.push(opts);
+          if (options.mediaError) return { error: options.mediaError };
+          const segMs = opts.segmentMs || 1200;
+          return {
+            job: 'job42',
+            url: opts.url,
+            durationMs: 60000,
+            srcWidth: 1920,
+            srcHeight: 1080,
+            segmentMs: segMs,
+            fps: opts.fps,
+            width: 284,
+            height: 160,
+            segmentCount: 2,
+            segments: [
+              { index: 0, url: 'http://192.168.1.5:9000/api/hydro/media/job42/0.gif', durationMs: segMs },
+              { index: 1, url: 'http://192.168.1.5:9000/api/hydro/media/job42/1.gif', durationMs: segMs - 50 }
+            ]
+          };
+        },
+        async hint(job, index) {
+          state.media.hints.push({ job, index });
+          return { ok: true, queued: [index, index + 1] };
+        },
+        async release(job) {
+          state.media.releases.push(job);
+          return { ok: true };
+        }
       }
     },
     async fetch(url, options) {
@@ -39,6 +71,17 @@ const video = { goto: 'av', bvid: 'BV1xx411c7m9', title: '测试视频',
   owner: { name: '测试作者' }, pic: '//i0.hdslb.com/bfs/archive/example.jpg',
   duration: 125, stat: { view: 12345 } };
 const auth = { uid: '123', sessdata: 'test-session-only', bili_jct: 'test-csrf-only' };
+
+/** 在视图树里找节点（树的形状：root.children[] 递归）。 */
+function findNodes(root, predicate) {
+  const matched = [];
+  if (!root) return matched;
+  if (predicate(root)) matched.push(root);
+  for (const child of root.children || []) {
+    matched.push(...findNodes(child, predicate));
+  }
+  return matched;
+}
 
 test('MD5 matches independent implementation, including UTF-8 and block boundaries', () => {
   const { context } = harness();
@@ -150,25 +193,15 @@ test('expired login and verification responses produce actionable errors', async
   }
 });
 
-test('packaged slice.wasm can be loaded and slices RGBA frames to GIF', async () => {
-  const { context } = harness();
-  assert.ok(typeof context.getSlicer === 'function', 'getSlicer must be defined in server.js');
-  const slicer = await context.getSlicer();
-  assert.ok(slicer, 'slice.wasm must load successfully through kit.loadWasm');
-  assert.ok(typeof slicer.slice_video_frames_to_gif === 'function', 'WASM module must export slice_video_frames_to_gif');
-
-  // 测试单帧快速压制
-  const w = 40, h = 40;
-  const frameBytes = new Uint8Array(w * h * 4);
-  frameBytes.fill(128);
-  const gif = await context.sliceFramesToGif(frameBytes, {
-    srcWidth: w, srcHeight: h,
-    dstWidth: 20, dstHeight: 20,
-    frameCount: 1, fps: 10
-  });
-
-  assert.ok(gif && gif.length > 50, 'GIF 压缩数据必须存在且大于 50B');
-  assert.equal(Buffer.from(gif.slice(0, 6)).toString('ascii'), 'GIF89a', '切片结果必须是合法的 GIF89a');
+test('plugin no longer ships a slicing WASM: slicing is a host capability', () => {
+  // 需求：插件端禁止自带切片实现，切片必须内嵌在 HydroLink（宿主真解码真编码）。
+  // 这条是静态回归钉：谁再往插件里塞切片 WASM/自实现，它立刻红。
+  assert.ok(!fs.existsSync(path.join(__dirname, 'assets/slice.wasm')),
+    '插件包里不应再有 slice.wasm（切片已收归宿主）');
+  const source = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');
+  assert.ok(!source.includes('sliceFramesToGif'), '插件不许再有自实现的切片函数');
+  assert.ok(!source.includes('loadWasm('), '插件不许再加载切片 WASM');
+  assert.ok(source.includes('kit.media.prepareVideo'), '插件必须走宿主的切片能力');
 });
 
 test('video detail view displays stats, desc, and provides play video event', async () => {
@@ -202,7 +235,7 @@ test('video detail view displays stats, desc, and provides play video event', as
   assert.match(serialized, /高能UP主/);
   assert.match(serialized, /8.9万/);
   assert.match(serialized, /这是一个详尽的测试简介/);
-  assert.match(serialized, /play_video:BVtestDetail:998877/);
+  assert.match(serialized, /(?:buffer_video|play_video):BVtestDetail:998877/);
   assert.match(serialized, /back_to_feed/);
   assert.equal(state.requests.length, 1);
   const detailReqUrl = new URL(state.requests[0].url);
@@ -210,7 +243,7 @@ test('video detail view displays stats, desc, and provides play video event', as
   assert.equal(detailReqUrl.searchParams.get('bvid'), 'BVtestDetail');
 });
 
-test('play_video fetches WBI-signed playurl and returns native video component', async () => {
+test('play_video asks the host to slice the real stream and hands the watch URL segments', async () => {
   const { state, plugin } = harness();
   state.auth = auth;
   // 1. view 详情响应
@@ -252,21 +285,34 @@ test('play_video fetches WBI-signed playurl and returns native video component',
   });
 
   assert.equal(playView.title, '视频详情');
-  function findNodes(root, predicate) {
-    const matched = [];
-    if (predicate(root)) matched.push(root);
-    for (const child of root.children || []) {
-      matched.push(...findNodes(child, predicate));
-    }
-    return matched;
+  const gifNodes = findNodes(playView.root, n => n.type === 'gif-player');
+  assert.equal(gifNodes.length, 1, '必须包含一个 gif-player 双缓冲播放器组件（避免 Vela 无视频解码黑屏）');
+  const g = gifNodes[0];
+  assert.ok(Array.isArray(g.props.segments) && g.props.segments.length > 0, 'gif-player 必须包含 segments 分段数组');
+  assert.equal(g.props.autoPlay, true);
+  assert.equal(g.props.loop, true);
+
+  // 分段必须是**宿主下发的 URL**：字节不进回包（手表互联通道单条 16KB，之前正是
+  // 把 base64 塞进响应体，手表侧看到「点击缓冲播放，显示服务器无响应」）
+  for (const seg of g.props.segments) {
+    assert.match(seg.src, /^http:\/\/192\.168\.1\.5:9000\/api\/hydro\/media\/job42\/\d+\.gif$/);
+    assert.ok(!seg.src.startsWith('data:'), '分段不许再塞 base64');
+    assert.ok(seg.duration > 0, '每段必须带真实时长');
   }
 
-  const videoNodes = findNodes(playView.root, n => n.type === 'video');
-  assert.equal(videoNodes.length, 1, '必须包含一个 video 原生组件');
-  const v = videoNodes[0];
-  assert.equal(v.props.src, 'https://upos-sz-mirrorcos.bilivideo.com/upgcxcode/test_360p.mp4');
-  assert.equal(v.props.autoplay, true);
-  assert.equal(v.props.controls, true);
+  // 宿主拿到的参数：真视频地址（http 直连镜像）+ 防盗链头 + 播放区盒子
+  assert.equal(state.media.prepare.length, 1);
+  const prep = state.media.prepare[0];
+  assert.equal(prep.url, 'http://upos-sz-mirrorcos.bilivideo.com/upgcxcode/test_360p.mp4');
+  assert.equal(prep.headers.Referer, 'https://www.bilibili.com/');
+  assert.match(prep.headers['User-Agent'], /Mozilla/);
+  assert.equal(prep.width, 448);
+  assert.equal(prep.height, 160);
+  assert.ok(prep.segmentMs > 0 && prep.fps > 0 && prep.maxSegments > 0);
+
+  // 回树后立刻后台预热后续段（不阻塞），并且全程没碰过插件侧 WASM
+  assert.deepEqual(state.media.hints, [{ job: 'job42', index: 2 }]);
+  assert.equal(state.wasmLoads, 0);
 
   // 验证调用了正确的 playurl 接口且带了 WBI 签名
   assert.equal(state.requests.length, 3);
@@ -277,6 +323,43 @@ test('play_video fetches WBI-signed playurl and returns native video component',
   assert.equal(playReqUrl.searchParams.get('qn'), '16');
   assert.equal(playReqUrl.searchParams.get('fnval'), '0');
   assert.match(playReqUrl.searchParams.get('w_rid'), /^[a-f0-9]{32}$/);
+});
+
+test('host slicing failure falls back to the static cover and says why (never fake frames)', async () => {
+  // 宿主不支持（桌面端）或取流失败时：如实报错 + 回退静态封面。
+  // 绝不能像旧实现那样自己合成渐变帧冒充视频切片。
+  const { state, plugin } = harness({ mediaError: '当前宿主不支持视频解码' });
+  state.auth = auth;
+  const detail = {
+    code: 0,
+    data: {
+      bvid: 'BVtestFail',
+      cid: 998877,
+      title: '切片失败视频',
+      desc: '简介',
+      pic: 'https://i0.hdslb.com/detail_cover.jpg',
+      owner: { name: 'UP主' },
+      stat: { view: 1 },
+      duration: 30
+    }
+  };
+  state.replies.push(detail, nav, {
+    code: 0,
+    data: { quality: 16, format: 'mp4', durl: [{ order: 1, url: 'https://upos-sz-mirrorcos.bilivideo.com/x.mp4' }] }
+  });
+  state.replies.push(detail); // 回退分支会重新取一次详情
+
+  const view = await plugin.view('app', 'main', {
+    trigger: 'event',
+    event: { handler: 'buffer_video:BVtestFail:998877', source: 'tap' }
+  });
+  const serialized = JSON.stringify(view);
+  assert.equal(findNodes(view.root, n => n.type === 'gif-player').length, 0,
+    '切片失败时不许放播放器（更不能拿渐变假帧冒充）');
+  assert.match(serialized, /切片缓冲失败/);
+  assert.match(serialized, /当前宿主不支持视频解码/);
+  assert.match(serialized, /detail_cover/, '应当回退静态封面');
+  assert.equal(state.wasmLoads, 0);
 });
 
 test('back_to_feed event returns feed without forcing fresh network request', async () => {

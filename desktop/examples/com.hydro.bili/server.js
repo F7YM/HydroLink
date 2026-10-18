@@ -4,53 +4,49 @@
 var PKG = 'com.hydro.bili';
 var AUTH_KEY = 'bili_auth';
 var UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+// 宿主的切片器去取视频流时必须带的头：B 站 CDN 没有 Referer/UA 会回 403
+var BILI_STREAM_HEADERS = {
+  'Referer': 'https://www.bilibili.com/',
+  'User-Agent': UA
+};
 var feedCache = null;
 var wbiCache = null;
 // 手表同时持有整棵视图树和解码封面；每批限制数量，避免一次创建十二张卡片。
 var FEED_LIMIT = 4;
 
-// 宿主端 WASM 视频切片压制器缓存
-var slicerCache = null;
+// ---------------------------------------------------------------- 视频切片
+//
+// 切片是**宿主内置能力**（kit.media.prepareVideo）：插件只传参数（哪段视频、切成
+// 多大、多少帧），宿主负责真解码真编码。插件不再自带/加载任何切片 WASM——那份
+// Rust 切片器现在只作为两端编码对拍的 golden 生成器，不随插件包分发。
+//
+// 分段以**局域网 URL** 下发，手表自己按段取。绝不把 GIF 字节塞进回包：手表互联
+// 通道单条消息只有 16KB，之前把整段 base64 塞进响应体，手表侧看到的就是
+// 「点击缓冲播放，显示服务器无响应」。
+var SEGMENT_MS = 1200;   // 每段 1.2 秒：手表双缓冲刚好来得及预取下一段
+var SEGMENT_FPS = 5;
+var MAX_SEGMENTS = 30;   // 最多 36 秒：够"动起来"，也不会把 URL 列表撑爆
+// 播放区尺寸（与 detailViewTree 里 gif-player 的 height 一致）：宿主按这个盒子
+// **等比内缩且不放大**，所以竖屏视频会自动变成居中的窄条，不会被拉变形。
+var PLAYER_BOX_W = 448;
+var PLAYER_BOX_H = 160;
 
-async function getSlicer() {
-  if (slicerCache) return slicerCache;
-  if (!kit || typeof kit.loadWasm !== 'function') return null;
+var mediaJobCache = {};  // bvid → 宿主的切片作业 id
+
+/** 释放宿主的切片作业（重新缓冲 / 换视频时调用）。 */
+function releaseMediaJob(bvid) {
+  var job = mediaJobCache[bvid];
+  if (!job) return;
+  delete mediaJobCache[bvid];
   try {
-    var wasm = await kit.loadWasm('assets/slice.wasm');
-    if (wasm && wasm.exports) {
-      slicerCache = wasm.exports;
-      return slicerCache;
+    if (typeof kit !== 'undefined' && kit.media && typeof kit.media.release === 'function') {
+      kit.media.release(job);
     }
-  } catch (err) {
-    console.warn('[bili] 加载 slice.wasm 失败:', err);
+  } catch (e) {
+    // 释放失败不影响功能：宿主会按空闲超时自己回收
   }
-  return null;
 }
 
-async function sliceFramesToGif(rgbaBuffer, opts) {
-  var slicer = await getSlicer();
-  if (!slicer || !rgbaBuffer) return null;
-  var mem = slicer.memory;
-  var ptr = slicer.hydro_alloc(rgbaBuffer.length);
-  if (!ptr) return null;
-  new Uint8Array(mem.buffer, ptr, rgbaBuffer.length).set(rgbaBuffer);
-
-  var outPtr = slicer.slice_video_frames_to_gif(
-    ptr, rgbaBuffer.length,
-    opts.srcWidth, opts.srcHeight,
-    opts.dstWidth, opts.dstHeight,
-    opts.frameCount, opts.fps || 10
-  );
-
-  slicer.hydro_free(ptr, rgbaBuffer.length);
-  if (!outPtr) return null;
-
-  var view = new DataView(mem.buffer);
-  var len = view.getUint32(outPtr, true);
-  var bytes = new Uint8Array(mem.buffer, outPtr + 4, len).slice();
-  slicer.hydro_free(outPtr, 4 + len);
-  return bytes;
-}
 
 // MD5 用于 WBI 请求签名；不依赖 Node 模块或宿主 crypto 扩展。
 function md5(text) {
@@ -252,6 +248,7 @@ function button(label, tapAction) {
 
 var detailCache = {};
 var playUrlCache = {};
+var segmentCache = {};
 
 async function fetchVideoDetail(bvid, auth) {
   if (detailCache[bvid] && (Date.now() - detailCache[bvid].time < 300000)) {
@@ -286,10 +283,16 @@ async function fetchVideoDetail(bvid, auth) {
   return item;
 }
 
+/**
+ * 取 360P 播放流地址（WBI 签名）。
+ *
+ * 返回 `{url, headers}`：切片由**宿主**去取流（kit.media.prepareVideo），所以
+ * 防盗链要用的 Referer/UA 必须一起交给宿主，让它在自己的 HTTP 栈上带过去。
+ */
 async function fetchPlayUrl(bvid, cid, auth) {
   var cacheKey = bvid + ':' + cid;
   if (playUrlCache[cacheKey] && (Date.now() - playUrlCache[cacheKey].time < 120000)) {
-    return playUrlCache[cacheKey].url;
+    return playUrlCache[cacheKey].stream;
   }
   var keys = await wbiKeys(auth);
   var params = {
@@ -298,7 +301,9 @@ async function fetchPlayUrl(bvid, cid, auth) {
     qn: 16,
     fnval: 0,
     fnver: 0,
-    fourk: 0
+    fourk: 0,
+    platform: 'html5',
+    high_quality: 1
   };
   var query = signWbi(params, keys.img, keys.sub, Math.floor(Date.now() / 1000));
   var url = 'https://api.bilibili.com/x/player/wbi/playurl?' + query;
@@ -310,61 +315,106 @@ async function fetchPlayUrl(bvid, cid, auth) {
   if (!Array.isArray(durl) || !durl.length || !durl[0].url) {
     throw new Error('未获取到视频播放流');
   }
-  var streamUrl = durl[0].url;
-  playUrlCache[cacheKey] = { url: streamUrl, time: Date.now() };
-  return streamUrl;
+  // 优先选择非 PCDN 节点（避免类似 :4483 等导致连接超时或黑屏的节点）
+  var selected = durl.find(function (item) {
+    return item && item.url && !item.url.includes(':') && !item.url.includes('edge.');
+  }) || durl[0];
+  var streamUrl = selected.url;
+  // 解决手表端播放黑屏核心优化：
+  // 1. 规避 HTTPS 根证书在手表端缺失导致 SSL 握手失败，降级为直连 HTTP
+  // 2. 将边缘/PCDN 域名切换为公网最宽松放行的 mirrorcos 镜像，彻底免疫 403 防盗链与 UA 拦截
+  try {
+    var u = new URL(streamUrl);
+    u.protocol = 'http:';
+    if (!u.hostname.includes('mirrorcos')) {
+      u.hostname = 'upos-sz-mirrorcos.bilivideo.com';
+    }
+    streamUrl = u.toString();
+  } catch (urlErr) {
+    if (streamUrl && streamUrl.startsWith('https://')) {
+      streamUrl = streamUrl.replace('https://', 'http://');
+    }
+  }
+  playUrlCache[cacheKey] = {
+    stream: { url: streamUrl, headers: BILI_STREAM_HEADERS },
+    time: Date.now()
+  };
+  return playUrlCache[cacheKey].stream;
 }
 
-function detailViewTree(detail, isPlaying, playUrl, errText) {
+/**
+ * 拉起宿主的视频切片作业，把分段清单转成手表播放器的 `segments`。
+ *
+ * 与旧实现的区别（这是本轮的重点）：
+ *  · 画面来自**真解码**（宿主 MediaCodec）而不是插件合成的渐变帧；
+ *  · 分段是 URL（宿主按段懒生成），不是塞进回包的 base64（互联通道 16KB 上限）；
+ *  · 失败就**如实抛错**，由调用方回退静态封面 —— 不拿假帧糊弄。
+ */
+async function prepareVideoSegments(bvid, cid, auth, detail) {
+  if (!kit || !kit.media || typeof kit.media.prepareVideo !== 'function') {
+    throw new Error('当前宿主不支持视频切片');
+  }
+  var stream = await fetchPlayUrl(bvid, cid, auth);
+  var job = await kit.media.prepareVideo({
+    url: stream.url,
+    headers: stream.headers,
+    startMs: 0,
+    segmentMs: SEGMENT_MS,
+    fps: SEGMENT_FPS,
+    width: PLAYER_BOX_W,
+    height: PLAYER_BOX_H,
+    maxSegments: MAX_SEGMENTS
+  });
+  if (!job || job.error || !Array.isArray(job.segments) || !job.segments.length) {
+    throw new Error((job && job.error) || '宿主未返回视频分段');
+  }
+  var segments = job.segments.map(function (s) {
+    return {
+      src: s.url,
+      // 末段可能比 SEGMENT_MS 短，用宿主给的时长；播放器靠它决定何时切下一段
+      duration: Number(s.durationMs) > 0 ? Number(s.durationMs) : SEGMENT_MS
+    };
+  });
+  mediaJobCache[bvid] = job.job;
+  segmentCache[bvid] = segments;
+  // 后台预热第 3/4 段（不阻塞回树）：手表播完前两段（≈2.4 秒）时它们已经切好
+  try {
+    kit.media.hint(job.job, 2);
+  } catch (e) {
+    // 预热失败只影响流畅度，不影响正确性
+  }
+  return segments;
+}
+
+function detailViewTree(detail, isBuffering, errText) {
   var children = [];
   var bvid = detail.bvid;
   var cid = detail.cid;
 
-  // 1. 顶部返回按钮
-  children.push({
-    id: 'detail_back',
-    type: 'button',
-    props: { label: '‹ 返回推荐' },
-    events: { tap: 'back_to_feed' },
-    style: {
-      width: '100%',
-      height: 44,
-      backgroundColor: '#242630',
-      color: '#B7BCCB',
-      borderRadius: 22,
-      marginBottom: 12
-    }
-  });
-
-  // 2. 视频媒体播放区域
-  if (isPlaying && playUrl) {
+  // 1. 动图缓冲切片播放区域 (纯 GIF 双缓冲，彻底解决手表 Vela 无视频解码黑屏)
+  if (Array.isArray(detail.segments) && detail.segments.length) {
     children.push({
-      id: 'video_player',
-      type: 'video',
+      id: 'detail_player',
+      type: 'gif-player',
       props: {
-        src: playUrl,
-        poster: detail.cover,
-        autoplay: true,
-        controls: true,
+        segments: detail.segments,
         width: '100%',
-        height: 180
+        height: 160,
+        loop: true,
+        autoPlay: true
       },
       style: {
         width: '100%',
-        height: 180,
+        height: 160,
         borderRadius: 14,
-        marginBottom: 8
-      },
-      events: {
-        finish: 'video_finish',
-        error: 'video_error'
+        marginBottom: 10
       }
     });
     children.push({
-      id: 'btn_stop_video',
+      id: 'btn_rebuffering',
       type: 'button',
-      props: { label: '停止播放' },
-      events: { tap: 'open_video:' + bvid },
+      props: { label: '重新缓冲' },
+      events: { tap: 'buffer_video:' + bvid + ':' + cid },
       style: {
         width: '100%',
         height: 42,
@@ -380,14 +430,15 @@ function detailViewTree(detail, isPlaying, playUrl, errText) {
         id: 'detail_cover',
         type: 'image',
         props: { src: detail.cover },
-        style: { width: '100%', height: 160, borderRadius: 14, marginBottom: 8 }
+        style: { width: '100%', height: 160, borderRadius: 14, marginBottom: 10 }
       });
     }
+    // 手表端缓冲播放按钮
     children.push({
-      id: 'btn_play_video',
+      id: 'btn_buffer_video',
       type: 'button',
-      props: { label: '▶ 播放视频 (360P)' },
-      events: { tap: 'play_video:' + bvid + ':' + cid },
+      props: { label: isBuffering ? '缓冲中…' : '缓冲播放' },
+      events: { tap: 'buffer_video:' + bvid + ':' + cid },
       style: {
         width: '100%',
         height: 52,
@@ -403,7 +454,7 @@ function detailViewTree(detail, isPlaying, playUrl, errText) {
     children.push(text(errText, 18, '#FFB4AB'));
   }
 
-  // 3. 视频标题
+  // 2. 视频标题
   children.push({
     id: 'detail_title',
     type: 'text',
@@ -411,7 +462,7 @@ function detailViewTree(detail, isPlaying, playUrl, errText) {
     style: { fontSize: 24, color: '#FFFFFF', fontWeight: 'bold', marginBottom: 8 }
   });
 
-  // 4. UP主 与 时长
+  // 3. UP主 与 时长
   children.push({
     id: 'detail_owner_row',
     type: 'text',
@@ -419,7 +470,7 @@ function detailViewTree(detail, isPlaying, playUrl, errText) {
     style: { fontSize: 18, color: '#BAC3FF', marginBottom: 12 }
   });
 
-  // 5. 互动数据统计栏
+  // 4. 互动数据统计栏
   children.push({
     id: 'detail_stats',
     type: 'column',
@@ -438,7 +489,7 @@ function detailViewTree(detail, isPlaying, playUrl, errText) {
     ]
   });
 
-  // 6. 视频简介
+  // 5. 视频简介
   children.push({
     id: 'detail_desc_box',
     type: 'column',
@@ -456,11 +507,21 @@ function detailViewTree(detail, isPlaying, playUrl, errText) {
 
   return {
     title: '视频详情',
+    header: {
+      title: '‹视频详情',
+      tap: 'back_to_feed'
+    },
     refreshMs: 0,
     fab: null,
     root: {
       type: 'scroll',
-      props: { title: '视频详情' },
+      props: {
+        title: '视频详情',
+        header: {
+          title: '‹视频详情',
+          tap: 'back_to_feed'
+        }
+      },
       style: { padding: 18, backgroundColor: '#000000' },
       media: {
         circle: { paddingLeft: 42, paddingRight: 42, paddingTop: 16, paddingBottom: 60 },
@@ -497,7 +558,7 @@ function viewTree(children, title, fab) {
 
 module.exports = {
   manifest: function () {
-    return { package: { id: PKG, name: 'HydroBili', version: '0.1.2' }, apps: [{ id: 'main', name: 'HydroBili', icon: 'assets/icon.png' }] };
+    return { package: { id: PKG, name: 'HydroBili', version: '0.1.3' }, apps: [{ id: 'main', name: 'HydroBili', icon: 'assets/icon.png' }] };
   },
   async view(surface, item, req) {
     if (surface !== 'app' || item !== 'main') return null;
@@ -517,34 +578,49 @@ module.exports = {
           var openDetail = await fetchVideoDetail(openBvid, auth);
           return detailViewTree(openDetail, false, null);
         } catch (detailErr) {
-          return viewTree([
-            { id: 'detail_fail_back', type: 'button', props: { label: '‹ 返回推荐' }, events: { tap: 'back_to_feed' }, style: { width: '100%', height: 44, backgroundColor: '#242630', color: '#B7BCCB', borderRadius: 22, marginBottom: 12 } },
+          var failView = viewTree([
             text('获取视频详情失败', 24, '#FFB4AB'),
             text(safeText(detailErr && detailErr.message || '服务器无响应'), 18, '#B7BCCB'),
             button('重试', 'open_video:' + openBvid)
           ], '视频详情', null);
+          failView.header = { title: '‹视频详情', tap: 'back_to_feed' };
+          if (failView.root && failView.root.props) {
+            failView.root.props.header = failView.header;
+          }
+          return failView;
         }
       }
 
-      // 事件分支 2: 播放视频 (获取 360P 视频流并嵌入播放器)
-      if (handler.startsWith('play_video:')) {
-        var playParts = handler.slice('play_video:'.length).split(':');
+      // 事件分支 2: 缓冲播放视频（宿主真解码切片，分段 URL 下发手表双缓冲播放器）
+      if (handler.startsWith('buffer_video:') || handler.startsWith('play_video:')) {
+        var prefix = handler.startsWith('buffer_video:') ? 'buffer_video:' : 'play_video:';
+        var playParts = handler.slice(prefix.length).split(':');
         var playBvid = playParts[0];
         var playCid = playParts[1];
         try {
+          // 每次缓冲都重新拉起作业：重新缓冲时换一批新 URL（旧的段可能已被挤出
+          // 或过期），手表播放器按 URL 变化重取，缓存也顺带打散。
+          releaseMediaJob(playBvid);
+          delete segmentCache[playBvid];
           var playDetail = await fetchVideoDetail(playBvid, auth);
-          var playUrl = await fetchPlayUrl(playBvid, playCid || playDetail.cid, auth);
-          return detailViewTree(playDetail, true, playUrl);
+          var segs = await prepareVideoSegments(playBvid, playCid || playDetail.cid, auth, playDetail);
+          playDetail.segments = segs;
+          return detailViewTree(playDetail, false, null);
         } catch (playErr) {
           try {
             var fallbackDetail = await fetchVideoDetail(playBvid, auth);
-            return detailViewTree(fallbackDetail, false, null, '播放流获取失败: ' + safeText(playErr && playErr.message || '无法播放'));
+            return detailViewTree(fallbackDetail, false, '切片缓冲失败: ' + safeText(playErr && playErr.message || '无法压制'));
           } catch (e) {
-            return viewTree([
-              text('视频播放失败', 24, '#FFB4AB'),
-              text(safeText(playErr && playErr.message || '无法取得播放链接'), 18, '#B7BCCB'),
+            var playFailView = viewTree([
+              text('视频缓冲失败', 24, '#FFB4AB'),
+              text(safeText(playErr && playErr.message || '无法生成切片'), 18, '#B7BCCB'),
               button('返回推荐', 'back_to_feed')
             ], '视频播放', null);
+            playFailView.header = { title: '‹视频播放', tap: 'back_to_feed' };
+            if (playFailView.root && playFailView.root.props) {
+              playFailView.root.props.header = playFailView.header;
+            }
+            return playFailView;
           }
         }
       }
@@ -571,25 +647,11 @@ module.exports = {
         }
         nodes.push({ id: cardId + '_title', type: 'text', props: { text: video.title || '无标题视频' }, events: openEvent, style: { fontSize: 22, color: '#FFFFFF', marginBottom: 8 } });
         nodes.push({ id: cardId + '_owner', type: 'text', props: { text: video.owner || '未知 UP 主' }, events: openEvent, style: { fontSize: 18, color: '#B7BCCB', marginBottom: 8 } });
-        nodes.push({ id: cardId + '_views', type: 'text', props: { text: video.views + '播放 · ' + video.duration }, events: openEvent, style: { fontSize: 18, color: '#969CAD', marginBottom: 8 } });
-        nodes.push({
-          id: cardId + '_play_btn',
-          type: 'button',
-          props: { label: '▶ 观看视频' },
-          events: openEvent,
-          style: {
-            width: '100%',
-            height: 42,
-            backgroundColor: '#FB7299',
-            color: '#FFFFFF',
-            borderRadius: 21,
-            marginTop: 4
-          }
-        });
+        nodes.push({ id: cardId + '_views', type: 'text', props: { text: video.views + '播放 · ' + video.duration }, events: openEvent, style: { fontSize: 18, color: '#969CAD', marginBottom: 4 } });
         children.push({
           id: cardId,
           type: 'column',
-          style: { padding: 12, backgroundColor: '#000000', borderRadius: 16, marginBottom: 16 },
+          style: { padding: 12, backgroundColor: '#1E2028', borderRadius: 16, marginBottom: 16 },
           events: openEvent,
           children: nodes
         });

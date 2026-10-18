@@ -2,7 +2,7 @@
   "id": "com.hydro.bili",
   "name": "HydroBili",
   "author": "HydroLink",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "entry": "server.js",
   "apps": [
     {
@@ -13,6 +13,7 @@
   ],
   "permissions": [
     "storage",
-    "fetch"
+    "fetch",
+    "media"
   ]
 }

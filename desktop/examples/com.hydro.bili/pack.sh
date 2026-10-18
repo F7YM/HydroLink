@@ -10,7 +10,7 @@ import zipfile
 
 root = Path('.')
 manifest = json.loads((root / 'manifest.json').read_text())
-required = ['manifest.json', 'server.js', 'assets/icon.png', 'assets/slice.wasm', 'web/index.html', 'web/login.js', 'web/qrcode.min.js']
+required = ['manifest.json', 'server.js', 'assets/icon.png', 'web/index.html', 'web/login.js', 'web/qrcode.min.js']
 for name in required:
     if not (root / name).is_file():
         raise SystemExit('缺少打包文件: ' + name)
