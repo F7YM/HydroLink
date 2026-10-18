@@ -5,7 +5,13 @@
     <!-- 固定头部：与 HydroLink 风格统一 (时间和标题) -->
     <div class="header" if="{{ headerTitle && !loading && !errorText }}">
       <text class="time-display">{{ currentTime }}</text>
-      <text class="title">{{ headerTitle }}</text>
+      <text
+        class="title {{ (headerTap || isSubPage || (headerTitle && (headerTitle.startsWith('‹') || headerTitle.startsWith('<')))) ? 'pressable' : '' }} {{ pressedKey === 'back' ? 'is-down press-down' : '' }} {{ releasedKey === 'back' ? 'press-up' : '' }}"
+        ontouchstart="pressDown('back')"
+        ontouchend="pressRelease('back')"
+        ontouchcancel="pressCancel('back')"
+        onclick="onHeaderTitleClick"
+      >{{ headerTitle }}</text>
     </div>
 
     <!-- 加载 / 错误（垂直居中） -->
@@ -150,6 +156,36 @@
   font-weight: bold;
   color: #fff;
   text-align: center;
+}
+.pressable {
+  transform-origin: 50% 50%;
+  transform: scale(1);
+  opacity: 1;
+}
+.is-down {
+  opacity: 0.75;
+}
+.press-down {
+  animation-name: PressDown;
+  animation-duration: 80ms;
+  animation-timing-function: ease-out;
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+.press-up {
+  animation-name: PressUp;
+  animation-duration: 140ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+@keyframes PressDown {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.94); opacity: 0.75; }
+}
+@keyframes PressUp {
+  0% { transform: scale(0.94); opacity: 0.75; }
+  100% { transform: scale(1); opacity: 1; }
 }
 .tree-area {
   position: absolute;
@@ -335,6 +371,9 @@ export default {
     loading: true,
     errorText: '',
     headerTitle: '',
+    headerTap: '',
+    pressedKey: '',
+    releasedKey: '',
     currentTime: '00:00',
     _timeTimer: null,
     fabButton: null,
@@ -555,10 +594,27 @@ export default {
     if (this._destroyed) return;
     try {
       const root = view ? view.root : null;
-      const title = (view && (view.title || (view.header && view.header.title))) ||
-        (root && root.props && (root.props.title || (root.props.header && root.props.header.title))) ||
-        (root && (root.title || (root.header && root.header.title))) || '';
-      this.headerTitle = typeof title === 'string' ? title : '';
+      // 优先解析 Header 明确声明的标题，其次解析 view.title 或 root 上的标题
+      let rawTitle = (view && ((view.header && view.header.title) || view.title)) ||
+        (root && root.props && ((root.props.header && root.props.header.title) || root.props.title)) ||
+        (root && ((root.header && root.header.title) || root.title)) || '';
+      if (typeof rawTitle !== 'string') rawTitle = '';
+
+      // 解析顶栏返回交互 tap 事件
+      const hTap = (view && (view.headerTap || (view.header && view.header.tap))) ||
+        (root && root.props && (root.props.headerTap || (root.props.header && root.props.header.tap))) ||
+        (root && (root.headerTap || (root.header && root.header.tap))) || '';
+      this.headerTap = typeof hTap === 'string' ? hTap : '';
+
+      // 判定是否可返回：声明了 headerTap、属于子页面(isSubPage)、或标题自身包含返回意图
+      const canBack = !!(this.headerTap || this.isSubPage);
+      if (canBack && rawTitle) {
+        // 彻底对齐 HydroLink 本体（如 ‹设置、‹关于、‹视频详情，紧贴无多余空格）
+        let cleanTitle = rawTitle.replace(/^[‹<]\s*/, '');
+        this.headerTitle = '‹' + cleanTitle;
+      } else {
+        this.headerTitle = rawTitle;
+      }
       this._updateViewport();
 
       const ctx = this._screenCtx();
@@ -606,6 +662,13 @@ export default {
 
       // 增量 In-place patch 发布
       this.flatNodes = this._publisher.update(compiled.flatNodes, this.flatNodes);
+
+      // 判定是否属于新页面跳转（标题变化、子页面进入或退出），触发自动回顶
+      const isPageChange = (this._lastHeaderTitle !== undefined && this._lastHeaderTitle !== this.headerTitle);
+      this._lastHeaderTitle = this.headerTitle;
+      if (isPageChange) {
+        this.scrollToTop();
+      }
 
       this._applyWatchStore(view);
       this._lastView = view;
@@ -656,6 +719,19 @@ export default {
     console.info('[hydro] native scroll fired');
   },
 
+  scrollToTop() {
+    setTimeout(() => {
+      try {
+        const el = this.$element('hydroScroll');
+        if (el && typeof el.scrollTo === 'function') {
+          el.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        }
+      } catch (e) {
+        console.warn('[hydro] scrollToTop error', e);
+      }
+    }, 20);
+  },
+
   rootTap(evt) {
     if (!this._rootTap) return;
     if (evt && typeof evt.stopPropagation === 'function') evt.stopPropagation();
@@ -665,6 +741,17 @@ export default {
   onNodeTap(node, evt) {
     if (evt && typeof evt.stopPropagation === 'function') evt.stopPropagation();
     console.info('[hydro] flat node tap handler=' + (node && node.tap || '(none)'));
+    if (node && node.kind === 'video') {
+      try {
+        const el = this.$element(node.id);
+        if (el) {
+          if (typeof el.start === 'function') el.start();
+          else if (typeof el.play === 'function') el.play();
+        }
+      } catch (videoTapErr) {
+        console.warn('[hydro] video tap start error:', videoTapErr);
+      }
+    }
     if (!node || !node.tap) return;
     // 优先尝试客户端沙盒本地拦截（0ms 响应，免蓝牙/网络往返）
     if (this._sandbox && this._sandbox.invoke(node.tap, node)) {
@@ -764,6 +851,8 @@ export default {
   onVideoError(node, evt) {
     const detail = this._unwrap(evt);
     console.warn('[hydro] video play error: ' + (node && node.src), detail);
+    this.eventStatus = '视频播放失败';
+    setTimeout(() => { if (!this._destroyed) this.eventStatus = ''; }, 3000);
     if (!node || !node.events || !node.events.error) return;
     if (this._sandbox && this._sandbox.invoke(node.events.error, detail)) return;
     this._send({ handler: node.events.error, source: 'videoError', detail });
@@ -785,7 +874,6 @@ export default {
     if (this._busy || this._destroyed) return;
     this._busy = true;
     this._eventGeneration = (this._eventGeneration || 0) + 1;
-    this.eventStatus = '正在更新…';
     this._clearTimer();
     try {
       const view = await deviceService.hydro(this.host, this.port, this.path('event'), 'POST', { event: ev }, this._storeHeader());
@@ -809,6 +897,33 @@ export default {
       this._busy = false;
       this._startTimer();
     }
+  },
+
+  onHeaderTitleClick() {
+    if (this.headerTap) {
+      if (this._sandbox && this._sandbox.invoke(this.headerTap, { source: 'header' })) return;
+      this._send({ handler: this.headerTap, source: 'header' });
+    } else if (this.isSubPage || (this.headerTitle && (this.headerTitle.startsWith('‹') || this.headerTitle.startsWith('<')))) {
+      this.goBack();
+    }
+  },
+
+  pressDown(key) {
+    this.releasedKey = '';
+    this.pressedKey = key;
+  },
+
+  pressRelease(key) {
+    this.pressedKey = '';
+    this.releasedKey = key;
+    setTimeout(() => {
+      if (this.releasedKey === key) this.releasedKey = '';
+    }, 160);
+  },
+
+  pressCancel(key) {
+    if (this.pressedKey === key) this.pressedKey = '';
+    if (this.releasedKey === key) this.releasedKey = '';
   },
 
   goBack() {

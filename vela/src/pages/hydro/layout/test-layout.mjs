@@ -246,5 +246,72 @@ console.log('--- 测试 5: normalizeUrl 与 toCssStyle 图片与背景 URL 归�
     assert.equal(imgNode.tap, 'open_video:BV12345', '图片必须继承父容器 tap');
     assert.equal(ownerNode.tap, 'open_video:BV12345', 'UP主文字必须继承父容器 tap');
     console.log('✓ 容器 tap 事件向下继承打平验证通过');
+
+    console.log('--- 测试 8: 列容器 alignItems 交叉轴对齐（桌搭经典版式封面居中回归）---');
+    {
+      // 真机现象：桌搭经典版式（不开歌词集成）在根 scroll 上写 alignItems:'center'
+      // 让 200px 封面居中——引擎此前只在 row 里实现 alignItems，列容器一律左对齐，
+      // 于是封面被钉在内容盒左缘（设计空间 x=16），比设计稿的 46 还左。
+      const classicTree = {
+        type: 'scroll',
+        style: { padding: 16, alignItems: 'center', backgroundColor: '#0b0d12' },
+        children: [
+          { id: 'clk', type: 'text', props: { text: '12:30' }, style: { fontSize: 36, textAlign: 'center', width: '100%' } },
+          { id: 'cover', type: 'image', props: { src: 'http://192.168.1.100:9000/api/music/art?size=466' }, style: { width: 200, height: 200 } }
+        ]
+      };
+      const classicRes = compileHydroUi(classicTree, ctx);
+      const coverNode = classicRes.flatNodes.find(n => n.id === 'cover');
+      const clockNode = classicRes.flatNodes.find(n => n.id === 'clk');
+      // 480 设计空间：根 padding 16 → 内容盒 [16, 464]，宽 448；200 宽封面居中
+      // → x = 16 + (448-200)/2 = 140，封面中心 240 = 设计空间中心。
+      assert.equal(coverNode.x, 140, `居中时封面 x 应为 140（实得 ${coverNode.x}）`);
+      assert.equal(coverNode.x + coverNode.w / 2, DESIGN_WIDTH / 2, '封面中心应落在设计空间中心');
+      assert.equal(clockNode.x, 16, 'width:100% 的子节点占满内容盒，不受 alignItems 影响');
+
+      // flex-end：右边缘贴内容盒右缘（16 + 448 = 464）
+      const endRes = compileHydroUi({
+        type: 'scroll',
+        style: { padding: 16, alignItems: 'flex-end' },
+        children: [{ id: 'img', type: 'image', props: { src: 'https://i0.hdslb.com/cover.jpg' }, style: { width: 200, height: 100 } }]
+      }, ctx);
+      const endNode = endRes.flatNodes.find(n => n.id === 'img');
+      assert.equal(endNode.x + endNode.w, 16 + 448, `flex-end 时右边缘应贴内容盒右缘（实得 ${endNode.x + endNode.w}）`);
+
+      // 缺省（没写 alignItems）：保持左对齐，既有树的行为一个像素都不动
+      const plainRes = compileHydroUi({
+        type: 'scroll',
+        style: { padding: 16 },
+        children: [{ id: 'img', type: 'image', props: { src: 'https://i0.hdslb.com/cover.jpg' }, style: { width: 200, height: 100 } }]
+      }, ctx);
+      assert.equal(plainRes.flatNodes.find(n => n.id === 'img').x, 16, '未写 alignItems 时应保持左对齐（不改变既有行为）');
+      // 显式 flex-start 同理
+      const startRes = compileHydroUi({
+        type: 'scroll',
+        style: { padding: 16, alignItems: 'flex-start' },
+        children: [{ id: 'img', type: 'image', props: { src: 'https://i0.hdslb.com/cover.jpg' }, style: { width: 200, height: 100 } }]
+      }, ctx);
+      assert.equal(startRes.flatNodes.find(n => n.id === 'img').x, 16, 'flex-start 应等价于现在的左对齐');
+
+      // absolute 子节点：设计稿版式靠 left 定位，不受交叉轴对齐影响
+      const absRes = compileHydroUi({
+        type: 'scroll',
+        style: { alignItems: 'center' },
+        children: [{ id: 'img', type: 'image', props: { src: 'https://i0.hdslb.com/cover.jpg' }, style: { position: 'absolute', left: 4, top: 10, width: 135, height: 135 } }]
+      }, ctx);
+      assert.equal(absRes.flatNodes.find(n => n.id === 'img').x, 42 + 4, 'absolute 子节点仍按 left 定位（圆屏内边距 42 + 4）');
+
+      // 无显式宽度的图片在居中列里也应居中（宽度取默认 120）
+      const autoRes = compileHydroUi({
+        type: 'scroll',
+        style: { padding: 16, alignItems: 'center' },
+        children: [{ id: 'img', type: 'image', props: { src: 'https://i0.hdslb.com/cover.jpg' } }]
+      }, ctx);
+      const autoNode = autoRes.flatNodes.find(n => n.id === 'img');
+      assert.equal(autoNode.w, 120, '无宽度图片默认 120');
+      assert.equal(autoNode.x, 16 + (448 - 120) / 2, '无宽度图片在居中列里同样居中');
+
+      console.log('✓ 列容器 alignItems 对齐（居中 / flex-end / 缺省不变 / absolute 不受影响）验证通过');
+    }
   });
 }

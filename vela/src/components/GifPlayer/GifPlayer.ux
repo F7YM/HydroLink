@@ -2,9 +2,9 @@
   <div class="gif-player-wrap" onclick="togglePlay">
     <!-- Ping-Pong 双槽位交叉缓冲池：无缝切帧、零黑屏闪烁 -->
     <!-- Slot 0 -->
-    <image class="player-slot" show="{{ activeSlot === 0 }}" src="{{ slot0Src }}"></image>
+    <image class="player-slot" show="{{ activeSlot === 0 }}" src="{{ slot0Src }}" onerror="onSlotError(0)"></image>
     <!-- Slot 1 -->
-    <image class="player-slot" show="{{ activeSlot === 1 }}" src="{{ slot1Src }}"></image>
+    <image class="player-slot" show="{{ activeSlot === 1 }}" src="{{ slot1Src }}" onerror="onSlotError(1)"></image>
 
     <!-- 本地即时交互覆盖层：暂停图标 (0ms 本地响应，无需蓝牙回包) -->
     <div if="{{ !isPlaying }}" class="pause-overlay">
@@ -35,6 +35,8 @@
   top: 0;
   width: 100%;
   height: 100%;
+  /* 视频切片要完整看清：等比内缩（黑底留边），绝不裁切变形。
+     Vela image 的默认值是 cover（裁切），这里必须显式写 contain。 */
   object-fit: contain;
 }
 .pause-overlay {
@@ -83,7 +85,11 @@ export default {
       progressPercent: 0,
       _timer: null,
       _segmentStartTime: 0,
-      _remainingMs: 0
+      _remainingMs: 0,
+      // 槽位 → 它当前挂的段下标（-1 表示空槽）：加载失败时靠它知道该重取哪一段
+      _slotSegIndex: [-1, -1],
+      // 段 URL → 已重试次数
+      _retries: {}
     };
   },
 
@@ -113,10 +119,58 @@ export default {
     this._clearTimer();
     this.slot0Src = '';
     this.slot1Src = '';
+    this._slotSegIndex = [-1, -1];
+    this._retries = {};
+    if (typeof global !== 'undefined' && typeof global.runGC === 'function') {
+      try { global.runGC(); } catch (e) {}
+    }
   },
 
   _getData() {
     return this.playerData || this['player-data'] || {};
+  },
+
+  /** 取第 i 段的图源（分段既可能是 URL，也可能是容器内联的 data: 图源）。 */
+  _segSrc(segs, i) {
+    const seg = segs[i];
+    return (seg && (seg.src || seg.url)) || '';
+  },
+
+  /**
+   * 设置槽位图源。
+   *
+   * 值没变就不写回：Vela 的 image 在 src 被重新赋值时会重头加载，而双缓冲的
+   * 意义正是"别再闪"——回环回第一段、暂停恢复都不该触发重载。
+   */
+  _setSlot(slotIndex, src, segIndex) {
+    const next = src || '';
+    if (slotIndex === 0) {
+      if (this.slot0Src !== next) this.slot0Src = next;
+    } else if (this.slot1Src !== next) {
+      this.slot1Src = next;
+    }
+    this._slotSegIndex[slotIndex] = typeof segIndex === 'number' ? segIndex : -1;
+  },
+
+  /**
+   * 图源加载失败：同段换一个带 `?r=N` 的地址重取一次。
+   *
+   * 分段是宿主**按需生成**的（谁在取第 i 段就顺手预热 i+1），手表第一次取某段
+   * 可能正好撞上"还在切"的窗口而超时；打散缓存重取就能拿到。每段最多重试 2 次，
+   * 之后放弃（下一圈回环自然还会再试一次）。
+   */
+  onSlotError(slotIndex) {
+    const segIndex = this._slotSegIndex[slotIndex];
+    if (typeof segIndex !== 'number' || segIndex < 0) return;
+    const data = this._getData();
+    const segs = Array.isArray(data.segments) ? data.segments : [];
+    const src = this._segSrc(segs, segIndex);
+    if (!src) return;
+    const tried = this._retries[src] || 0;
+    if (tried >= 2) return;
+    this._retries[src] = tried + 1;
+    const busted = src + (src.indexOf('?') >= 0 ? '&' : '?') + 'r=' + (tried + 1);
+    this._setSlot(slotIndex, busted, segIndex);
   },
 
   _setupPlayer() {
@@ -125,8 +179,8 @@ export default {
     const segs = Array.isArray(data.segments) ? data.segments : [];
     this.totalSegments = segs.length;
     if (segs.length === 0) {
-      this.slot0Src = '';
-      this.slot1Src = '';
+      this._setSlot(0, '', -1);
+      this._setSlot(1, '', -1);
       this.progressPercent = 0;
       return;
     }
@@ -134,14 +188,10 @@ export default {
     this.currentIndex = 0;
     this.activeSlot = 0;
     this.isPlaying = data.autoPlay !== false;
-    this.slot0Src = segs[0].src || '';
+    this._setSlot(0, this._segSrc(segs, 0), 0);
 
-    // 后台 Slot 1 预加载下一段 (滑动窗口最多常驻 2 段，防止 OOM)
-    if (segs.length > 1) {
-      this.slot1Src = segs[1].src || '';
-    } else {
-      this.slot1Src = '';
-    }
+    // 双缓冲窗口：若存在多个切片，后台 Slot 1 预加载第 2 段；单分段时 Slot 1 保持置空释放显存
+    this._setSlot(1, segs.length > 1 ? this._segSrc(segs, 1) : '', segs.length > 1 ? 1 : -1);
 
     this._updateProgress();
 
@@ -168,9 +218,22 @@ export default {
   },
 
   _advanceSegment() {
-    const data = this.playerData || {};
+    const data = this._getData();
     const segs = Array.isArray(data.segments) ? data.segments : [];
     if (!segs.length) return;
+
+    // 单切片场景处理：保持在当前 Slot 0，严禁切换槽位或置空
+    if (segs.length === 1) {
+      if (data.loop) {
+        const duration = Number(segs[0].duration) || 3000;
+        this._scheduleNext(duration);
+      } else {
+        this.isPlaying = false;
+        this._clearTimer();
+        this.$emit('playerfinish', { index: 0 });
+      }
+      return;
+    }
 
     const nextIndex = this.currentIndex + 1;
     if (nextIndex >= segs.length) {
@@ -193,22 +256,14 @@ export default {
 
     // 释放已播完旧槽位，预加载下下一段 (双缓冲防 OOM)
     const preloadIndex = this.currentIndex + 1;
+    const idleSlot = this.activeSlot === 0 ? 1 : 0;
     if (preloadIndex < segs.length) {
-      if (this.activeSlot === 0) {
-        this.slot1Src = segs[preloadIndex].src || '';
-      } else {
-        this.slot0Src = segs[preloadIndex].src || '';
-      }
+      this._setSlot(idleSlot, this._segSrc(segs, preloadIndex), preloadIndex);
     } else if (data.loop && segs.length > 1) {
-      if (this.activeSlot === 0) {
-        this.slot1Src = segs[0].src || '';
-      } else {
-        this.slot0Src = segs[0].src || '';
-      }
+      this._setSlot(idleSlot, this._segSrc(segs, 0), 0);
     } else {
       // 无后续分段，清空闲置槽位强制释放显存
-      if (this.activeSlot === 0) this.slot1Src = '';
-      else this.slot0Src = '';
+      this._setSlot(idleSlot, '', -1);
     }
 
     const duration = Number(segs[this.currentIndex].duration) || 3000;
@@ -256,8 +311,7 @@ export default {
     this._clearTimer();
     this.currentIndex = (this.currentIndex - 1 + segs.length) % segs.length;
     this.activeSlot = this.activeSlot === 0 ? 1 : 0;
-    if (this.activeSlot === 0) this.slot0Src = segs[this.currentIndex].src || '';
-    else this.slot1Src = segs[this.currentIndex].src || '';
+    this._setSlot(this.activeSlot, this._segSrc(segs, this.currentIndex), this.currentIndex);
     this._updateProgress();
     this.$emit('segmentchange', { index: this.currentIndex, segment: segs[this.currentIndex] });
     if (this.isPlaying) {

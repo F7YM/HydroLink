@@ -300,6 +300,12 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
         };
       } else {
         // ---- 列布局 ----
+        // 交叉轴（水平）对齐：与行布局的 alignItems 语义对称。
+        // 缺省不写 = 左对齐（历史行为，保持不变）；只有显式 center / flex-end
+        // 才偏移 x。占满内容宽的子节点（width:'100%'、无宽 text）free=0，不受影响。
+        const crossAlign = style.alignItems || '';
+        const alignCenter = crossAlign === 'center';
+        const alignEnd = crossAlign === 'flex-end' || crossAlign === 'right' || crossAlign === 'end';
         let curY = padT;
         children.forEach((c, idx) => {
           const cBox = layoutNode(c, innerW, id + '.' + idx, false, false, effectiveTap);
@@ -308,7 +314,12 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
             cBox.x = parseUnit(cBox.style.left, innerW, 0) + padL;
             cBox.y = parseUnit(cBox.style.top, viewportHeight, 0) + padT;
           } else {
-            cBox.x = padL + cBox.marginL;
+            let x = padL + cBox.marginL;
+            if (alignCenter || alignEnd) {
+              const free = innerW - cBox.marginL - cBox.marginR - cBox.w;
+              if (free > 0) x += alignCenter ? free / 2 : free;
+            }
+            cBox.x = x;
             cBox.y = curY + cBox.marginT;
             curY = cBox.y + cBox.h + cBox.marginB + gap;
           }
