@@ -1,0 +1,39 @@
+[
+  {
+    "name": "golden-small",
+    "srcWidth": 64,
+    "srcHeight": 36,
+    "dstWidth": 32,
+    "dstHeight": 18,
+    "frames": 3,
+    "fps": 5,
+    "pattern": "gradient",
+    "transparentMod": 41,
+    "note": "小尺寸 + 3 帧：覆盖逐帧不同、局部调色板、含 alpha 帧的透明索引路径",
+    "bytes": 4297
+  },
+  {
+    "name": "golden-video",
+    "srcWidth": 480,
+    "srcHeight": 270,
+    "dstWidth": 240,
+    "dstHeight": 135,
+    "frames": 3,
+    "fps": 5,
+    "pattern": "gradient",
+    "note": "240x135（像素数 >16384 → 采样步长 4）：手表默认档位",
+    "bytes": 26966
+  },
+  {
+    "name": "golden-noise",
+    "srcWidth": 128,
+    "srcHeight": 64,
+    "dstWidth": 128,
+    "dstHeight": 64,
+    "frames": 2,
+    "fps": 10,
+    "pattern": "noise",
+    "note": "不缩放 + 噪声：覆盖 256 色全用满、LZW 12 位码长增长与字典满后的 Clear 重置",
+    "bytes": 13529
+  }
+]

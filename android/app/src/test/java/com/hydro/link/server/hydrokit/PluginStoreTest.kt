@@ -302,10 +302,13 @@ class PluginStoreTest {
         assertEquals("js", info.runtime)
         assertEquals("server.js", info.entry)
         assertTrue("server.js 应当解压出来", File(info.dir, "server.js").length() > 0)
-        assertTrue("assets/slice.wasm 切片模块应当解压出来", File(info.dir, "assets/slice.wasm").length() > 0)
         assertTrue("安装包带 web/index.html", info.hasWeb)
         assertTrue(info.permissions.contains("storage"))
         assertTrue(info.permissions.contains("fetch"))
+        // 切片已收归宿主（真解码真编码）：插件包不再带切片 WASM，
+        // 但要声明 media 权限才拿得到 kit.media.prepareVideo。
+        assertTrue("插件包不应再带切片 WASM", !File(info.dir, "assets/slice.wasm").exists())
+        assertTrue(info.permissions.contains("media"))
     }
 
     @Test

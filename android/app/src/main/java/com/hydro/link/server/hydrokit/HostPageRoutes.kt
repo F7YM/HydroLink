@@ -39,8 +39,16 @@ class HostPageRoutes(private val provider: HostAssetProvider) {
         }
         val data = provider.read(file)
             ?: return HydroHttpResponse.json("""{"error":"宿主文件缺失: $file"}""", 404)
-        val ct = if (file.endsWith(".html")) "text/html; charset=utf-8"
-        else "application/javascript; charset=utf-8"
-        return HydroHttpResponse(200, ct, String(data, Charsets.UTF_8), null)
+        val ct = when {
+            file.endsWith(".html") -> "text/html; charset=utf-8"
+            file.endsWith(".js") -> "application/javascript; charset=utf-8"
+            file.endsWith(".wasm") -> "application/wasm"
+            else -> "application/octet-stream"
+        }
+        return if (file.endsWith(".wasm")) {
+            HydroHttpResponse.binary(data, ct, 200)
+        } else {
+            HydroHttpResponse(200, ct, String(data, Charsets.UTF_8), null)
+        }
     }
 }

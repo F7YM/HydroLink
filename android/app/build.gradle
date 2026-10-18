@@ -62,6 +62,11 @@ tasks.withType(Test).configureEach {
         .withPropertyName('examplePackages')
         .withPathSensitivity(PathSensitivity.RELATIVE)
         .optional(true)
+    // 切片器 golden（由 crates/hydro-media-wasm/test/make-golden.mjs 生成）：
+    // 改了 Rust 编码器重新生成 golden 时，Kotlin 侧的对拍必须真的重跑
+    inputs.dir(file('src/test/resources/media'))
+        .withPropertyName('mediaGoldens')
+        .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 dependencies {

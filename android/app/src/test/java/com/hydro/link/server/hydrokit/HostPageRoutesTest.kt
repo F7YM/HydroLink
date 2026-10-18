@@ -77,6 +77,19 @@ class HostPageRoutesTest {
     }
 
     @Test
+    fun hostSliceWasmIsNoLongerServed() {
+        // 切片不再由插件侧/宿主页 WASM 提供：宿主自己真解码真编码，分段走
+        // /api/hydro/media/<job>/<i>.gif。宿主页白名单里必须把它删掉——留着它
+        // 就是留了一条"看起来能用、其实是假切片"的路。
+        val routes = HostPageRoutes { name ->
+            val f = File(assetsDir, name)
+            if (f.isFile) f.readBytes() else null
+        }
+        val res = routes.handle(HydroHttpRequest("GET", "/api/hydro/worker/host", query = mapOf("file" to "slice.wasm")))
+        assertEquals(400, res!!.status)
+    }
+
+    @Test
     fun allowlistStillRejectsOtherFiles() {
         val routes = HostPageRoutes { name -> ByteArray(0).takeIf { name == "worker.js" } }
         assertEquals(400, routes.handle(

@@ -1,6 +1,11 @@
 package com.hydro.link.server.hydrokit
 
 import com.google.gson.JsonParser
+import com.hydro.link.server.media.GifProbe
+import com.hydro.link.server.media.MediaJobStore
+import com.hydro.link.server.media.MediaRoutes
+import com.hydro.link.server.media.TestVideo
+import com.hydro.link.server.media.VideoFrameSource
 import fi.iki.elonen.NanoHTTPD
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -13,8 +18,11 @@ import java.io.ByteArrayInputStream
 import java.io.File
 import java.net.ServerSocket
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 /**
  * M5 端到端：把 **assets 里的真 worker 胶水** 交给 Node 执行，对着
@@ -93,23 +101,35 @@ class WorkerGlueE2ETest {
 
     /** 数据目录：HydroKit 需要 Context，这里给一个只用到 filesDir 的最小替身不可行，
      *  所以 e2e 直接用 PluginStore + Runtime + KitRoutes 组装（与 HydroKit 内部一致）。 */
-    private class Harness(val dataDir: File) {
+    private class Harness(
+        val dataDir: File,
+        /** 宿主自报的地址（切片分段 URL 挂在它下面）。空串 = 宿主地址不可用。 */
+        serverBase: String = "",
+        /** 解码器：给了才能切片（JVM 里用 TestVideo 假解码器，真机上是 MediaCodec）。 */
+        decoder: VideoFrameSource? = null,
+    ) {
         val store = PluginStore(dataDir)
         val bridge = WorkerBridge(requestTimeoutMs = 8000, pollWindowMs = 500, pollIntervalMs = 50)
         val runtime = Runtime()
         val caps = object : KitCapabilities by KitCapabilities.NONE {
-            override fun serverBase() = ""
+            override fun serverBase() = serverBase
         }
-        val kitRoutes = KitRoutes(store, bridge, caps)
+        val mediaJobs = decoder?.let { MediaJobStore(it, executor = Executor { r -> r.run() }) }
+        val kitRoutes = KitRoutes(store, bridge, caps, media = mediaJobs)
         val pluginRoutes = HydroKitRoutes(runtime, store)
+        val mediaRoutes = mediaJobs?.let { MediaRoutes(it) }
         /** 宿主页路由：读的就是 assets 里的真文件（脚本 src 有没有写错在这里会被抓到）。 */
         val hostRoutes = HostPageRoutes { name ->
             val f = File("src/main/assets/hydrokit/$name")
             if (f.isFile) f.readBytes() else null
         }
 
+        /** 与 HydroKit.handle() 同序：宿主页 → 切片分段 → kit 能力 → 插件路由。 */
         fun handle(req: HydroHttpRequest): HydroHttpResponse? =
-            hostRoutes.handle(req) ?: kitRoutes.handle(req) ?: pluginRoutes.handle(req)
+            hostRoutes.handle(req)
+                ?: mediaRoutes?.handle(req)
+                ?: kitRoutes.handle(req)
+                ?: pluginRoutes.handle(req)
     }
 
     private fun realHpk(name: String): File? =
@@ -287,6 +307,124 @@ class WorkerGlueE2ETest {
         val root = JsonParser.parseString(resp.body).asJsonObject.getAsJsonObject("root")
         assertNotNull("wasm 插件也应返回 root 树", root)
         println("== wasm 夹具真实 worker 返回: ${resp.body.take(300)}")
+    }
+
+    /**
+     * 视频切片端到端（JVM 版）：**真胶水** → 真 HTTP → KitRoutes → MediaJobStore → GIF。
+     *
+     * 与真机只差 MediaCodec 那一段（JVM 里用 TestVideo 假解码器，但它的画面**随时间
+     * 真的在变**，所以"拿静帧/渐变帧冒充切片"在这里就会红）：
+     *   插件调 kit.media.prepareVideo（只传参数）→ 宿主切段 → 回一串分段 URL
+     *   → 测试像手表那样**按 URL 走真 HTTP 取段** → 解码验证：GIF89a、帧数 ≥2、
+     *   段内画面在动、相邻段画面不同。
+     */
+    @Test
+    fun mediaSlicesThroughTheRealGlueAndSegmentsAreRealGifs() {
+        val hpk = writeTestPlugin(
+            """
+            module.exports = {
+              manifest() {
+                return { package: { id: 'com.hydro.mediatest', name: '切片端到端', version: '1.0.0' },
+                         apps: [{ id: 'main', name: '切片' }] };
+              },
+              // 与 bili 插件同款用法：只传参数（哪段视频、切成什么样），宿主真解码真切片
+              async view(surface, item, req) {
+                if (surface !== 'app' || item !== 'main') return null;
+                const job = await kit.media.prepareVideo({
+                  url: 'http://example.com/video.mp4',
+                  headers: { Referer: 'https://example.com/' },
+                  segmentMs: 1000, fps: 5, width: 64, height: 36, maxSegments: 2
+                });
+                return {
+                  root: {
+                    type: 'scroll',
+                    props: {
+                      error: job && job.error ? job.error : null,
+                      job: job && job.job ? job.job : null,
+                      segments: job && job.segments ? job.segments : null
+                    }
+                  }
+                };
+              }
+            };
+            """.trimIndent(),
+        )
+        val dir = File.createTempFile("hk-e2e-media-", "").let { it.delete(); it.mkdirs(); it }
+        val h = Harness(dir, serverBase = baseUrl, decoder = TestVideo(3_000))
+        val info = h.store.install(hpk)
+        h.runtime.register(WorkerPlugin(info.id, h.store.manifest(info.id), h.bridge))
+        server.handler = { req -> h.handle(req) }
+        startNodeWorker(h, info.id, info.entry, info.runtime)
+        assertTrue("worker 应当已轮询上线", waitFor(5_000) { h.bridge.isConnected(info.id) })
+
+        val resp = h.handle(
+            HydroHttpRequest(
+                "POST", "/api/hydro/${info.id}/app/main/view",
+                query = mapOf("dt" to "watch"),
+            )
+        )
+        assertNotNull(resp)
+        assertEquals("切片视图应当正常返回: ${resp!!.body.take(300)}", 200, resp.status)
+        assertTrue(
+            "宿主不支持或取流失败时必须如实报错（不许假装成功）: ${resp.body.take(300)}",
+            !resp.body.contains("\"error\":\"") && !resp.body.contains("error\": \""),
+        )
+
+        val segUrls = Regex("http://[^\"]+/api/hydro/media/[^\"]+?\\.gif").findAll(resp.body)
+            .map { it.value }.toList()
+        assertTrue("视图里应有至少两段切片 URL: ${resp.body.take(400)}", segUrls.size >= 2)
+
+        // 手表就是照这些 URL 直取的：走真 HTTP 取回来，验证它真是动图
+        val gifs = segUrls.take(2).map { url ->
+            val (code, bytes) = httpGetBytes(url)
+            assertEquals("分段 URL 应当能直接取到（手表就是这么取的）: $url", 200, code)
+            GifProbe.parse(bytes)
+        }
+        assertEquals(2, gifs.size)
+        for ((i, gif) in gifs.withIndex()) {
+            assertTrue("第 $i 段帧数应 ≥2（单帧 = 拿静帧冒充视频）: ${gif.frames.size}", gif.frames.size >= 2)
+            assertTrue(
+                "第 $i 段段内画面应真的在变（每帧一样 = 假动图）",
+                !gif.frames[0].pixels.contentEquals(gif.frames[1].pixels),
+            )
+        }
+        assertTrue(
+            "相邻段首帧画面必须不同（相同 = 段号没对上 / 拿同一张图冒充）",
+            !gifs[0].frames[0].pixels.contentEquals(gifs[1].frames[0].pixels),
+        )
+        println("== 切片端到端：${segUrls.size} 段，第 0 段 ${gifs[0].frames.size} 帧 ${gifs[0].width}x${gifs[0].height}")
+    }
+
+    /** 造一个测试插件包（真 .hpk：manifest.json + server.js）。 */
+    private fun writeTestPlugin(serverJs: String, permissions: List<String> = listOf("media")): File {
+        val dir = File.createTempFile("hk-e2e-plugin-", "").let { it.delete(); it.mkdirs(); it }
+        File(dir, "manifest.json").writeText(
+            """
+            {"id":"com.hydro.mediatest","name":"切片端到端","author":"测试","version":"1.0.0",
+             "runtime":"js","entry":"server.js","apps":[{"id":"main","name":"切片"}],
+             "permissions":[${permissions.joinToString(",") { "\"$it\"" }}]}
+            """.trimIndent(),
+        )
+        File(dir, "server.js").writeText(serverJs)
+        val hpk = File(dir, "com.hydro.mediatest.hpk")
+        ZipOutputStream(hpk.outputStream()).use { z ->
+            for (f in dir.listFiles()!!.filter { it != hpk }) {
+                z.putNextEntry(ZipEntry(f.name))
+                z.write(f.readBytes())
+                z.closeEntry()
+            }
+        }
+        return hpk
+    }
+
+    /** 取二进制响应（分段是 GIF，不能按文本读）。 */
+    private fun httpGetBytes(url: String): Pair<Int, ByteArray> {
+        val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+        conn.connectTimeout = 4000
+        conn.readTimeout = 4000
+        val code = conn.responseCode
+        val bytes = (if (code < 400) conn.inputStream else conn.errorStream)?.readBytes() ?: ByteArray(0)
+        return code to bytes
     }
 
     /** 简单 GET，返回 (状态码, body)。 */
