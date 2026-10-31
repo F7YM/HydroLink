@@ -105,6 +105,9 @@
       },
       "pages/hydroAppStyle": {
         "component": "hydroAppStyle"
+      },
+      "pages/update": {
+        "component": "update"
       }
     }
   }

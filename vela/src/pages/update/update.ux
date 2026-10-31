@@ -1,0 +1,424 @@
+<template>
+  <div class="page-container">
+    <!-- Header -->
+    <div class="header">
+      <text class="time-display">{{ currentTime }}</text>
+      <text
+        if="{{ step === 'qr' || !isForce }}"
+        class="title pressable {{ pressedKey === 'back' ? 'is-down press-down' : '' }} {{ releasedKey === 'back' ? 'press-up' : '' }}"
+        ontouchstart="pressDown('back')"
+        ontouchend="pressRelease('back')"
+        ontouchcancel="pressCancel('back')"
+        onclick="onHeaderBack"
+      >{{ step === 'qr' ? '‹扫码更新' : '‹发现新版本' }}</text>
+      <text if="{{ step !== 'qr' && isForce }}" class="title">发现新版本</text>
+    </div>
+
+    <!-- Step 1: Version & Vela Changelog -->
+    <scroll if="{{ step === 'info' }}" class="scroll-area" scroll-y="true" bounces="true">
+      <div class="content-list">
+        <div class="version-card">
+          <text class="version-title">v{{ version }}</text>
+          <text if="{{ publishDate }}" class="version-date">{{ publishDate }}</text>
+        </div>
+
+        <div class="changelog-card">
+          <text class="section-label">更新日志</text>
+          <text
+            for="{{ (idx, line) in changelog }}"
+            tid="idx"
+            class="changelog-item"
+          >{{ line }}</text>
+        </div>
+
+        <div
+          class="action-btn btn-primary {{ pressedKey === 'scan' ? 'is-down' : '' }}"
+          ontouchstart="pressDown('scan')"
+          ontouchend="pressRelease('scan')"
+          ontouchcancel="pressCancel('scan')"
+          onclick="onShowQr"
+        >
+          <text class="btn-primary-text">扫码更新</text>
+        </div>
+
+        <div
+          if="{{ !isForce }}"
+          class="action-btn btn-secondary {{ pressedKey === 'ignore' ? 'is-down' : '' }}"
+          ontouchstart="pressDown('ignore')"
+          ontouchend="pressRelease('ignore')"
+          ontouchcancel="pressCancel('ignore')"
+          onclick="onIgnore"
+        >
+          <text class="btn-secondary-text">忽略</text>
+        </div>
+
+        <div class="list-bottom-space"></div>
+      </div>
+    </scroll>
+
+    <!-- Step 2: Black-background White-foreground QR Code -->
+    <scroll if="{{ step === 'qr' }}" class="scroll-area" scroll-y="true" bounces="true">
+      <div class="content-list qr-list">
+        <div class="qr-card">
+          <qrcode
+            class="qr-code"
+            value="{{ qrValue }}"
+            style="color: #ffffff; background-color: #000000;"
+          ></qrcode>
+        </div>
+        <text if="{{ password }}" class="qr-password">提取码：{{ password }}</text>
+        <text class="qr-hint">请使用手机扫码下载更新</text>
+        <div class="list-bottom-space"></div>
+      </div>
+    </scroll>
+  </div>
+</template>
+
+<style>
+.page-container {
+  width: 100%;
+  height: 100%;
+  background-color: #000000;
+  position: relative;
+}
+
+.header {
+  width: 100%;
+  height: 90px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #000000;
+}
+.time-display {
+  font-size: 28px;
+  font-weight: bold;
+  color: #ffffff;
+  padding-top: 5px;
+  text-align: center;
+}
+.title {
+  font-size: 32px;
+  font-weight: bold;
+  color: #ffffff;
+  text-align: center;
+}
+
+.scroll-area {
+  position: absolute;
+  top: 90px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+}
+.content-list {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 16px;
+}
+.list-bottom-space {
+  width: 100%;
+  height: 60px;
+  flex-shrink: 0;
+}
+
+.version-card {
+  flex-shrink: 0;
+  width: 420px;
+  padding: 20px 24px;
+  margin-bottom: 12px;
+  background-color: #2e323c;
+  border-radius: 36px;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+.version-title {
+  font-size: 28px;
+  font-weight: bold;
+  color: #bac3ff;
+}
+.version-date {
+  font-size: 22px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.changelog-card {
+  flex-shrink: 0;
+  width: 420px;
+  padding: 22px 24px;
+  margin-bottom: 16px;
+  background-color: #2e323c;
+  border-radius: 36px;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.section-label {
+  font-size: 24px;
+  font-weight: bold;
+  color: #ffffff;
+  margin-bottom: 10px;
+}
+.changelog-item {
+  width: 100%;
+  font-size: 22px;
+  color: rgba(255, 255, 255, 0.88);
+  margin-bottom: 8px;
+}
+
+.action-btn {
+  flex-shrink: 0;
+  width: 420px;
+  height: 88px;
+  margin-bottom: 12px;
+  border-radius: 44px;
+  justify-content: center;
+  align-items: center;
+}
+.btn-primary {
+  background-color: #bac3ff;
+}
+.btn-primary-text {
+  font-size: 26px;
+  font-weight: bold;
+  color: #00237c;
+}
+.btn-secondary {
+  background-color: #2e323c;
+}
+.btn-secondary-text {
+  font-size: 26px;
+  font-weight: bold;
+  color: #ffffff;
+}
+
+.qr-list {
+  padding-top: 12px;
+}
+.qr-card {
+  flex-shrink: 0;
+  width: 268px;
+  height: 268px;
+  padding: 14px;
+  background-color: #000000;
+  border-radius: 28px;
+  justify-content: center;
+  align-items: center;
+}
+.qr-code {
+  width: 240px;
+  height: 240px;
+  color: #ffffff;
+  background-color: #000000;
+}
+.qr-password {
+  font-size: 24px;
+  font-weight: bold;
+  color: #bac3ff;
+  margin-top: 12px;
+  text-align: center;
+}
+.qr-hint {
+  font-size: 20px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 8px;
+  text-align: center;
+}
+
+.pressable {
+  transform-origin: 50% 50%;
+  transform: scale(1);
+  opacity: 1;
+}
+.is-down {
+  opacity: 0.75;
+}
+.press-down {
+  animation-name: PressDown;
+  animation-duration: 150ms;
+  animation-timing-function: ease-out;
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+.press-up {
+  animation-name: PressUp;
+  animation-duration: 250ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+@keyframes PressDown {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.94); opacity: 0.75; }
+}
+@keyframes PressUp {
+  0% { transform: scale(0.94); opacity: 0.75; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@media (shape: circle) {
+  .version-card {
+    width: 390px;
+  }
+  .changelog-card {
+    width: 390px;
+  }
+  .action-btn {
+    width: 390px;
+    height: 84px;
+    border-radius: 42px;
+  }
+  .list-bottom-space {
+    height: 90px;
+  }
+}
+
+@media (shape: rect) {
+  .header {
+    height: 65px;
+    flex-direction: row-reverse;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 48px;
+  }
+  .title {
+    margin-left: 12px;
+  }
+  .time-display {
+    margin-right: 12px;
+  }
+  .scroll-area {
+    top: 65px;
+    bottom: 0;
+  }
+  .content-list {
+    padding-top: 10px;
+  }
+}
+</style>
+
+<script>
+import router from '@system.router'
+import updateService from '../../services/updateService.js'
+
+const DEFAULT_DOWNLOAD_URL = 'https://github.com/F7YM/HydroLink/releases'
+
+export default {
+  protected: {
+    updateJson: '',
+    forceFlag: '0'
+  },
+
+  private: {
+    currentTime: '00:00',
+    step: 'info',
+    version: '',
+    publishDate: '',
+    changelog: [],
+    downloadUrl: '',
+    backupUrl: '',
+    password: '',
+    qrValue: DEFAULT_DOWNLOAD_URL,
+    isForce: false,
+    pressedKey: '',
+    releasedKey: ''
+  },
+
+  onInit() {
+    this.updateTime()
+    this._timeInterval = setInterval(() => this.updateTime(), 1000)
+
+    let info = null
+    if (this.$app && this.$app.$def && this.$app.$def.pendingUpdate) {
+      info = this.$app.$def.pendingUpdate.update || null
+      this.isForce = !!this.$app.$def.pendingUpdate.isForce
+    }
+    if (!info && this.updateJson) {
+      try {
+        info = JSON.parse(this.updateJson)
+      } catch (e) {}
+    }
+    if (!info) {
+      info = updateService.getCachedUpdate()
+    }
+    if (this.forceFlag === '1') {
+      this.isForce = true
+    }
+
+    if (info) {
+      this.version = info.version || ''
+      this.publishDate = info.publishDate || ''
+      this.changelog = Array.isArray(info.changelog) && info.changelog.length > 0
+        ? info.changelog
+        : ['常规稳定性修复与性能优化。']
+      this.downloadUrl = info.downloadUrl || ''
+      this.backupUrl = info.backupUrl || ''
+      this.password = info.password || ''
+      this.qrValue = this.downloadUrl || this.backupUrl || DEFAULT_DOWNLOAD_URL
+    }
+  },
+
+  onDestroy() {
+    if (this._timeInterval) clearInterval(this._timeInterval)
+  },
+
+  onBackPress() {
+    if (this.step === 'qr') {
+      this.step = 'info'
+      return true
+    }
+    if (this.isForce) {
+      return true
+    }
+    return false
+  },
+
+  updateTime() {
+    const now = new Date()
+    this.currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  },
+
+  onHeaderBack() {
+    if (this.step === 'qr') {
+      this.step = 'info'
+      return
+    }
+    if (this.isForce) return
+    router.back()
+  },
+
+  onShowQr() {
+    this.step = 'qr'
+  },
+
+  async onIgnore() {
+    if (this.isForce) return
+    try {
+      await updateService.ignoreToday()
+    } catch (e) {}
+    router.back()
+  },
+
+  pressDown(key) {
+    this.releasedKey = ''
+    this.pressedKey = key
+  },
+
+  pressRelease(key) {
+    this.pressedKey = ''
+    this.releasedKey = key
+    setTimeout(() => {
+      if (this.releasedKey === key) this.releasedKey = ''
+    }, 270)
+  },
+
+  pressCancel(key) {
+    if (this.pressedKey === key) this.pressedKey = ''
+    if (this.releasedKey === key) this.releasedKey = ''
+  }
+}
+</script>

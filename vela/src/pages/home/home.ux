@@ -310,8 +310,10 @@
 <script>
 import router from '@system.router'
 import prompt from '@system.prompt'
+import app from '@system.app'
 import deviceService from '../../services/deviceService.js'
 import interconnectService from '../../services/interconnectService.js'
+import updateService from '../../services/updateService.js'
 
 const PING_INTERVAL = 2000
 const PING_TIMEOUT = 3000
@@ -337,6 +339,7 @@ export default {
 
   onDestroy() {
     if (this._timeInterval) clearInterval(this._timeInterval)
+    if (this._updateCheckTimer) clearTimeout(this._updateCheckTimer)
     this.stopPing()
     this.stopIcRetry()
     interconnectService.setServerInfoHandler(null)
@@ -362,6 +365,7 @@ export default {
       this.icDevice = null
     }
     this.tryInterconnectDiscover()
+    this.scheduleAutoUpdateCheck(1500)
     // Phone pushes server_info every 5s — handle it immediately so the
     // device appears without waiting for a discover retry, and disappears
     // immediately when disconnected / offline.
@@ -378,8 +382,53 @@ export default {
   },
 
   onHide() {
+    if (this._updateCheckTimer) {
+      clearTimeout(this._updateCheckTimer)
+      this._updateCheckTimer = null
+    }
     this.stopPing()
     this.stopIcRetry()
+  },
+
+  scheduleAutoUpdateCheck(delayMs) {
+    if (this.$app && this.$app.$def && this.$app.$def._autoUpdateDone) return
+    if (this._updateCheckTimer) clearTimeout(this._updateCheckTimer)
+    this._updateCheckTimer = setTimeout(() => {
+      this._updateCheckTimer = null
+      this.runAutoUpdateCheck()
+    }, delayMs || 0)
+  },
+
+  async runAutoUpdateCheck() {
+    if (this.$app && this.$app.$def && this.$app.$def._autoUpdateDone) return
+    let currentVersion = '1.3.0'
+    try {
+      const info = app.getInfo()
+      if (info && info.versionName) currentVersion = info.versionName
+    } catch (e) {}
+
+    try {
+      const res = await updateService.checkAutoIfNeeded(currentVersion)
+      if (res && res.checked && this.$app && this.$app.$def) {
+        this.$app.$def._autoUpdateDone = true
+      }
+      const promptInfo = res && res.prompt
+      if (promptInfo && promptInfo.update) {
+        if (this.$app && this.$app.$def) {
+          this.$app.$def.pendingUpdate = {
+            update: promptInfo.update,
+            isForce: !!promptInfo.isForce
+          }
+        }
+        router.push({
+          uri: 'pages/update',
+          params: {
+            updateJson: JSON.stringify(promptInfo.update),
+            forceFlag: promptInfo.isForce ? '1' : '0'
+          }
+        })
+      }
+    } catch (e) {}
   },
 
   updateTime() {
@@ -442,6 +491,7 @@ export default {
       port: port,
       viaInterconnect: true
     }
+    this.scheduleAutoUpdateCheck(200)
     if (!info.name && !cachedModel) {
       deviceService.getServerSystemInfo(host, port, 'interconnect-device')
         .then((sysInfo) => {

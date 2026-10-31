@@ -13,7 +13,7 @@
     </div>
 
     <!-- Info list -->
-    <div class="form-area">
+    <scroll class="form-area" scroll-y="true" bounces="true">
       <div class="form-list">
         <div class="info-item">
           <text class="info-label">应用版本</text>
@@ -27,8 +27,19 @@
           <text class="info-label">commit</text>
           <text class="info-value">{{ commit }}</text>
         </div>
+        <div
+          class="info-item check-btn {{ pressedKey === 'checkUpdate' ? 'is-down' : '' }}"
+          ontouchstart="pressDown('checkUpdate')"
+          ontouchend="pressRelease('checkUpdate')"
+          ontouchcancel="pressCancel('checkUpdate')"
+          onclick="onCheckUpdate"
+        >
+          <text class="info-label">检查更新</text>
+          <text class="info-value">{{ checking ? '检查中...' : '›' }}</text>
+        </div>
+        <div class="list-bottom-space"></div>
       </div>
-    </div>
+    </scroll>
   </div>
 </template>
 
@@ -80,7 +91,13 @@
   align-items: center;
   padding-top: 20px;
 }
+.list-bottom-space {
+  width: 100%;
+  height: 60px;
+  flex-shrink: 0;
+}
 .info-item {
+  flex-shrink: 0;
   width: 420px;
   height: 88px;
   margin: 4px 0;
@@ -145,6 +162,9 @@
     height: 84px;
     border-radius: 42px;
   }
+  .list-bottom-space {
+    height: 80px;
+  }
 }
 
 /* ---- Rect screen adaptation ---- */
@@ -164,6 +184,7 @@
   }
   .form-area {
     top: 65px;
+    bottom: 0;
   }
   .form-list {
     padding-top: 10px;
@@ -174,7 +195,9 @@
 <script>
 import router from '@system.router'
 import app from '@system.app'
+import prompt from '@system.prompt'
 import buildInfo from '../../services/buildInfo.js'
+import updateService from '../../services/updateService.js'
 
 export default {
   private: {
@@ -182,6 +205,7 @@ export default {
     version: '1.0.0',
     buildTime: '-',
     commit: '-',
+    checking: false,
     pressedKey: '',
     releasedKey: ''
   },
@@ -208,6 +232,41 @@ export default {
 
   goBack() {
     router.back()
+  },
+
+  async onCheckUpdate() {
+    if (this.checking) return
+    this.checking = true
+    try {
+      const res = await updateService.checkManual(this.version)
+      this.checking = false
+      if (!res || res.status === 'error') {
+        prompt.showToast({ message: '检查更新失败', duration: 2000 })
+        return
+      }
+      if (res.status === 'latest') {
+        prompt.showToast({ message: '已是最新版本', duration: 2000 })
+        return
+      }
+      if (res.status === 'update' && res.update) {
+        if (this.$app && this.$app.$def) {
+          this.$app.$def.pendingUpdate = {
+            update: res.update,
+            isForce: !!res.isForce
+          }
+        }
+        router.push({
+          uri: 'pages/update',
+          params: {
+            updateJson: JSON.stringify(res.update),
+            forceFlag: res.isForce ? '1' : '0'
+          }
+        })
+      }
+    } catch (e) {
+      this.checking = false
+      prompt.showToast({ message: '检查更新失败', duration: 2000 })
+    }
   },
 
   pressDown(key) {

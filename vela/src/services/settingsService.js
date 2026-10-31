@@ -8,7 +8,14 @@
 import file from '@system.file'
 
 const SETTINGS_FILE = 'internal://files/settings.json'
-const DEFAULTS = { forceFetch: false, keepScreenOn: false, oobeCompleted: false, hydroAppsStyle: 'grid' }
+const DEFAULTS = {
+  forceFetch: false,
+  keepScreenOn: false,
+  oobeCompleted: false,
+  hydroAppsStyle: 'grid',
+  lastUpdateCheckDate: '',
+  lastUpdateIgnoreDate: ''
+}
 
 function readText(uri) {
   return new Promise((resolve, reject) => {
@@ -97,5 +104,30 @@ export default {
     s.hydroAppsStyle = value === 'list' ? 'list' : 'grid'
     await writeText(SETTINGS_FILE, JSON.stringify(s))
     return s.hydroAppsStyle
+  },
+
+  /** 读取自动检查更新与忽略日期记录。 */
+  async getUpdateDates() {
+    const s = await getSettings()
+    return {
+      lastUpdateCheckDate: s.lastUpdateCheckDate || '',
+      lastUpdateIgnoreDate: s.lastUpdateIgnoreDate || ''
+    }
+  },
+
+  /** 记录最近一次自动检查更新的日期（yyyy-MM-dd）。 */
+  async setLastUpdateCheckDate(dateStr) {
+    const s = await getSettings()
+    s.lastUpdateCheckDate = String(dateStr || '')
+    await writeText(SETTINGS_FILE, JSON.stringify(s))
+    return s.lastUpdateCheckDate
+  },
+
+  /** 记录最近一次点击「忽略」更新的日期（yyyy-MM-dd）。 */
+  async setLastUpdateIgnoreDate(dateStr) {
+    const s = await getSettings()
+    s.lastUpdateIgnoreDate = String(dateStr || '')
+    await writeText(SETTINGS_FILE, JSON.stringify(s))
+    return s.lastUpdateIgnoreDate
   }
 }

@@ -1,4 +1,4 @@
-[Setup]
+﻿[Setup]
 AppId={{com.hydro.link.compose}}
 AppName=HydroLink
 AppVersion=1.3.0
@@ -17,7 +17,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\icon.ico
 UninstallDisplayName=HydroLink
-SetupIconFile=..\..\desktop\icon.ico
+SetupIconFile=icon.ico
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
@@ -25,7 +25,7 @@ Name: "autostart"; Description: "开机自动启动"; GroupDescription: "启动�
 
 [Files]
 Source: "..\build\compose-windows\*"; DestDir: "{app}"; Excludes: "README.md,*.md"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\..\desktop\icon.ico"; DestDir: "{app}"; DestName: "icon.ico"; Flags: ignoreversion
+Source: "icon.ico"; DestDir: "{app}"; DestName: "icon.ico"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\HydroLink"; Filename: "{app}\HydroLink.exe"; IconFilename: "{app}\icon.ico"
