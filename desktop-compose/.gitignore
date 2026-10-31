@@ -1,0 +1,17 @@
+# Gradle / 构建产物
+.gradle/
+build/
+.kotlin/
+out/
+
+# KCEF（内嵌 CEF）安装目录：解包后 500MB+，平台相关，绝不入库
+kcef-bundle/
+kcef-cache/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# 系统
+.DS_Store

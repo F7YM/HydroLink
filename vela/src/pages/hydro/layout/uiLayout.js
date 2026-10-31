@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 float11
+// 本文件改编自 JSLab (https://github.com/cciccicu/JSLab)，Copyright (C) 2026 cciccicu，
+// 原作品以 GNU General Public License v3.0 发布；本文件同样以 GPL-3.0-only 发布。
+//
 // HydroKit 纯 JS 布局编译器 (uiLayout.js)
 // 借鉴 JSLab 核心架构：纯 JS 计算绝对像素坐标，将嵌套组件树彻底拍平成一维绝对定位数组。
 // 彻底杜绝快应用原生 Flex 多层递归塌陷、手势穿透异常与 OOM 隐患。
@@ -444,12 +449,6 @@ export function compileHydroUi(root, screenCtx, previous, cache) {
       leaf.size = number(style.fontSize, 16, 40, 26);
       leaf.w = w !== null ? w : (inRow ? Math.ceil(measureTextWidth(leaf.navLabel, leaf.size) + 16) : containerInnerWidth);
       if (!leaf.h) leaf.h = 36;
-    } else if (type === 'gif-player') {
-      leaf.playerData = props;
-      leaf.events = events;
-      leaf.tap = events.tap || inheritedTap || '';
-      leaf.w = w !== null ? w : parseUnit(props.width, containerInnerWidth, 320);
-      if (!leaf.h) leaf.h = parseUnit(props.height, viewportHeight, 240);
     } else if (type === 'video') {
       leaf.src = normalizeUrl(props.src || props.url || '', screenCtx);
       leaf.poster = normalizeUrl(props.poster || '', screenCtx);

@@ -8,7 +8,7 @@ import org.junit.Test
 /**
  * `/api/music/art` 的像素处理回归。
  *
- * 契约来自桌面端 `desktop/internal/api/media.go` 的 `processArt`：
+ * 契约来自桌面端实现的 `processArt`：
  * w/h 都有 → cover 裁剪；否则 size>0 且图更大 → 等比缩进 size×size；
  * blur>0 → 模糊（半径按输出像素）；dim∈(0,1) → 压暗（保留多少亮度）。
  * 插件（示例 deskbuddy）拿 `music.artBlur` 当手表背景，两端语义必须一致。
@@ -130,7 +130,7 @@ class MusicArtProcessorTest {
         val out = MusicArtProcessor.process(gradient(1200, 900), blur = 26.0, dim = 0.3, size = 466, w = 0, h = 0)
         assertEquals(466, out.width)
         // 1200x900 等比缩进 466：900 * (466/1200) = 349.5 → **截断** 349。
-        // 与桌面 imaging.Fit 完全一致（desktop/internal/api/media_test.go 里
+        // 与桌面 imaging.Fit 完全一致（桌面端实现 里
         // 有同一个断言），否则同一插件两端背景图差 1px。
         assertEquals(349, out.height)
         // 压暗后整体亮度明显低于原图

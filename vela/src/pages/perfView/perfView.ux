@@ -371,14 +371,14 @@
 }
 .press-down {
   animation-name: PressDown;
-  animation-duration: 80ms;
+  animation-duration: 150ms;
   animation-timing-function: ease-out;
   animation-iteration-count: 1;
   animation-fill-mode: forwards;
 }
 .press-up {
   animation-name: PressUp;
-  animation-duration: 140ms;
+  animation-duration: 250ms;
   animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
   animation-iteration-count: 1;
   animation-fill-mode: forwards;
@@ -407,7 +407,7 @@
 /* ---- Circle screen ---- */
 @media (shape: circle) {
   .gauge-card {
-    width: 360px;
+    width: 400px;
     height: 180px;
     border-radius: 45px;
   }
@@ -423,11 +423,11 @@
     font-size: 26px;
   }
   .detail-card {
-    width: 360px;
+    width: 400px;
     border-radius: 35px;
   }
   .bar-card {
-    width: 360px;
+    width: 400px;
     border-radius: 35px;
   }
   .gauge-divider {
@@ -503,7 +503,7 @@ export default {
 
   onInit() {
     this.updateTime()
-    this._timeInterval = setInterval(() => this.updateTime(), 60000)
+    this._timeInterval = setInterval(() => this.updateTime(), 1000)
   },
 
   onDestroy() {
@@ -639,7 +639,7 @@ export default {
     this.releasedKey = key
     setTimeout(() => {
       if (this.releasedKey === key) this.releasedKey = ''
-    }, 160)
+    }, 270)
   },
 
   pressCancel(key) {

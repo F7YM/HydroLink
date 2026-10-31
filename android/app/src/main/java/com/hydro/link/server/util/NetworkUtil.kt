@@ -2,6 +2,8 @@ package com.hydro.link.server.util
 
 import android.content.Context
 import android.net.wifi.WifiManager
+import android.os.Build
+import android.provider.Settings
 import android.text.format.Formatter
 import java.net.Inet4Address
 import java.net.NetworkInterface
@@ -79,6 +81,23 @@ object NetworkUtil {
             // ignore
         }
         return result
+    }
+
+    /**
+     * 获取用户在系统设置中显示的设备名称（如「一加 Ace 6」），为空时回退至硬件型号 Build.MODEL。
+     */
+    fun deviceDisplayName(context: Context): String {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
+                val name = Settings.Global.getString(context.contentResolver, Settings.Global.DEVICE_NAME)
+                if (!name.isNullOrBlank()) name.trim()
+                else Build.MODEL?.takeIf { it.isNotBlank() } ?: "Android"
+            } else {
+                Build.MODEL?.takeIf { it.isNotBlank() } ?: "Android"
+            }
+        } catch (e: Exception) {
+            Build.MODEL?.takeIf { it.isNotBlank() } ?: "Android"
+        }
     }
 
     private fun isPrivateIpv4(ip: String): Boolean {

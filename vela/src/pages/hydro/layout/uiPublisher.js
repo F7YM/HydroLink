@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 float11
+// 本文件改编自 JSLab (https://github.com/cciccicu/JSLab)，Copyright (C) 2026 cciccicu，
+// 原作品以 GNU General Public License v3.0 发布；本文件同样以 GPL-3.0-only 发布。
+//
 // HydroKit 响应式增量发布器 (uiPublisher.js)
 // 借鉴 JSLab 原生响应式增量补丁机制：
 // 对比上一次编译节点与当前 ViewModel 中的 observed 数组，执行属性级原地变更 (In-place patch)，

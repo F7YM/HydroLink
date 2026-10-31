@@ -1,15 +1,15 @@
 [Setup]
 AppId={{com.hydro.link.compose}}
 AppName=HydroLink
-AppVersion=1.2.3
-AppVerName=HydroLink 1.2.3
+AppVersion=1.3.0
+AppVerName=HydroLink 1.3.0
 AppPublisher=float11
 DefaultDirName={autopf}\HydroLink
 DefaultGroupName=HydroLink
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputDir=..\..\dist
-OutputBaseFilename=HydroLink-1.2.3-setup
+OutputBaseFilename=HydroLink-1.3.0-setup
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern

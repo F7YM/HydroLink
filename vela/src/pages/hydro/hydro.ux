@@ -1,22 +1,26 @@
-<import name="gif-player" src="../../components/GifPlayer/GifPlayer"></import>
 <template>
   <div id="hydroPage" class="page" style="{{ pageStyle }}" ontouchstart="traceFirstTouch">
 
     <!-- 固定头部：与 HydroLink 风格统一 (时间和标题) -->
     <div class="header" if="{{ headerTitle && !loading && !errorText }}">
       <text class="time-display">{{ currentTime }}</text>
-      <text
-        class="title {{ (headerTap || isSubPage || (headerTitle && (headerTitle.startsWith('‹') || headerTitle.startsWith('<')))) ? 'pressable' : '' }} {{ pressedKey === 'back' ? 'is-down press-down' : '' }} {{ releasedKey === 'back' ? 'press-up' : '' }}"
-        ontouchstart="pressDown('back')"
-        ontouchend="pressRelease('back')"
-        ontouchcancel="pressCancel('back')"
-        onclick="onHeaderTitleClick"
-      >{{ headerTitle }}</text>
+      <div class="title-row">
+        <text
+          class="title {{ busy ? 'title-busy' : '' }} {{ (headerTap || isSubPage || (headerTitle && (headerTitle.startsWith('‹') || headerTitle.startsWith('<')))) ? 'pressable' : '' }} {{ pressedKey === 'back' ? 'is-down press-down' : '' }} {{ releasedKey === 'back' ? 'press-up' : '' }}"
+          ontouchstart="pressDown('back')"
+          ontouchend="pressRelease('back')"
+          ontouchcancel="pressCancel('back')"
+          onclick="onHeaderTitleClick"
+        >{{ headerTitle }}</text>
+        <div if="{{ busy }}" class="header-spinner">
+          <image class="header-spinner-img" src="/common/icons/progress-activity.png"></image>
+        </div>
+      </div>
     </div>
 
-    <!-- 加载 / 错误（垂直居中） -->
-    <div class="center-area" if="{{ loading && !errorText }}">
-      <image class="spin" src="/common/icons/progress-activity.png"></image>
+    <!-- 加载 / 错误（打开 HydroApp 的 Splash 与 HydroLink 本体一致：全屏居中 144×144 图标） -->
+    <div class="splash-area" if="{{ loading && !errorText }}">
+      <image class="splash-logo" src="{{ splashIcon }}"></image>
     </div>
     <div class="center-area" if="{{ errorText }}">
       <text class="err">{{ errorText }}</text>
@@ -70,12 +74,6 @@
               <text class="flat-nav-text" style="{{ node.navTextStyle }}">{{ node.navLabel }}</text>
             </div>
 
-            <!-- gif-player (本地双缓冲播放器组件) -->
-            <gif-player elif="{{ node.kind === 'gif-player' }}" player-data="{{ node.playerData }}" @playerready="onPlayerReady(node)" @playerfinish="onPlayerFinish(node)" @segmentchange="onPlayerSegmentChange(node)" onclick="onNodeTap(node)"></gif-player>
-
-            <!-- video (原生视频播放器组件) -->
-            <video elif="{{ node.kind === 'video' }}" id="{{ node.id }}" class="flat-video" style="{{ node.videoStyle }}" src="{{ node.src }}" poster="{{ node.poster }}" autoplay="{{ node.autoplay }}" controls="{{ node.controls }}" muted="{{ node.muted }}" onstart="onVideoStart(node)" onpause="onVideoPause(node)" onfinish="onVideoFinish(node)" onerror="onVideoError(node)"></video>
-
             <!-- fallback other -->
             <text elif="{{ node.kind === 'other' }}" class="flat-other">[{{ node.type }}]</text>
           </div>
@@ -104,8 +102,6 @@
           <div elif="{{ node.kind === 'nav' }}" class="flat-nav" style="{{ node.navStyle }}" onclick="onNavClick(node)">
             <text class="flat-nav-text" style="{{ node.navTextStyle }}">{{ node.navLabel }}</text>
           </div>
-          <gif-player elif="{{ node.kind === 'gif-player' }}" player-data="{{ node.playerData }}" @playerready="onPlayerReady(node)" @playerfinish="onPlayerFinish(node)" @segmentchange="onPlayerSegmentChange(node)" onclick="onNodeTap(node)"></gif-player>
-          <video elif="{{ node.kind === 'video' }}" id="{{ node.id }}" class="flat-video" style="{{ node.videoStyle }}" src="{{ node.src }}" poster="{{ node.poster }}" autoplay="{{ node.autoplay }}" controls="{{ node.controls }}" muted="{{ node.muted }}" onstart="onVideoStart(node)" onpause="onVideoPause(node)" onfinish="onVideoFinish(node)" onerror="onVideoError(node)"></video>
           <text elif="{{ node.kind === 'other' }}" class="flat-other">[{{ node.type }}]</text>
         </div>
       </div>
@@ -151,11 +147,41 @@
   padding-top: 5px;
   text-align: center;
 }
+.title-row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  max-width: 340px;
+}
 .title {
   font-size: 32px;
   font-weight: bold;
   color: #fff;
   text-align: center;
+  lines: 1;
+  text-overflow: ellipsis;
+  max-width: 340px;
+}
+.title-busy {
+  max-width: 300px;
+}
+.header-spinner {
+  width: 28px;
+  height: 28px;
+  margin-left: 8px;
+  flex-shrink: 0;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  transform-origin: 14px 14px;
+  animation-name: flat-spin-anim;
+  animation-duration: 900ms;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+.header-spinner-img {
+  width: 28px;
+  height: 28px;
 }
 .pressable {
   transform-origin: 50% 50%;
@@ -167,14 +193,14 @@
 }
 .press-down {
   animation-name: PressDown;
-  animation-duration: 80ms;
+  animation-duration: 150ms;
   animation-timing-function: ease-out;
   animation-iteration-count: 1;
   animation-fill-mode: forwards;
 }
 .press-up {
   animation-name: PressUp;
-  animation-duration: 140ms;
+  animation-duration: 250ms;
   animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
   animation-iteration-count: 1;
   animation-fill-mode: forwards;
@@ -222,6 +248,21 @@
 .abs-node {
   position: absolute;
 }
+.splash-area {
+  position: absolute;
+  left: 0; right: 0;
+  top: 0; bottom: 0;
+  width: 100%;
+  height: 100%;
+  background-color: #000;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.splash-logo {
+  width: 144px;
+  height: 144px;
+}
 .center-area {
   position: absolute;
   left: 0; right: 0;
@@ -230,7 +271,6 @@
   align-items: center;
   justify-content: center;
 }
-.spin { width: 56px; height: 56px; }
 .err { color: #ffb4ab; font-size: 24px; margin-bottom: 8px; }
 .hint { color: #666; font-size: 20px; }
 .event-status {
@@ -333,8 +373,17 @@
     align-items: center;
     padding: 0 36px;
   }
-  .title {
+  .title-row {
     margin-left: 8px;
+    max-width: 280px;
+    justify-content: flex-start;
+  }
+  .title {
+    max-width: 280px;
+    text-align: left;
+  }
+  .title-busy {
+    max-width: 244px;
   }
   .time-display {
     margin-right: 8px;
@@ -350,6 +399,7 @@
 import router from '@system.router';
 import device from '@system.device';
 import deviceService from '../../services/deviceService.js';
+import mediaCache from '../../services/mediaCache.js';
 import { compileHydroUi, resolveStyle, toCssStyle, normalizeUrl } from './layout/uiLayout.js';
 import { createUiPublisher } from './layout/uiPublisher.js';
 import { createClientSandbox } from './layout/clientRuntime.js';
@@ -361,7 +411,8 @@ export default {
     item: '',
     host: '',
     port: 0,
-    deviceId: ''
+    deviceId: '',
+    appIcon: ''
   },
 
   private: {
@@ -369,6 +420,7 @@ export default {
     totalHeight: 480,
     _rootTap: '',
     loading: true,
+    splashIcon: '/common/icon.png',
     errorText: '',
     headerTitle: '',
     headerTap: '',
@@ -382,6 +434,7 @@ export default {
     isCircle: true,
     refreshMs: 0,
     _timer: null,
+    busy: false,
     _busy: false,
     _refreshing: false,
     eventStatus: '',
@@ -404,10 +457,11 @@ export default {
 
   onInit() {
     this._publisher = createUiPublisher();
+    this.splashIcon = this._resolveSplashIcon();
     this.updateTime();
     this._timeTimer = setInterval(() => {
       this.updateTime();
-    }, 30000);
+    }, 1000);
     this._sandbox = createClientSandbox({
       onLocalStateChange: () => this._applyLocal(),
       getStore: (k, def) => (this._watchStore && this._watchStore[k] !== undefined ? this._watchStore[k] : def),
@@ -429,6 +483,25 @@ export default {
     this._watchStore = await deviceService.readPluginStore(this.plugin);
     if (this._destroyed) return;
     await this.load();
+  },
+
+  _resolveSplashIcon() {
+    if (this.appIcon) return this.appIcon;
+    try {
+      const cached = deviceService.peekCache('pluginlist', this.host || this.deviceId);
+      if (Array.isArray(cached)) {
+        for (let i = 0; i < cached.length; i++) {
+          const p = cached[i];
+          if (p && p.package && p.package.id === this.plugin && Array.isArray(p.apps)) {
+            for (let j = 0; j < p.apps.length; j++) {
+              const a = p.apps[j];
+              if (a && a.id === this.item && a.icon) return a.icon;
+            }
+          }
+        }
+      }
+    } catch (e) {}
+    return '/common/icon.png';
   },
 
   _storeHeader() {
@@ -522,19 +595,6 @@ export default {
         this._send({ handler: it.change, source: 'change', value: res.value });
       }
       this._inputItem = null;
-    }
-    // 全局播放器退出回结果（形态同 keyboardResult）：节点带 finish 事件就回传插件，
-    // 否则只记日志——手表侧没有日志出口，播放器退出状态排障靠这条（进宿主应用日志）
-    const pres = appDef ? appDef.playerResult : null;
-    if (pres) {
-      appDef.playerResult = null;
-      console.log('[hydro] 播放器返回: index=' + pres.index + ' finished=' + pres.finished);
-      const pn = this._playerNode;
-      this._playerNode = null;
-      if (pn && pn.events && pn.events.finish) {
-        if (this._sandbox && this._sandbox.invoke(pn.events.finish, pres)) return;
-        this._send({ handler: pn.events.finish, source: 'playerFinish', detail: pres });
-      }
     }
     if (this._started && this.refreshMs > 0 && !this.errorText && !this._timer) this._startTimer();
   },
@@ -672,6 +732,7 @@ export default {
       this._cache = compiled.cache;
       this._handlers = compiled.handlers;
       this.totalHeight = compiled.totalHeight;
+      this._rewriteCachedImages(compiled.flatNodes);
 
       // 增量 In-place patch 发布
       this.flatNodes = this._publisher.update(compiled.flatNodes, this.flatNodes);
@@ -706,7 +767,48 @@ export default {
     this._cache = compiled.cache;
     this._handlers = compiled.handlers;
     this.totalHeight = compiled.totalHeight;
+    this._rewriteCachedImages(compiled.flatNodes);
     this.flatNodes = this._publisher.update(compiled.flatNodes, this.flatNodes);
+  },
+
+  /**
+   * 互联代理模式下把远程配图/图标也经手机拉到本地缓存文件再交给 `<image>`，
+   * 优先级设为 0（排在正在播的 GIF 分段后面，不抢带宽）。已缓存的同步命中，
+   * 避免二次发布时闪回原 http 地址。
+   */
+  _rewriteCachedImages(nodes) {
+    if (!Array.isArray(nodes)) return;
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i];
+      if (!n) continue;
+      if (n.kind === 'image' && n.src && /^https?:\/\//i.test(n.src)) {
+        const raw = n.src;
+        const hit = mediaCache.peek(raw);
+        if (hit) n.src = hit;
+        else this._proxyNodeImage(n.id, 'src', raw);
+      } else if (n.kind === 'icon' && n.iconSrc && /^https?:\/\//i.test(n.iconSrc)) {
+        const raw = n.iconSrc;
+        const hit = mediaCache.peek(raw);
+        if (hit) n.iconSrc = hit;
+        else this._proxyNodeImage(n.id, 'iconSrc', raw);
+      }
+    }
+  },
+
+  _proxyNodeImage(id, prop, url) {
+    mediaCache.resolve(url, 0).then(
+      (uri) => {
+        if (this._destroyed || !uri || uri === url || !Array.isArray(this.flatNodes)) return;
+        for (let i = 0; i < this.flatNodes.length; i++) {
+          const item = this.flatNodes[i];
+          if (item && item.id === id) {
+            item[prop] = uri;
+            break;
+          }
+        }
+      },
+      () => {}
+    );
   },
 
   _applyWatchStore(view) {
@@ -754,34 +856,6 @@ export default {
   onNodeTap(node, evt) {
     if (evt && typeof evt.stopPropagation === 'function') evt.stopPropagation();
     console.info('[hydro] flat node tap handler=' + (node && node.tap || '(none)'));
-    if (node && node.kind === 'video') {
-      try {
-        const el = this.$element(node.id);
-        if (el) {
-          if (typeof el.start === 'function') el.start();
-          else if (typeof el.play === 'function') el.play();
-        }
-      } catch (videoTapErr) {
-        console.warn('[hydro] video tap start error:', videoTapErr);
-      }
-    }
-    // gif-player 无自定义 tap 时，点按 = 打开**全局播放器服务**（/pages/player）：
-    // 平台自带全屏播放（暂停/上一段/下一段/退出回结果），插件不必各自写播放器。
-    // 带 tap 事件的节点（如 bili 卡片"点开视频"）保持原行为，交给插件。
-    if (node && node.kind === 'gif-player' && !node.tap && node.playerData &&
-        Array.isArray(node.playerData.segments) && node.playerData.segments.length) {
-      const appDef = this.$app && this.$app.$def;
-      if (appDef) {
-        appDef.playerRequest = {
-          segments: node.playerData.segments,
-          title: this._playerTitle(node),
-          loop: node.playerData.loop !== false
-        };
-      }
-      this._playerNode = node;
-      router.push({ uri: '/pages/player' });
-      return;
-    }
     if (!node || !node.tap) return;
     // 优先尝试客户端沙盒本地拦截（0ms 响应，免蓝牙/网络往返）
     if (this._sandbox && this._sandbox.invoke(node.tap, node)) {
@@ -789,12 +863,6 @@ export default {
       return;
     }
     this._send({ handler: node.tap, source: 'tap' });
-  },
-
-  /** 全局播放器的标题：优先节点自带标题，退回插件页标题。 */
-  _playerTitle(node) {
-    if (node && node.playerData && node.playerData.title) return String(node.playerData.title);
-    return this.headerTitle || '播放';
   },
 
   onSwitchChange(node, evt) {
@@ -842,58 +910,6 @@ export default {
     }
   },
 
-  onPlayerReady(node, evt) {
-    const detail = this._unwrap(evt);
-    if (detail && detail.controller && this._sandbox) {
-      this._sandbox.setPlayerController(detail.controller);
-    }
-  },
-
-  onPlayerFinish(node, evt) {
-    const detail = this._unwrap(evt);
-    if (!node || !node.events || !node.events.finish) return;
-    if (this._sandbox && this._sandbox.invoke(node.events.finish, detail)) return;
-    this._send({ handler: node.events.finish, source: 'playerFinish', detail });
-  },
-
-  onPlayerSegmentChange(node, evt) {
-    const detail = this._unwrap(evt);
-    if (!node || !node.events || !node.events.segmentChange) return;
-    if (this._sandbox && this._sandbox.invoke(node.events.segmentChange, detail)) return;
-    this._send({ handler: node.events.segmentChange, source: 'segmentChange', detail });
-  },
-
-  onVideoStart(node, evt) {
-    const detail = this._unwrap(evt);
-    if (!node || !node.events || !node.events.start) return;
-    if (this._sandbox && this._sandbox.invoke(node.events.start, detail)) return;
-    this._send({ handler: node.events.start, source: 'videoStart', detail });
-  },
-
-  onVideoPause(node, evt) {
-    const detail = this._unwrap(evt);
-    if (!node || !node.events || !node.events.pause) return;
-    if (this._sandbox && this._sandbox.invoke(node.events.pause, detail)) return;
-    this._send({ handler: node.events.pause, source: 'videoPause', detail });
-  },
-
-  onVideoFinish(node, evt) {
-    const detail = this._unwrap(evt);
-    if (!node || !node.events || !node.events.finish) return;
-    if (this._sandbox && this._sandbox.invoke(node.events.finish, detail)) return;
-    this._send({ handler: node.events.finish, source: 'videoFinish', detail });
-  },
-
-  onVideoError(node, evt) {
-    const detail = this._unwrap(evt);
-    console.warn('[hydro] video play error: ' + (node && node.src), detail);
-    this.eventStatus = '视频播放失败';
-    setTimeout(() => { if (!this._destroyed) this.eventStatus = ''; }, 3000);
-    if (!node || !node.events || !node.events.error) return;
-    if (this._sandbox && this._sandbox.invoke(node.events.error, detail)) return;
-    this._send({ handler: node.events.error, source: 'videoError', detail });
-  },
-
   onFabTap(evt) {
     if (evt && typeof evt.stopPropagation === 'function') evt.stopPropagation();
     if (!this.fabButton) return;
@@ -909,6 +925,7 @@ export default {
     console.info('[hydro] event dispatch handler=' + ev.handler + ' busy=' + this._busy + ' destroyed=' + this._destroyed);
     if (this._busy || this._destroyed) return;
     this._busy = true;
+    this.busy = true;
     this._eventGeneration = (this._eventGeneration || 0) + 1;
     this._clearTimer();
     try {
@@ -931,6 +948,7 @@ export default {
       }
     } finally {
       this._busy = false;
+      this.busy = false;
       this._startTimer();
     }
   },
@@ -954,7 +972,7 @@ export default {
     this.releasedKey = key;
     setTimeout(() => {
       if (this.releasedKey === key) this.releasedKey = '';
-    }, 160);
+    }, 270);
   },
 
   pressCancel(key) {

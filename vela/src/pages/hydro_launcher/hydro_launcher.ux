@@ -25,16 +25,15 @@
 
     <scroll class="scroll-area" scroll-y="true" bounces="true" show="{{ !loading && !errorText && !emptyText }}">
       <div class="list">
-        <!-- 扁平成一层：每行都是 .list(column) 的直接子项。
-             原来两层嵌套 for，外层 div 无 class → Vela 默认 flex-direction:row，
-             同一插件的多个 App 会横向排开、互相重叠，而且纵向不增长导致滚不动。 -->
+        <!-- 列表式（默认） -->
         <div
+          if="{{ viewStyle !== 'grid' }}"
           for="{{ (i, item) in apps }}"
-          class="app-row pressable {{ pressedKey === 'app_' + i ? 'is-down press-down' : '' }} {{ releasedKey === 'app_' + i ? 'press-up' : '' }}"
+          class="app-row pressable {{ pressedKey === 'app_' + i ? 'is-down' : '' }}"
           ontouchstart="pressDown('app_' + i)"
           ontouchend="pressRelease('app_' + i)"
           ontouchcancel="pressCancel('app_' + i)"
-          onclick="openApp(item.packageId, item.app.id)"
+          onclick="openApp(item.packageId, item.app.id, item.app.icon)"
         >
           <div class="app-left">
             <!-- 有图标就显示图标（宿主已在 /api/hydro/list 里解析成可取 URL）；
@@ -46,6 +45,28 @@
             <text class="app-name">{{ item.app.name || item.app.id }}</text>
           </div>
           <text class="chevron">›</text>
+        </div>
+
+        <!-- 图标式（每行 3 个：圆形图标 + 下方应用名称） -->
+        <div
+          if="{{ viewStyle === 'grid' }}"
+          for="{{ (ri, row) in appRows }}"
+          class="grid-row"
+        >
+          <div
+            for="{{ (ci, cell) in row }}"
+            class="grid-item pressable {{ pressedKey === 'grid_' + cell.idx ? 'is-down' : '' }}"
+            ontouchstart="pressDown('grid_' + cell.idx)"
+            ontouchend="pressRelease('grid_' + cell.idx)"
+            ontouchcancel="pressCancel('grid_' + cell.idx)"
+            onclick="openApp(cell.packageId, cell.app.id, cell.app.icon)"
+          >
+            <image if="{{ cell.app.icon }}" class="grid-icon" src="{{ cell.app.icon }}"></image>
+            <div if="{{ !cell.app.icon }}" class="grid-icon grid-icon-fallback">
+              <text class="grid-icon-letter">{{ cell.app.name[0] || '?' }}</text>
+            </div>
+            <text class="grid-name">{{ cell.app.name || cell.app.id }}</text>
+          </div>
         </div>
 
         <!-- 底部安全区占位（与 home/settings 同一手法）：圆屏下最后一行能滚到
@@ -114,18 +135,58 @@
 }.app-name { font-size: 26px; font-weight: bold; color: #fff; }
 .chevron { font-size: 30px; color: #888; }
 
+.grid-row {
+  width: 100%;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: flex-start;
+  margin-bottom: 18px;
+  flex-shrink: 0;
+}
+.grid-item {
+  width: 33.33%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+}
+.grid-icon {
+  width: 84px;
+  height: 84px;
+  border-radius: 42px;
+  margin-bottom: 8px;
+}
+.grid-icon-fallback {
+  background-color: #2e323c;
+  justify-content: center;
+  align-items: center;
+}
+.grid-icon-letter {
+  font-size: 34px;
+  font-weight: bold;
+  color: #cfd6e4;
+}
+.grid-name {
+  font-size: 22px;
+  font-weight: bold;
+  color: #fff;
+  lines: 1;
+  text-overflow: ellipsis;
+  max-width: 120px;
+  text-align: center;
+}
+
 .pressable { transform-origin: 50% 50%; transform: scale(1); opacity: 1; }
 .is-down { opacity: 0.75; }
-.press-down { animation-name: PressDown; animation-duration: 80ms; animation-timing-function: ease-out; animation-iteration-count: 1; animation-fill-mode: forwards; }
-.press-up { animation-name: PressUp; animation-duration: 140ms; animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1); animation-iteration-count: 1; animation-fill-mode: forwards; }
+.press-down { animation-name: PressDown; animation-duration: 150ms; animation-timing-function: ease-out; animation-iteration-count: 1; animation-fill-mode: forwards; }
+.press-up { animation-name: PressUp; animation-duration: 250ms; animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1); animation-iteration-count: 1; animation-fill-mode: forwards; }
 @keyframes PressDown { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(0.94); opacity: 0.75; } }
 @keyframes PressUp { 0% { transform: scale(0.94); opacity: 0.75; } 100% { transform: scale(1); opacity: 1; } }
 
-/* 圆屏安全区：左右与容器页（hydro.ux 的 .safe-circle）取同一个值 42px，
-   否则 84px 高的胶囊行两端会被圆弧切掉；底部用 .list-bottom-space 顶出弧线高度。 */
+/* 圆屏安全区：左右边距与主页设备列表（400px 卡片，左右各 40px）统一，
+   底部安全区与新手引导配对页（80px）统一。 */
 @media (shape: circle) {
-  .list { padding-left: 42px; padding-right: 42px; }
-  .list-bottom-space { height: 150px; }
+  .list { padding-left: 40px; padding-right: 40px; }
+  .list-bottom-space { height: 80px; }
 }
 
 @media (shape: rect) {
@@ -140,6 +201,7 @@
 <script>
 import router from '@system.router'
 import deviceService from '../../services/deviceService.js'
+import settingsService from '../../services/settingsService.js'
 
 export default {
   protected: {
@@ -150,10 +212,12 @@ export default {
 
   private: {
     currentTime: '00:00',
+    viewStyle: 'grid',
     plugins: [],
     // 扁平化的 HydroApp 列表：每项 { packageId, app }。
     // 渲染成一层 row，避免嵌套 for 的外层 div 默认 row 把同插件多条 App 排成横排。
     apps: [],
+    appRows: [],
     loading: true,
     errorText: '',
     emptyText: '',
@@ -163,15 +227,30 @@ export default {
 
   onInit() {
     this.updateTime()
-    this._timeInterval = setInterval(() => this.updateTime(), 60000)
+    this._timeInterval = setInterval(() => this.updateTime(), 1000)
+    this.loadViewStyle()
     // 先用缓存渲染（切页面回来不闪加载中），再静默刷新
     const cached = deviceService.peekCache('pluginlist', this.host || this.deviceId)
     if (cached) {
       this.plugins = cached
       this.apps = this.flatten(cached)
+      this.appRows = this.chunkRows(this.apps)
       this.loading = false
     }
     this.load()
+  },
+
+  onShow() {
+    this.updateTime()
+    this.loadViewStyle()
+  },
+
+  async loadViewStyle() {
+    try {
+      this.viewStyle = await settingsService.getHydroAppsStyle()
+    } catch (e) {
+      this.viewStyle = 'grid'
+    }
   },
 
   onDestroy() {
@@ -196,6 +275,7 @@ export default {
     }
     this.plugins = data.plugins.filter((p) => p.apps && p.apps.length > 0)
     this.apps = this.flatten(this.plugins)
+    this.appRows = this.chunkRows(this.apps)
     deviceService.putCache('pluginlist', this.host || this.deviceId, this.plugins)
     if (this.apps.length === 0) {
       this.emptyText = '暂无 HydroApps'
@@ -216,7 +296,21 @@ export default {
     return out
   },
 
-  openApp(packageId, appId) {
+  /** 把扁平 apps 按每行 3 个分组，供图标式网格渲染。 */
+  chunkRows(apps) {
+    const rows = []
+    const list = apps || []
+    for (let i = 0; i < list.length; i += 3) {
+      const row = []
+      for (let j = i; j < i + 3 && j < list.length; j++) {
+        row.push({ idx: j, packageId: list[j].packageId, app: list[j].app })
+      }
+      rows.push(row)
+    }
+    return rows
+  },
+
+  openApp(packageId, appId, appIcon) {
     router.push({
       uri: '/pages/hydro',
       params: {
@@ -225,7 +319,8 @@ export default {
         item: appId,
         host: this.host || '',
         port: String(this.port || 0),
-        deviceId: this.deviceId || ''
+        deviceId: this.deviceId || '',
+        appIcon: appIcon || ''
       }
     })
   },
@@ -238,7 +333,7 @@ export default {
   pressRelease(key) {
     this.pressedKey = ''
     this.releasedKey = key
-    setTimeout(() => { if (this.releasedKey === key) this.releasedKey = '' }, 160)
+    setTimeout(() => { if (this.releasedKey === key) this.releasedKey = '' }, 270)
   },
   pressCancel(key) {
     if (this.pressedKey === key) this.pressedKey = ''

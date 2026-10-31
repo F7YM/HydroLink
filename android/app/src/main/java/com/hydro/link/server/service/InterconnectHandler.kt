@@ -2,6 +2,7 @@ package com.hydro.link.server.service
 
 import android.content.Context
 import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
 import com.google.gson.Gson
@@ -29,6 +30,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -51,6 +54,12 @@ import java.util.concurrent.ConcurrentHashMap
  *
  *   Watch  -> Phone: {"type":"api_request","id":"<req-id>","path":"/api/ping","method":"GET","body":null}
  *   Phone  -> Watch: {"type":"api_response","id":"<req-id>","data":{...}}
+ *
+ *   Watch  -> Phone: {"type":"proxy_http","id":…,"url":…,"binary":true}
+ *   Phone  -> Watch: {"type":"api_response","id":…,"data":{"code":200,"contentType":"image/gif","base64":"…"}}
+ *
+ *   超过单条上限的回包拆成 {"type":"chunk","id":…,"seq":i,"total":n,"data":"…"}（见 InterconnectChunker）。
+ *   Watch  -> Phone: {"type":"keepalive"}  有请求在途时每秒一条，只为让系统别冻结本 App，忽略即可。
  */
 class InterconnectHandler(
     private val context: Context,
@@ -61,6 +70,18 @@ class InterconnectHandler(
     private val gson = Gson()
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** 分片必须一片一片按序发（等上一片成功再发下一片），多个回包之间也不交错。 */
+    private val sendMutex = Mutex()
+
+    /** 转发请求在途时持有的 CPU 唤醒锁（引用计数，带超时兜底）。 */
+    private val wakeLock: PowerManager.WakeLock? = try {
+        (context.getSystemService(Context.POWER_SERVICE) as? PowerManager)
+            ?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "HydroLink:interconnect")
+            ?.apply { setReferenceCounted(true) }
+    } catch (e: Exception) {
+        null
+    }
 
     private var serviceApi: ServiceApi? = null
     private var nodeApi: NodeApi? = null
@@ -233,6 +254,16 @@ class InterconnectHandler(
     fun stop() {
         running = false
         scope.cancel()
+
+        // Notify connected watches immediately that the phone server is stopping
+        val offlineMsg = """{"type":"server_offline"}"""
+        for (nodeId in registeredNodes) {
+            try {
+                sendMessage(nodeId, offlineMsg)
+            } catch (e: Exception) {
+                Log.w(TAG, "sendMessage(server_offline) failed for $nodeId", e)
+            }
+        }
 
         // Remove message listeners
         val api = messageApi
@@ -531,13 +562,10 @@ class InterconnectHandler(
                 // Routing may block (e.g. command execution), so run it off
                 // the message callback thread.
                 scope.launch {
-                    val data = routeApiRequest(path, method, body)
-                    val response = JsonObject().apply {
-                        addProperty("type", "api_response")
-                        addProperty("id", id)
-                        add("data", data)
+                    withWakeLock {
+                        val data = routeApiRequest(path, method, body)
+                        sendReply(nodeId, id, apiResponse(id, data))
                     }
-                    sendMessage(nodeId, response.toString())
                 }
             }
 
@@ -555,14 +583,12 @@ class InterconnectHandler(
                 val headers: JsonObject? = json.get("headers")
                     ?.takeIf { it.isJsonObject }
                     ?.asJsonObject
+                val binary = json.get("binary")?.takeIf { it.isJsonPrimitive }?.asBoolean == true
                 scope.launch {
-                    val data = proxyHttpRequest(url, method, body, headers)
-                    val response = JsonObject().apply {
-                        addProperty("type", "api_response")
-                        addProperty("id", id)
-                        add("data", data)
+                    withWakeLock {
+                        val data = proxyHttpRequest(url, method, body, headers, binary)
+                        sendReply(nodeId, id, apiResponse(id, data))
                     }
-                    sendMessage(nodeId, response.toString())
                 }
             }
 
@@ -586,10 +612,13 @@ class InterconnectHandler(
                         addProperty("id", id)
                         add("devices", devArray)
                     }
-                    sendMessage(nodeId, response.toString())
+                    sendReply(nodeId, id, response.toString())
                     Log.i(TAG, "Replied to discover_lan from $nodeId: found ${devices.size} devices")
                 }
             }
+
+            // 手表在有请求在途时发来的保活消息：收到它本身（一次 binder 调用）就够了
+            "keepalive" -> Unit
 
             else -> Log.w(TAG, "Unknown message type '$type' from $nodeId")
         }
@@ -632,7 +661,13 @@ class InterconnectHandler(
      * http"). Fetches the target URL and returns { code, data } where code is the
      * HTTP status and data is the parsed JSON body (or {"raw": ...} if not JSON).
      */
-    private fun proxyHttpRequest(url: String, method: String, body: JsonElement?, headers: JsonObject?): JsonElement {
+    private fun proxyHttpRequest(
+        url: String,
+        method: String,
+        body: JsonElement?,
+        headers: JsonObject?,
+        binary: Boolean = false,
+    ): JsonElement {
         if (url.isBlank()) {
             return gson.toJsonTree(mapOf("code" to 0, "data" to null, "error" to "empty url"))
         }
@@ -652,6 +687,16 @@ class InterconnectHandler(
             }
             val code = conn.responseCode
             val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+            if (binary) {
+                // 图片 / GIF 分段：原样转 base64，不做 JSON 解析
+                val bytes = stream?.use { it.readBytes() } ?: ByteArray(0)
+                return JsonObject().apply {
+                    addProperty("code", code)
+                    addProperty("contentType", conn.contentType ?: "")
+                    addProperty("size", bytes.size)
+                    addProperty("base64", android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP))
+                }
+            }
             val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
             val parsed: JsonElement = try {
                 if (text.isBlank()) JsonObject() else gson.fromJson(text, JsonElement::class.java)
@@ -668,6 +713,80 @@ class InterconnectHandler(
         } finally {
             conn?.disconnect()
         }
+    }
+
+    private fun apiResponse(id: String, data: JsonElement): String = JsonObject().apply {
+        addProperty("type", "api_response")
+        addProperty("id", id)
+        add("data", data)
+    }.toString()
+
+    private suspend fun <T> withWakeLock(block: suspend () -> T): T {
+        val lock = wakeLock
+        try {
+            lock?.acquire(60_000L)
+        } catch (e: Exception) {
+            Log.w(TAG, "wakelock acquire failed", e)
+        }
+        try {
+            return block()
+        } finally {
+            try {
+                if (lock?.isHeld == true) lock.release()
+            } catch (e: Exception) {
+                // 超时自动释放后再 release 会抛，忽略
+            }
+        }
+    }
+
+    /**
+     * 发回包：放得下就一条发完，放不下按 InterconnectChunker 分片按序发送。
+     * 任何一片发送失败都补发一条小的错误回包——否则手表只能干等到超时，
+     * 用户看到的是"加载几秒后超时"，根本不知道是回包太大还是手机被冻结。
+     */
+    private suspend fun sendReply(nodeId: String, id: String, text: String) {
+        val messages = InterconnectChunker.chunk(id, text)
+        val failure = sendMutex.withLock {
+            var error: Throwable? = null
+            for ((i, m) in messages.withIndex()) {
+                error = sendAwait(nodeId, m)
+                if (error != null) {
+                    Log.w(TAG, "sendReply $id: part ${i + 1}/${messages.size} failed", error)
+                    break
+                }
+            }
+            error
+        }
+        if (messages.size > 1 && failure == null) {
+            Log.d(TAG, "sendReply $id: ${text.length} chars in ${messages.size} chunks")
+        }
+        if (failure != null && id.isNotEmpty()) {
+            val err = JsonObject().apply {
+                addProperty("code", 0)
+                addProperty("status", "error")
+                val reason = "interconnect send failed: " + (failure.message ?: failure.javaClass.simpleName)
+                addProperty("error", reason)
+                addProperty("message", reason)
+            }
+            sendMutex.withLock { sendAwait(nodeId, apiResponse(id, err)) }
+        }
+    }
+
+    /** 发一条消息并等结果；成功返回 null，失败返回异常。 */
+    private suspend fun sendAwait(nodeId: String, data: String): Throwable? {
+        val api = messageApi ?: return IllegalStateException("messageApi not ready")
+        val done = CompletableDeferred<Throwable?>()
+        try {
+            api.sendMessage(nodeId, data.toByteArray(Charsets.UTF_8))
+                .addOnSuccessListener { done.complete(null) }
+                .addOnFailureListener { e -> done.complete(e) }
+        } catch (e: Exception) {
+            return e
+        }
+        // 包一层 list：成功时 await() 本身就是 null，不能和"超时"混在一起
+        val outcome = kotlinx.coroutines.withTimeoutOrNull(10_000L) { listOf(done.await()) }
+            ?: return IllegalStateException("send timeout")
+        return outcome[0]
     }
 
     private fun sendMessage(nodeId: String, data: String) {
@@ -693,22 +812,10 @@ class InterconnectHandler(
     }
 
     /**
-     * User-facing Android device name (the name shown in Android Settings),
-     * falling back to the hardware model.
+     * User-facing device name (e.g. 「一加 Ace 6」), consistent with /api/status system.hostname.
      */
-    private fun getAndroidDeviceName(): String {
-        return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
-                val name = Settings.Global.getString(context.contentResolver, Settings.Global.DEVICE_NAME)
-                if (!name.isNullOrBlank()) name
-                else Build.MODEL ?: "Android"
-            } else {
-                Build.MODEL ?: "Android"
-            }
-        } catch (e: Exception) {
-            Build.MODEL ?: "Android"
-        }
-    }
+    private fun getAndroidDeviceName(): String =
+        com.hydro.link.server.util.NetworkUtil.deviceDisplayName(context)
 
     /**
      * Proactively send our server info to the watch so it can add this phone

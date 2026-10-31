@@ -386,6 +386,7 @@ internal fun LiquidFloatingBar(
                 )
                 Text(
                     text = item.label,
+                    style = androidx.compose.ui.text.TextStyle.Default,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Normal,
                     maxLines = 1,

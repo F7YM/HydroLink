@@ -8,7 +8,7 @@
 import file from '@system.file'
 
 const SETTINGS_FILE = 'internal://files/settings.json'
-const DEFAULTS = { forceFetch: false, keepScreenOn: false, oobeCompleted: false }
+const DEFAULTS = { forceFetch: false, keepScreenOn: false, oobeCompleted: false, hydroAppsStyle: 'grid' }
 
 function readText(uri) {
   return new Promise((resolve, reject) => {
@@ -83,5 +83,19 @@ export default {
     s.oobeCompleted = !!value
     await writeText(SETTINGS_FILE, JSON.stringify(s))
     return s.oobeCompleted
+  },
+
+  /** HydroApps 列表样式（默认 'grid'：'grid' 图标式 | 'list' 列表式）。 */
+  async getHydroAppsStyle() {
+    const s = await getSettings()
+    return s.hydroAppsStyle === 'list' ? 'list' : 'grid'
+  },
+
+  /** 记住 HydroApps 列表样式。 */
+  async setHydroAppsStyle(value) {
+    const s = await getSettings()
+    s.hydroAppsStyle = value === 'list' ? 'list' : 'grid'
+    await writeText(SETTINGS_FILE, JSON.stringify(s))
+    return s.hydroAppsStyle
   }
 }

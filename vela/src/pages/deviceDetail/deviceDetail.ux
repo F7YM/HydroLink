@@ -13,11 +13,11 @@
     </div>
 
     <!-- Form area -->
-    <div class="form-area">
+    <scroll class="form-area" scroll-y="true" bounces="true">
       <div class="form-list">
         <!-- Device Name -->
         <div
-          class="form-item pressable {{ pressedKey === 'name' ? 'is-down press-down' : '' }} {{ releasedKey === 'name' ? 'press-up' : '' }}"
+          class="form-item pressable {{ pressedKey === 'name' ? 'is-down' : '' }}"
           ontouchstart="pressDown('name')"
           ontouchend="pressRelease('name')"
           ontouchcancel="pressCancel('name')"
@@ -29,7 +29,7 @@
 
         <!-- Device IP -->
         <div
-          class="form-item pressable {{ pressedKey === 'ip' ? 'is-down press-down' : '' }} {{ releasedKey === 'ip' ? 'press-up' : '' }}"
+          class="form-item pressable {{ pressedKey === 'ip' ? 'is-down' : '' }}"
           ontouchstart="pressDown('ip')"
           ontouchend="pressRelease('ip')"
           ontouchcancel="pressCancel('ip')"
@@ -41,7 +41,7 @@
 
         <!-- Device Port -->
         <div
-          class="form-item pressable {{ pressedKey === 'port' ? 'is-down press-down' : '' }} {{ releasedKey === 'port' ? 'press-up' : '' }}"
+          class="form-item pressable {{ pressedKey === 'port' ? 'is-down' : '' }}"
           ontouchstart="pressDown('port')"
           ontouchend="pressRelease('port')"
           ontouchcancel="pressCancel('port')"
@@ -53,7 +53,7 @@
 
         <!-- Device Type -->
         <div
-          class="form-item pressable {{ pressedKey === 'type' ? 'is-down press-down' : '' }} {{ releasedKey === 'type' ? 'press-up' : '' }}"
+          class="form-item pressable {{ pressedKey === 'type' ? 'is-down' : '' }}"
           ontouchstart="pressDown('type')"
           ontouchend="pressRelease('type')"
           ontouchcancel="pressCancel('type')"
@@ -66,18 +66,19 @@
           </div>
         </div>
 
-        <!-- Delete Device -->
+        <!-- Delete Device：MD3e 圆表底部按钮，列表末尾，滚到底时下沿贴合表盘 -->
         <div
-          class="delete-button pressable {{ pressedKey === 'delete' ? 'is-down press-down' : '' }} {{ releasedKey === 'delete' ? 'press-up' : '' }}"
+          class="edge-btn edge-error pressable {{ pressedKey === 'delete' ? 'is-down' : '' }}"
           ontouchstart="pressDown('delete')"
           ontouchend="pressRelease('delete')"
           ontouchcancel="pressCancel('delete')"
           onclick="onDeleteDevice"
         >
-          <text class="delete-button-text">删除设备</text>
+          <image class="edge-bg" src="/common/images/edge-btn-error.png"></image>
+          <image class="edge-icon" src="/common/icons/delete_42dp_FFFFFF_FILL0_wght400_GRAD0_opsz40.png"></image>
         </div>
       </div>
-    </div>
+    </scroll>
   </div>
 </template>
 
@@ -168,20 +169,26 @@
   margin-right: 8px;
   flex-shrink: 0;
 }
-.delete-button {
-  width: 300px;
-  height: 86px;
-  margin-top: 28px;
-  background-color: #4a2428;
-  border-radius: 43px;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
+/* MD3e 圆表底部按钮（删除）：形状图由 vela/scripts/gen_edge_button.py 生成（240×104） */
+.edge-btn {
+  width: 240px;
+  height: 104px;
+  flex-shrink: 0;
+  margin-top: 20px;
 }
-.delete-button-text {
-  font-size: 28px;
-  font-weight: bold;
-  color: #ffb4ab;
+.edge-bg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 240px;
+  height: 104px;
+}
+.edge-icon {
+  position: absolute;
+  left: 95px;
+  top: 21px;
+  width: 51px;
+  height: 51px;
 }
 
 /* ---- Press animation ---- */
@@ -195,14 +202,14 @@
 }
 .press-down {
   animation-name: PressDown;
-  animation-duration: 80ms;
+  animation-duration: 150ms;
   animation-timing-function: ease-out;
   animation-iteration-count: 1;
   animation-fill-mode: forwards;
 }
 .press-up {
   animation-name: PressUp;
-  animation-duration: 140ms;
+  animation-duration: 250ms;
   animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
   animation-iteration-count: 1;
   animation-fill-mode: forwards;
@@ -231,28 +238,19 @@
 /* ---- Circle screen ---- */
 @media (shape: circle) {
   .form-list {
-    padding-top: 5px;
+    padding-top: 10px;
   }
   .form-item {
-    width: 340px;
-    height: 70px;
-    border-radius: 35px;
-    margin: 3px 0;
+    width: 400px;
+    height: 88px;
+    border-radius: 44px;
+    margin: 5px 0;
   }
   .form-label {
     font-size: 24px;
   }
   .form-value {
     font-size: 24px;
-  }
-  .delete-button {
-    width: 280px;
-    height: 70px;
-    border-radius: 35px;
-    margin-top: 10px;
-  }
-  .delete-button-text {
-    font-size: 26px;
   }
 }
 
@@ -276,6 +274,19 @@
   }
   .form-list {
     padding-top: 10px;
+  }
+  /* 方屏没有圆弧可贴：退回普通药丸按钮 */
+  .edge-bg {
+    display: none;
+  }
+  .edge-btn {
+    height: 96px;
+    border-radius: 48px;
+    background-color: #d9383a;
+    margin-bottom: 20px;
+  }
+  .edge-icon {
+    top: 23px;
   }
 }
 </style>
@@ -307,7 +318,7 @@ export default {
 
   onInit() {
     this.updateTime()
-    this._timeInterval = setInterval(() => this.updateTime(), 60000)
+    this._timeInterval = setInterval(() => this.updateTime(), 1000)
   },
 
   onDestroy() {
@@ -441,7 +452,7 @@ export default {
     this.releasedKey = key
     setTimeout(() => {
       if (this.releasedKey === key) this.releasedKey = ''
-    }, 160)
+    }, 270)
   },
 
   pressCancel(key) {

@@ -22,9 +22,46 @@ import interconnect from '@system.interconnect'
 
 const API_TIMEOUT = 15000
 const DISCOVER_TIMEOUT = 10000
+// 有请求在途时每隔这么久给手机发一条 keepalive：ColorOS 的 Hans 会在 App 最后一次
+// 收到 binder 调用约 3 秒后把它冻结并关掉它的全部 socket（真机日志：
+// `freeze uid … DestroyAllSocket`），转发到电脑的慢请求会被拦腰斩断。
+const KEEPALIVE_MS = 1000
+// 分片回包：超过这么久还没收齐就丢弃（防止半截分片常驻内存）
+const CHUNK_STALE_MS = 30000
+const LOG_MAX = 300
 
-const _pending = {} // id -> { resolve, reject, timer }
+const _pending = {} // id -> { resolve, reject, timer, onTimeout }
+const _chunks = {}  // id -> { parts: [], got, total, at }
 let _reqId = 0
+let _keepaliveTimer = null
+
+function brief(value) {
+  let text
+  try {
+    text = typeof value === 'string' ? value : JSON.stringify(value)
+  } catch (e) {
+    return '(unserializable ' + typeof value + ')'
+  }
+  if (!text) return String(text)
+  return text.length > LOG_MAX ? text.slice(0, LOG_MAX) + '…(' + text.length + ' chars)' : text
+}
+
+function hasPending() {
+  return Object.keys(_pending).length > 0
+}
+
+/** （重新）开始计时：分片回包每到一片就续一次，大回包不会被总超时误杀。 */
+function armTimer(id) {
+  const entry = _pending[id]
+  if (!entry) return
+  if (entry.timer) clearTimeout(entry.timer)
+  entry.timer = setTimeout(() => {
+    if (_pending[id] === entry) {
+      delete _pending[id]
+      entry.onTimeout()
+    }
+  }, entry.timeoutMs || API_TIMEOUT)
+}
 
 function genId() {
   _reqId += 1
@@ -38,6 +75,7 @@ const _service = {
   _onStatusChange: null,
   _onServerInfo: null,
   _serverInfo: null,
+  _lastServerInfoAt: 0,
   _discoverResolvers: [],
 
   /**
@@ -46,7 +84,13 @@ const _service = {
    * @param {Function} onStatusChange(ready: boolean)
    */
   init(onStatusChange) {
-    this._onStatusChange = onStatusChange
+    if (onStatusChange !== undefined) {
+      this._onStatusChange = onStatusChange
+    }
+    if (this._connect) {
+      if (this._ready && this._onStatusChange) this._onStatusChange(true)
+      return this
+    }
     this._serverInfo = null
     this._discoverResolvers = []
 
@@ -62,8 +106,10 @@ const _service = {
    * server_info and its handlers fire.
    */
   ensureInit() {
-    if (this._connect || !this._available) return this
-    return this.init()
+    if (!this._connect && this._available) {
+      this.init()
+    }
+    return this
   },
 
   /**
@@ -162,6 +208,7 @@ const _service = {
       console.log('[interconnect] onclose, code=' + (data && data.code))
       this._ready = false
       if (this._onStatusChange) this._onStatusChange(false)
+      this._notifyServerOffline()
     }
 
     connect.onerror = (data) => {
@@ -169,6 +216,7 @@ const _service = {
       console.warn('[interconnect] onerror: code=' + code)
       this._ready = false
       if (this._onStatusChange) this._onStatusChange(false)
+      this._notifyServerOffline()
 
       if (code === 1001) {
         console.error('[interconnect] Companion app NOT INSTALLED on phone!')
@@ -182,10 +230,23 @@ const _service = {
     }
   },
 
+  _notifyServerOffline() {
+    const hadServer = !!this._serverInfo
+    this._serverInfo = null
+    this._lastServerInfoAt = 0
+    if (hadServer && this._onServerInfo) {
+      try {
+        this._onServerInfo(null)
+      } catch (e) {
+        console.warn('[interconnect] server offline handler error', e)
+      }
+    }
+  },
+
   _handleMessage(data) {
     // Log the FULL raw structure so we can diagnose delivery issues
     try {
-      console.log('[interconnect] onmessage raw: ' + JSON.stringify(data))
+      console.log('[interconnect] onmessage raw: ' + brief(data))
     } catch (e) {
       console.log('[interconnect] onmessage raw (unserializable): ' + typeof data)
     }
@@ -211,12 +272,20 @@ const _service = {
     }
     if (!msg || typeof msg !== 'object') return
 
-    console.log('[interconnect] parsed message: ' + JSON.stringify(msg))
+    if (msg.type === 'chunk') {
+      this._handleChunk(msg)
+      return
+    }
+
+    console.log('[interconnect] parsed message: ' + brief(msg))
 
     if (msg.type === 'server_info') {
+      this._ready = true
+      this._lastServerInfoAt = Date.now()
       this._serverInfo = {
         host: msg.host || 'localhost',
-        port: msg.port || 9000
+        port: msg.port || 9000,
+        name: msg.name || ''
       }
       console.log('[interconnect] server_info received: ' + JSON.stringify(this._serverInfo))
       const resolvers = this._discoverResolvers
@@ -230,6 +299,9 @@ const _service = {
           console.warn('[interconnect] server info handler error', e)
         }
       }
+    } else if (msg.type === 'server_offline') {
+      console.log('[interconnect] server_offline received')
+      this._notifyServerOffline()
     } else if (msg.type === 'api_response') {
       const id = msg.id
       const pending = _pending[id]
@@ -266,6 +338,89 @@ const _service = {
   },
 
   /**
+   * 分片回包：手机把超过单条消息上限的回包拆成
+   * `{type:'chunk', id, seq, total, data:'<原 JSON 文本的一段>'}`，这里按 seq 拼回
+   * 原文再当成一条普通消息处理。每到一片就给对应请求续一次超时。
+   */
+  _handleChunk(msg) {
+    const now = Date.now()
+    Object.keys(_chunks).forEach((k) => {
+      if (now - _chunks[k].at > CHUNK_STALE_MS) delete _chunks[k]
+    })
+    const id = msg.id
+    const total = Number(msg.total) || 0
+    const seq = Number(msg.seq)
+    if (!id || total <= 0 || !(seq >= 0 && seq < total) || typeof msg.data !== 'string') return
+    let buf = _chunks[id]
+    if (!buf || buf.total !== total) {
+      buf = { parts: new Array(total), got: 0, total: total, at: now }
+      _chunks[id] = buf
+    }
+    buf.at = now
+    if (buf.parts[seq] === undefined) {
+      buf.parts[seq] = msg.data
+      buf.got += 1
+    }
+    armTimer(id)
+    if (buf.got < total) return
+    delete _chunks[id]
+    const joined = buf.parts.join('')
+    console.log('[interconnect] chunked message reassembled: id=' + id + ' parts=' + total + ' chars=' + joined.length)
+    this._handleMessage({ data: joined })
+  },
+
+  /** 有请求在途就每秒发一条 keepalive，让手机端别被系统冻结（见 KEEPALIVE_MS）。 */
+  _startKeepalive() {
+    if (_keepaliveTimer) return
+    const tick = () => {
+      _keepaliveTimer = null
+      if (!hasPending() || !this._ready) return
+      this._rawSend({ type: 'keepalive' }).catch(() => {})
+      _keepaliveTimer = setTimeout(tick, KEEPALIVE_MS)
+    }
+    _keepaliveTimer = setTimeout(tick, KEEPALIVE_MS)
+  },
+
+  /**
+   * 发一条带 id 的请求并等回包（api_request / proxy_http 共用）。
+   * 回包可能分片到达；超时从最后一片到达时重新计时。
+   */
+  _request(message, timeoutLabel, timeoutMs) {
+    return new Promise((resolve, reject) => {
+      if (!this._available) {
+        reject(new Error('interconnect not available'))
+        return
+      }
+      if (!this._ready) {
+        reject(new Error('interconnect not ready'))
+        return
+      }
+      const id = genId()
+      _pending[id] = {
+        resolve,
+        reject,
+        timer: null,
+        timeoutMs: timeoutMs || API_TIMEOUT,
+        onTimeout: () => {
+          delete _chunks[id]
+          reject(new Error(timeoutLabel))
+        }
+      }
+      armTimer(id)
+      this._startKeepalive()
+      message.id = id
+      this._rawSend(message).catch((e) => {
+        const entry = _pending[id]
+        if (entry) {
+          if (entry.timer) clearTimeout(entry.timer)
+          delete _pending[id]
+          reject(e)
+        }
+      })
+    })
+  },
+
+  /**
    * Send a JS object through interconnect.
    * Per Vela docs, the send() data param is of type Object.
    *
@@ -279,7 +434,7 @@ const _service = {
         return
       }
       try {
-        console.log('[interconnect] sending: ' + JSON.stringify(obj))
+        if (obj.type !== 'keepalive') console.log('[interconnect] sending: ' + brief(obj))
         this._connect.send({
           data: obj,
           success: () => resolve(),
@@ -287,11 +442,15 @@ const _service = {
             // Demo pattern: fdata.code has the error code
             const errCode = code || (fdata && fdata.code)
             console.warn('[interconnect] send failed: code=' + errCode + ' data=' + JSON.stringify(fdata))
+            this._ready = false
+            this._notifyServerOffline()
             reject(new Error('send failed: code=' + errCode))
           }
         })
       } catch (e) {
         console.warn('[interconnect] send error', e)
+        this._ready = false
+        this._notifyServerOffline()
         reject(e)
       }
     })
@@ -304,6 +463,7 @@ const _service = {
    * Resolves with { host, port }.
    */
   discoverServer() {
+    this.ensureInit()
     return new Promise((resolve, reject) => {
       if (!this._available) {
         reject(new Error('interconnect not available'))
@@ -354,40 +514,13 @@ const _service = {
    * @returns {Promise<object>} response data
    */
   sendApiRequest(path, method, body) {
-    return new Promise((resolve, reject) => {
-      if (!this._available) {
-        reject(new Error('interconnect not available'))
-        return
-      }
-      if (!this._ready) {
-        reject(new Error('interconnect not ready'))
-        return
-      }
-
-      const id = genId()
-      const entry = { resolve, reject, timer: null }
-      _pending[id] = entry
-      entry.timer = setTimeout(() => {
-        if (_pending[id]) {
-          delete _pending[id]
-          reject(new Error('api request timeout: ' + path))
-        }
-      }, API_TIMEOUT)
-
-      this._rawSend({
-        type: 'api_request',
-        id: id,
-        path: path,
-        method: method || 'GET',
-        body: body || null
-      }).catch((e) => {
-        if (_pending[id]) {
-          if (_pending[id].timer) clearTimeout(_pending[id].timer)
-          delete _pending[id]
-          reject(e)
-        }
-      })
-    })
+    this.ensureInit()
+    return this._request({
+      type: 'api_request',
+      path: path,
+      method: method || 'GET',
+      body: body || null
+    }, 'api request timeout: ' + path)
   },
 
   /**
@@ -398,48 +531,54 @@ const _service = {
    * @param {string} method GET|POST
    * @param {object} body   request body (optional)
    * @param {object} headers request headers (optional)
+   * @param {object} options { binary: true } → resolves {code, contentType, base64}
    * @returns {Promise<{code: number, data: object}>}
    */
-  sendProxyHttp(url, method, body, headers) {
-    return new Promise((resolve, reject) => {
-      if (!this._available) {
-        reject(new Error('interconnect not available'))
-        return
-      }
-      if (!this._ready) {
-        reject(new Error('interconnect not ready'))
-        return
-      }
-      const id = genId()
-      const entry = { resolve, reject, timer: null }
-      _pending[id] = entry
-      entry.timer = setTimeout(() => {
-        if (_pending[id]) {
-          delete _pending[id]
-          reject(new Error('proxy request timeout: ' + url))
-        }
-      }, API_TIMEOUT)
-
-      this._rawSend({
-        type: 'proxy_http',
-        id: id,
-        url: url,
-        method: method || 'GET',
-        body: body || null,
-        headers: headers || null
-      }).catch((e) => {
-        if (_pending[id]) {
-          if (_pending[id].timer) clearTimeout(_pending[id].timer)
-          delete _pending[id]
-          reject(e)
-        }
-      })
-    })
+  sendProxyHttp(url, method, body, headers, options) {
+    this.ensureInit()
+    const message = {
+      type: 'proxy_http',
+      url: url,
+      method: method || 'GET',
+      body: body || null,
+      headers: headers || null
+    }
+    // binary：手机不按 JSON 解析，回 {code, contentType, base64}（图片/GIF 分段用）
+    if (options && options.binary) message.binary = true
+    return this._request(message, 'proxy request timeout: ' + url, options && options.timeoutMs)
   },
 
   /** Returns true when interconnect is connected and usable. */
   isReady() {
     return this._available && this._ready
+  },
+
+  /** Returns cached server_info or null when offline. */
+  getServerInfo() {
+    return this._ready ? this._serverInfo : null
+  },
+
+  /**
+   * Liveness check for the interconnect companion server.
+   * Phone pushes server_info every 5s and replies immediately to discover.
+   * If we haven't heard from the phone in >6s, send a discover probe;
+   * if >11s has elapsed with no reply, mark server offline.
+   */
+  checkAlive() {
+    if (!this._available || !this._ready || !this._connect || !this._serverInfo) {
+      if (this._serverInfo) this._notifyServerOffline()
+      return false
+    }
+    const elapsed = this._lastServerInfoAt ? (Date.now() - this._lastServerInfoAt) : 0
+    if (elapsed > 11000) {
+      console.warn('[interconnect] heartbeat timeout (' + elapsed + 'ms), marking offline')
+      this._notifyServerOffline()
+      return false
+    }
+    if (elapsed > 6000) {
+      this._rawSend({ type: 'discover' }).catch(() => {})
+    }
+    return true
   },
 
   /**
@@ -522,15 +661,22 @@ const _service = {
 const _GLOBAL_KEY = '__hydro_core_interconnect'
 
 function _resolveSharedInstance() {
+  const sharedRoot =
+    (typeof globalThis !== 'undefined' && Object.getPrototypeOf(globalThis)) || Object
   let existing = null
   try {
-    if (typeof globalThis !== 'undefined') existing = globalThis[_GLOBAL_KEY]
+    existing =
+      Object[_GLOBAL_KEY] ||
+      (sharedRoot && sharedRoot[_GLOBAL_KEY]) ||
+      (typeof globalThis !== 'undefined' ? globalThis[_GLOBAL_KEY] : null)
   } catch (e) {}
-  if (existing) return existing
+  const inst = existing || _service
+  try { Object[_GLOBAL_KEY] = inst } catch (e) {}
+  try { if (sharedRoot) sharedRoot[_GLOBAL_KEY] = inst } catch (e) {}
   if (typeof globalThis !== 'undefined') {
-    try { globalThis[_GLOBAL_KEY] = _service } catch (e) {}
+    try { globalThis[_GLOBAL_KEY] = inst } catch (e) {}
   }
-  return _service
+  return inst
 }
 
 export default _resolveSharedInstance()

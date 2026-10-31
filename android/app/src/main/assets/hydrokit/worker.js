@@ -1,7 +1,7 @@
 /*
  * HydroKit worker 宿主胶水（安卓端）。
  *
- * 与桌面端 desktop/internal/hydrokit/jsplugin.go 的 WorkerBundle 是同一套协议：
+ * 与桌面端桌面端实现的 WorkerBundle 是同一套协议：
  *   poll(/api/hydro/worker/poll) → 调用插件代码 → respond(/api/hydro/worker/respond)
  * 差别只在于：桌面端把插件源码内联进生成的 blob worker；安卓端把这份胶水作为
  * 静态资源放在 assets 里，插件源码与 wasm 通过 /api/hydro/worker/asset 拉取。
@@ -334,63 +334,6 @@
         .then(function (r) { if (!r.ok) throw new Error("asset " + path + ": " + r.status); return r.arrayBuffer(); })
         .then(function (buf) { return WebAssembly.instantiate(buf); })
         .then(function (m) { return { exports: m.instance.exports }; });
-    },
-    // 视频切片（宿主内置能力）：插件只传参数（哪段视频、切成什么样），宿主负责
-    // **真解码真编码**，回的是一串分段 URL —— 手表按 URL 取段，字节永远不进
-    // worker 回包。手表互联通道单条消息只有 16KB，之前把整段 GIF 塞进响应里
-    // 正是「点击缓冲播放，显示服务器无响应」的原因。
-    //
-    // 失败语义与其它 kit 调用一致：resolve 成 {error:"…"}（宿主不支持时是
-    // 「当前宿主不支持视频解码」），插件据此**回退静态封面**而不是假装成功。
-    media: {
-      /**
-       * 拉起切片作业。opts：
-       *   url          视频地址（http/https，必需）
-       *   headers      取流请求头（Referer / User-Agent 等，防盗链必需）
-       *   startMs      从哪一刻开始切（默认 0）
-       *   segmentMs    每段多长（默认 1200）
-       *   fps          采样帧率（默认 5）
-       *   width/height 输出尺寸（默认 240×135）
-       *   maxSegments  最多切多少段（默认 30）
-       * 回：{job, durationMs, srcWidth, srcHeight, segmentMs, fps, width, height,
-       *      segmentCount, segments:[{index, url, durationMs}]}
-       */
-      prepareVideo: function (opts) {
-        var o = opts || {};
-        var body = { package: PKG, op: "prepare", url: o.url, startMs: o.startMs || 0 };
-        if (o.headers) body.headers = o.headers;
-        if (o.segmentMs) body.segmentMs = o.segmentMs;
-        if (o.fps) body.fps = o.fps;
-        if (o.width) body.width = o.width;
-        if (o.height) body.height = o.height;
-        if (o.maxSegments) body.maxSegments = o.maxSegments;
-        return remote("POST", "/api/hydro/worker/media", body);
-      },
-      /** 后台预热第 index 段起的一段窗口（不阻塞；预热失败只记日志）。 */
-      hint: function (job, index) {
-        return remote("POST", "/api/hydro/worker/media", {
-          package: PKG,
-          op: "hint",
-          job: job,
-          index: index || 0,
-        });
-      },
-      /** 作业状态（排障：已生成/正在生成的段、段数、时长）。 */
-      status: function (job) {
-        return remote("POST", "/api/hydro/worker/media", {
-          package: PKG,
-          op: "status",
-          job: job,
-        });
-      },
-      /** 释放作业（内存立刻回收；之后取段回 410）。 */
-      release: function (job) {
-        return remote("POST", "/api/hydro/worker/media", {
-          package: PKG,
-          op: "release",
-          job: job,
-        });
-      },
     },
   };
 

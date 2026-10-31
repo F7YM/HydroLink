@@ -8,7 +8,7 @@ import java.util.concurrent.LinkedBlockingDeque
 import java.util.concurrent.TimeUnit
 
 /**
- * Worker 通道（对应 desktop/internal/hydrokit/bridge.go）。
+ * Worker 通道（对应桌面端实现）。
  *
  * 插件 worker（安卓端是隐藏 WebView 里的 JS/WASM 宿主）不能监听端口，因此：
  *   · 它长轮询 `GET /api/hydro/worker/poll?package=<id>` 领取请求
@@ -170,7 +170,7 @@ class WorkerBridge(
 }
 
 /**
- * worker 端点路由（对应 desktop/internal/api/worker.go 的路径分发）。
+ * worker 端点路由（对应桌面端实现的路径分发）。
  * M4 只接 poll/respond；store/context/system/notify/music/lock/commands/asset
  * 属于 kit 能力，在 M6/M7 里补。
  */

@@ -5,11 +5,6 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.hydro.link.server.hydrokit.net.SshManager
 import com.hydro.link.server.hydrokit.net.TcpManager
-import com.hydro.link.server.media.MediaError
-import com.hydro.link.server.media.MediaJobStore
-import com.hydro.link.server.media.MediaRoutes
-import com.hydro.link.server.media.SegmentPlan
-import com.hydro.link.server.media.VideoSliceSpec
 
 /**
  * 宿主提供给插件的「kit 能力」。桌面端直接调用 Go 里的 system/music/lock 等实现；
@@ -111,7 +106,7 @@ interface KitCapabilities {
 }
 
 /**
- * kit 能力端点（对应 desktop/internal/api/worker.go 的
+ * kit 能力端点（对应桌面端实现的
  * store / context / system / notify / music / lock / commands / asset）。
  *
  * 权限门控与桌面一致：能力端点先查 manifest.permissions，缺权限返回 403
@@ -124,11 +119,6 @@ class KitRoutes(
     private val log: (String) -> Unit = {},
     /** 宿主平台信息（与请求里的 req.host 同源）。 */
     private val host: () -> Map<String, String> = { emptyMap() },
-    /**
-     * 视频切片作业（media 权限）。宿主不支持时为 null —— 桌面端就属于这种情况，
-     * `op=prepare` 会回 501「当前宿主不支持视频解码」，插件据此回退静态封面。
-     */
-    private val media: MediaJobStore? = null,
 ) {
     private val gson = Gson()
     val workerRoutes = WorkerRoutes(bridge)
@@ -146,7 +136,6 @@ class KitRoutes(
         const val PERM_INPUT = "input"
         const val PERM_TCP = "tcp"
         const val PERM_SSH = "ssh"
-        const val PERM_MEDIA = "media"
 
         private val MAC_REGEX = Regex("^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$")
     }
@@ -176,7 +165,6 @@ class KitRoutes(
             "wol/probe" -> handleWolProbe(req)
             "udp/send" -> handleUdpSend(req)
             "input" -> handleInput(req)
-            "media" -> handleMedia(req)
             else -> {
                 if (rest == "tcp" || rest.startsWith("tcp/")) handleTcp(req, rest)
                 else if (rest == "ssh" || rest.startsWith("ssh/")) handleSsh(req, rest)
@@ -207,7 +195,7 @@ class KitRoutes(
      * `GET /api/hydro/worker/platform`
      *
      * 插件 WebUI 用它判断自己跑在什么系统上，从而只显示本平台有意义的能力
-     * （例如 SPlayer 歌词集成只在桌面端有）。与 desktop/internal/api/worker.go
+     * （例如 SPlayer 歌词集成只在桌面端有）。与桌面端实现
      * 的 handlePlatform 同构。
      */
     fun handlePlatform(): HydroHttpResponse {
@@ -425,106 +413,6 @@ class KitRoutes(
             }
             else -> HydroHttpResponse.json("""{"error":"未知操作: ${body.str("op")}"}""", 400)
         }
-    }
-
-    // ---- 视频切片（media 权限）----
-
-    /**
-     * `POST /api/hydro/worker/media`
-     *
-     * 插件把「要哪段视频、切成什么样」交给宿主，宿主真解码真编码，回一串**分段 URL**。
-     * 分段字节不进响应体：手表互联通道单条消息 16KB 上限，之前把整段 GIF 塞进
-     * 响应体正是「点击缓冲播放，显示服务器无响应」的直接原因。
-     *
-     *   op=prepare  拉起作业（同步切好前两段），回分段清单
-     *   op=hint     后台预热第 index 段起的一段窗口（不阻塞，预热失败只记日志）
-     *   op=status   作业状态（插件 WebUI 排障用）
-     *   op=release  释放作业（内存立刻回收，之后取段回 410）
-     */
-    fun handleMedia(req: HydroHttpRequest): HydroHttpResponse {
-        if (req.method != "POST") return HydroHttpResponse.text("method not allowed", 405)
-        val body = parseJsonBody(req) ?: return HydroHttpResponse.json("""{"error":"invalid body"}""", 400)
-        val pkg = body.str("package")
-        requirePermission(pkg, PERM_MEDIA)?.let { return it }
-        val jobs = media
-            ?: return HydroHttpResponse.json(
-                gson.toJson(mapOf("error" to "当前宿主不支持视频解码")), 501,
-            )
-
-        val op = body.str("op")
-        return try {
-            when (op) {
-                "prepare" -> handleMediaPrepare(jobs, pkg, body)
-                "hint" -> {
-                    val index = body.int("index", -1)
-                    if (index < 0) return HydroHttpResponse.json("""{"error":"缺少分段序号"}""", 400)
-                    HydroHttpResponse.json(gson.toJson(jobs.hint(body.str("job"), index)))
-                }
-                "status" -> HydroHttpResponse.json(gson.toJson(jobs.status(body.str("job"))))
-                "release" -> {
-                    if (!jobs.release(body.str("job"))) {
-                        return HydroHttpResponse.json("""{"error":"未知切片作业"}""", 404)
-                    }
-                    HydroHttpResponse.json("""{"ok":true}""")
-                }
-                else -> HydroHttpResponse.json(
-                    gson.toJson(mapOf("error" to "未知操作: $op")), 400,
-                )
-            }
-        } catch (e: MediaError) {
-            HydroHttpResponse.json(gson.toJson(mapOf("error" to (e.message ?: "切片失败"))), e.status)
-        } catch (e: Exception) {
-            HydroHttpResponse.json(gson.toJson(mapOf("error" to (e.message ?: "切片失败"))), 500)
-        }
-    }
-
-    private fun handleMediaPrepare(
-        jobs: MediaJobStore,
-        pkg: String,
-        body: JsonObject,
-    ): HydroHttpResponse {
-        val base = caps.serverBase()
-        if (base.isBlank()) {
-            // 手表是直接按 URL 取图的，没有绝对地址就没法播
-            return HydroHttpResponse.json(gson.toJson(mapOf("error" to "宿主地址不可用")), 503)
-        }
-        val headers = LinkedHashMap<String, String>()
-        body.get("headers")?.takeIf { it.isJsonObject }?.asJsonObject?.let { h ->
-            for ((k, v) in h.entrySet()) if (v.isJsonPrimitive) headers[k] = v.asString
-        }
-        val spec = VideoSliceSpec(
-            url = body.str("url"),
-            headers = headers,
-            startMs = body.long("startMs", 0L),
-            segmentMs = body.int("segmentMs", VideoSliceSpec.DEFAULT_SEGMENT_MS),
-            fps = body.int("fps", VideoSliceSpec.DEFAULT_FPS),
-            width = body.int("width", VideoSliceSpec.DEFAULT_WIDTH),
-            height = body.int("height", VideoSliceSpec.DEFAULT_HEIGHT),
-            maxSegments = body.int("maxSegments", VideoSliceSpec.DEFAULT_MAX_SEGMENTS),
-        )
-        val job = jobs.prepare(pkg, spec)
-        val segments = (0 until job.segmentCount).map { i ->
-            mapOf(
-                "index" to i,
-                "url" to "$base${MediaRoutes.PREFIX}/${job.id}/$i.gif",
-                "durationMs" to SegmentPlan.segmentDurationMs(job.spec, i, job.info.durationMs),
-            )
-        }
-        val payload = linkedMapOf<String, Any?>(
-            "job" to job.id,
-            "url" to job.spec.url,
-            "durationMs" to job.info.durationMs,
-            "srcWidth" to job.info.width,
-            "srcHeight" to job.info.height,
-            "segmentMs" to job.spec.segmentMs,
-            "fps" to job.spec.fps,
-            "width" to job.outWidth,
-            "height" to job.outHeight,
-            "segmentCount" to job.segmentCount,
-            "segments" to segments,
-        )
-        log("hydrokit: media prepare $pkg -> ${job.id}（${job.segmentCount} 段 ${job.spec.width}x${job.spec.height}）")
-        return HydroHttpResponse.json(gson.toJson(payload))
     }
 
     // ---- 局域网唤醒（wol 权限）----
@@ -867,17 +755,4 @@ class KitRoutes(
 
     private fun JsonObject.str(key: String): String =
         get(key)?.takeIf { it.isJsonPrimitive }?.asString.orEmpty()
-
-    /** 数字字段读不出来就用兜底值（插件传字符串数字也不会把宿主弄崩）。 */
-    private fun JsonObject.int(key: String, fallback: Int): Int {
-        val el = get(key) ?: return fallback
-        if (!el.isJsonPrimitive) return fallback
-        return runCatching { el.asInt }.getOrDefault(fallback)
-    }
-
-    private fun JsonObject.long(key: String, fallback: Long): Long {
-        val el = get(key) ?: return fallback
-        if (!el.isJsonPrimitive) return fallback
-        return runCatching { el.asLong }.getOrDefault(fallback)
-    }
 }

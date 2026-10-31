@@ -6,7 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** 注册表与路由（对应 desktop/internal/hydrokit/runtime.go 的行为）。 */
+/** 注册表与路由（对应桌面端实现的行为）。 */
 class RuntimeTest {
 
     private class FakePlugin(

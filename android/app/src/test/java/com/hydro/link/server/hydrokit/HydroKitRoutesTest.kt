@@ -13,7 +13,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 /**
- * HydroKit HTTP 路由的用例，逐条对齐 desktop/internal/hydrokit/handler.go：
+ * HydroKit HTTP 路由的用例，逐条对齐桌面端实现：
  * list、view/refresh/event 三种 trigger、屏幕查询参数、X-Hydro-Store、
  * 204（无需更新）、404（未知包/条目）、400（路径不合法）、webui 静态资源。
  */

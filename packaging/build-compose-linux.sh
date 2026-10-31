@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="$ROOT/dist"
 STAGE="$ROOT/packaging/build/compose-stage"
-VERSION="1.2.3"
+VERSION="1.3.0"
 PKG="hydrolink"
 ARCH_DEB="amd64"
 ARCH_RPM="x86_64"

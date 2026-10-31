@@ -17,7 +17,7 @@
       <div class="choose-list">
         <!-- 选项一：尝试自动扫描设备 -->
         <div
-          class="option-card pressable {{ pressedKey === 'opt_scan' ? 'is-down press-down' : '' }} {{ releasedKey === 'opt_scan' ? 'press-up' : '' }}"
+          class="option-card pressable {{ pressedKey === 'opt_scan' ? 'is-down' : '' }}"
           ontouchstart="pressDown('opt_scan')"
           ontouchend="pressRelease('opt_scan')"
           ontouchcancel="pressCancel('opt_scan')"
@@ -35,7 +35,7 @@
 
         <!-- 选项二：通过 IP 手动添加 -->
         <div
-          class="option-card pressable {{ pressedKey === 'opt_manual' ? 'is-down press-down' : '' }} {{ releasedKey === 'opt_manual' ? 'press-up' : '' }}"
+          class="option-card pressable {{ pressedKey === 'opt_manual' ? 'is-down' : '' }}"
           ontouchstart="pressDown('opt_manual')"
           ontouchend="pressRelease('opt_manual')"
           ontouchcancel="pressCancel('opt_manual')"
@@ -82,7 +82,7 @@
           <div class="lan-list">
             <div
               for="{{ (index, dev) in lanDevices }}"
-              class="device-card {{ dev.isAdded ? 'is-added' : 'pressable' }} {{ pressedKey === 'lan_' + index ? 'is-down press-down' : '' }} {{ releasedKey === 'lan_' + index ? 'press-up' : '' }}"
+              class="device-card {{ dev.isAdded ? 'is-added' : 'pressable' }} {{ pressedKey === 'lan_' + index ? 'is-down' : '' }}"
               ontouchstart="pressDown('lan_' + index)"
               ontouchend="pressRelease('lan_' + index)"
               ontouchcancel="pressCancel('lan_' + index)"
@@ -131,11 +131,11 @@
     </scroll>
 
     <!-- ================= 模式 3: 手动输入 IP ================= -->
-    <div if="{{ viewMode === 'manual' }}" class="form-area">
+    <scroll if="{{ viewMode === 'manual' }}" class="form-area" scroll-y="true" bounces="true">
       <div class="form-list">
         <!-- Server IP -->
         <div
-          class="form-item pressable {{ pressedKey === 'serverIp' ? 'is-down press-down' : '' }} {{ releasedKey === 'serverIp' ? 'press-up' : '' }}"
+          class="form-item pressable {{ pressedKey === 'serverIp' ? 'is-down' : '' }}"
           ontouchstart="pressDown('serverIp')"
           ontouchend="pressRelease('serverIp')"
           ontouchcancel="pressCancel('serverIp')"
@@ -147,7 +147,7 @@
 
         <!-- Port -->
         <div
-          class="form-item pressable {{ pressedKey === 'serverPort' ? 'is-down press-down' : '' }} {{ releasedKey === 'serverPort' ? 'press-up' : '' }}"
+          class="form-item pressable {{ pressedKey === 'serverPort' ? 'is-down' : '' }}"
           ontouchstart="pressDown('serverPort')"
           ontouchend="pressRelease('serverPort')"
           ontouchcancel="pressCancel('serverPort')"
@@ -159,7 +159,7 @@
 
         <!-- Device Name -->
         <div
-          class="form-item pressable {{ pressedKey === 'deviceName' ? 'is-down press-down' : '' }} {{ releasedKey === 'deviceName' ? 'press-up' : '' }}"
+          class="form-item pressable {{ pressedKey === 'deviceName' ? 'is-down' : '' }}"
           ontouchstart="pressDown('deviceName')"
           ontouchend="pressRelease('deviceName')"
           ontouchcancel="pressCancel('deviceName')"
@@ -170,18 +170,21 @@
         </div>
       </div>
 
-      <!-- Pair button -->
-      <div class="button-wrapper">
-        <div
-          class="pair-go pressable {{ pressedKey === 'pairGo' ? 'is-down press-down' : '' }} {{ releasedKey === 'pairGo' ? 'press-up' : '' }}"
-          ontouchstart="pressDown('pairGo')"
-          ontouchend="pressRelease('pairGo')"
-          ontouchcancel="pressCancel('pairGo')"
-          onclick="onPair"
-        >
-          <image class="pair-go-icon" src="/common/icons/arrow-forward.png"></image>
-        </div>
-      </div>
+      <!-- 底部留白：给贴边的「下一步」按钮让位，最后一项能滚到它上方 -->
+      <div class="edge-btn-space"></div>
+    </scroll>
+
+    <!-- 下一步：MD3e 圆表底部按钮，固定贴屏幕底边 -->
+    <div
+      if="{{ viewMode === 'manual' }}"
+      class="edge-btn edge-primary edge-fixed pressable {{ pressedKey === 'pairGo' ? 'is-down' : '' }}"
+      ontouchstart="pressDown('pairGo')"
+      ontouchend="pressRelease('pairGo')"
+      ontouchcancel="pressCancel('pairGo')"
+      onclick="onPair"
+    >
+      <image class="edge-bg" src="/common/images/edge-btn-primary.png"></image>
+      <image class="edge-icon" src="/common/icons/arrow-forward.png"></image>
     </div>
   </div>
 </template>
@@ -498,26 +501,35 @@
   max-width: 220px;
   text-align: right;
 }
-.button-wrapper {
-  width: 100%;
-  flex-direction: column;
-  align-items: center;
-  margin-top: 30px;
-  padding-bottom: 80px;
-}
-.pair-go {
-  width: 104px;
+/* ---- MD3e 圆表底部按钮：形状图由 vela/scripts/gen_edge_button.py 生成（240×104） ---- */
+.edge-btn {
+  width: 240px;
   height: 104px;
-  border-radius: 52px;
-  background-color: #bac3ff;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
   flex-shrink: 0;
 }
-.pair-go-icon {
-  width: 48px;
-  height: 48px;
+.edge-fixed {
+  position: absolute;
+  bottom: 0;
+  left: 120px;
+}
+.edge-bg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 240px;
+  height: 104px;
+}
+.edge-icon {
+  position: absolute;
+  left: 95px;
+  top: 21px;
+  width: 51px;
+  height: 51px;
+}
+.edge-btn-space {
+  width: 100%;
+  height: 124px;
+  flex-shrink: 0;
 }
 
 /* 转圈动画 */
@@ -554,14 +566,14 @@
 }
 .press-down {
   animation-name: PressDown;
-  animation-duration: 80ms;
+  animation-duration: 150ms;
   animation-timing-function: ease-out;
   animation-iteration-count: 1;
   animation-fill-mode: forwards;
 }
 .press-up {
   animation-name: PressUp;
-  animation-duration: 140ms;
+  animation-duration: 250ms;
   animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
   animation-iteration-count: 1;
   animation-fill-mode: forwards;
@@ -593,35 +605,27 @@
     padding-top: 26px;
   }
   .option-card {
-    width: 360px;
+    width: 400px;
     height: 116px;
     border-radius: 46px;
     margin: 8px 0;
   }
   .section-header {
-    width: 360px;
+    width: 400px;
   }
   .device-card {
-    width: 360px;
+    width: 400px;
   }
   .list-bottom-space {
-    height: 140px;
+    height: 80px;
   }
   .form-list {
-    padding-top: 30px;
+    padding-top: 20px;
   }
   .form-item {
-    width: 360px;
+    width: 400px;
     height: 92px;
     border-radius: 46px;
-  }
-  .pair-go {
-    width: 96px;
-    height: 96px;
-    border-radius: 48px;
-  }
-  .button-wrapper {
-    padding-bottom: 120px;
   }
 }
 
@@ -655,8 +659,25 @@
   .form-list {
     padding-top: 10px;
   }
-  .button-wrapper {
-    padding-bottom: 20px;
+  /* 方屏没有圆弧可贴：退回普通药丸按钮 */
+  .edge-bg {
+    display: none;
+  }
+  .edge-btn {
+    height: 96px;
+    border-radius: 48px;
+  }
+  .edge-primary {
+    background-color: #bac3ff;
+  }
+  .edge-fixed {
+    bottom: 16px;
+  }
+  .edge-icon {
+    top: 23px;
+  }
+  .edge-btn-space {
+    height: 124px;
   }
 }
 </style>
@@ -683,7 +704,7 @@ export default {
 
   onInit() {
     this.updateTime()
-    this._timeInterval = setInterval(() => this.updateTime(), 60000)
+    this._timeInterval = setInterval(() => this.updateTime(), 1000)
 
     // 检查是否连接着 interconnect
     interconnectService.ensureInit()
@@ -840,7 +861,7 @@ export default {
     this.releasedKey = key
     setTimeout(() => {
       if (this.releasedKey === key) this.releasedKey = ''
-    }, 160)
+    }, 270)
   },
 
   pressCancel(key) {

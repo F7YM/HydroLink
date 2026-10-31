@@ -14,7 +14,7 @@
       <!-- Interconnect discovered device -->
       <div if="{{ icDevice }}" class="list-content">
         <div
-          class="device-item ic-device {{ pressedKey === 'ic_device' ? 'is-down' : '' }}"
+          class="device-item ic-device pressable {{ pressedKey === 'ic_device' ? 'is-down' : '' }}"
           ontouchstart="onIcTouchStart"
           ontouchend="onIcTouchEnd"
           ontouchcancel="onIcTouchCancel"
@@ -155,7 +155,7 @@
 }
 .list-bottom-space {
   width: 100%;
-  height: 40px;
+  height: 130px;
   flex-shrink: 0;
 }
 .device-item {
@@ -253,14 +253,14 @@
 }
 .press-down {
   animation-name: PressDown;
-  animation-duration: 80ms;
+  animation-duration: 150ms;
   animation-timing-function: ease-out;
   animation-iteration-count: 1;
   animation-fill-mode: forwards;
 }
 .press-up {
   animation-name: PressUp;
-  animation-duration: 140ms;
+  animation-duration: 250ms;
   animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
   animation-iteration-count: 1;
   animation-fill-mode: forwards;
@@ -276,8 +276,8 @@
 
 @media (shape: circle) {
   .scroll-wrapper {
-    padding-left: 30px;
-    padding-right: 30px;
+    padding-left: 40px;
+    padding-right: 40px;
   }
   .list-bottom-space {
     height: 150px;
@@ -329,7 +329,7 @@ export default {
 
   onInit() {
     this.updateTime()
-    this._timeInterval = setInterval(() => this.updateTime(), 60000)
+    this._timeInterval = setInterval(() => this.updateTime(), 1000)
     // Make sure this page's interconnectService instance has a connection
     // (no-op if the app entry already initialized the shared singleton).
     interconnectService.ensureInit()
@@ -358,18 +358,21 @@ export default {
   onShow() {
     this.updateTime()
     this.loadDevices()
+    if (this.icDevice && !interconnectService.checkAlive()) {
+      this.icDevice = null
+    }
     this.tryInterconnectDiscover()
     // Phone pushes server_info every 5s — handle it immediately so the
-    // device appears without waiting for a discover retry.
+    // device appears without waiting for a discover retry, and disappears
+    // immediately when disconnected / offline.
     interconnectService.setServerInfoHandler((info) => {
       if (info && info.host) {
         console.log('[home] server_info handler: ' + JSON.stringify(info))
-        this.icDevice = {
-          name: info.name || 'HydroLink',
-          host: info.host,
-          port: info.port || 9000,
-          viaInterconnect: true
-        }
+        this.applyIcServerInfo(info)
+      } else {
+        console.log('[home] interconnect offline, removing icDevice card')
+        this.icDevice = null
+        this.scheduleIcRetry()
       }
     })
   },
@@ -411,12 +414,7 @@ export default {
     interconnectService.discoverServer()
       .then((info) => {
         if (info && info.host) {
-          this.icDevice = {
-            name: info.name || 'HydroLink',
-            host: info.host,
-            port: info.port || 9000,
-            viaInterconnect: true
-          }
+          this.applyIcServerInfo(info)
         } else {
           this.scheduleIcRetry()
         }
@@ -430,6 +428,37 @@ export default {
     this._icTimer = setTimeout(() => {
       this.scheduleIcRetry()
     }, IC_DISCOVER_TIMEOUT)
+  },
+
+  applyIcServerInfo(info) {
+    const host = info.host
+    const port = info.port || 9000
+    const cached = deviceService.peekCache('sysinfo', '__interconnect__')
+    const cachedModel = (cached && cached.hostname) || ''
+    const initialName = info.name || cachedModel || (this.icDevice && this.icDevice.name) || 'HydroLink'
+    this.icDevice = {
+      name: initialName,
+      host: host,
+      port: port,
+      viaInterconnect: true
+    }
+    if (!info.name && !cachedModel) {
+      deviceService.getServerSystemInfo(host, port, 'interconnect-device')
+        .then((sysInfo) => {
+          if (sysInfo && sysInfo.hostname) {
+            deviceService.putCache('sysinfo', '__interconnect__', sysInfo)
+            if (this.icDevice) {
+              this.icDevice = {
+                name: sysInfo.hostname,
+                host: this.icDevice.host,
+                port: this.icDevice.port,
+                viaInterconnect: true
+              }
+            }
+          }
+        })
+        .catch(() => {})
+    }
   },
 
   /**
@@ -474,6 +503,10 @@ export default {
   },
 
   async pingAll() {
+    if (this.icDevice && !interconnectService.checkAlive()) {
+      this.icDevice = null
+      this.scheduleIcRetry()
+    }
     const devices = this.devices
     if (!devices || devices.length === 0) return
     const results = await Promise.all(
@@ -512,6 +545,11 @@ export default {
   },
 
   onIcTap() {
+    if (!this.icDevice || !interconnectService.isReady()) {
+      this.icDevice = null
+      this.scheduleIcRetry()
+      return
+    }
     this.openIcDevice('deviceInfo')
   },
 
@@ -526,7 +564,8 @@ export default {
       params: {
         deviceId: '__interconnect__',
         icHost: this.icDevice.host,
-        icPort: this.icDevice.port
+        icPort: this.icDevice.port,
+        icName: this.icDevice.name || ''
       }
     })
   },
@@ -583,7 +622,7 @@ export default {
     this.releasedKey = key
     setTimeout(() => {
       if (this.releasedKey === key) this.releasedKey = ''
-    }, 160)
+    }, 270)
   },
 
   pressCancel(key) {

@@ -38,7 +38,7 @@ class HydroHttpResponse(
 }
 
 /**
- * HydroKit 的 HTTP 路由（对应 desktop/internal/hydrokit/handler.go 与
+ * HydroKit 的 HTTP 路由（对应桌面端实现 与
  * api/worker.go 的公开部分）。
  *
  *	GET  /api/hydro/list                       → 启动器用的插件清单
@@ -77,11 +77,15 @@ class HydroKitRoutes(
         val path = req.path.split("?")[0]
         if (path != PREFIX && !path.startsWith(ROUTE_PREFIX)) return null
 
+        val rest = path.removePrefix(ROUTE_PREFIX).trim('/')
+        if (rest == "proxy") {
+            return handleProxy(req)
+        }
+
         if (req.method != "GET" && req.method != "POST") {
             return HydroHttpResponse.text("method not allowed", 405)
         }
 
-        val rest = path.removePrefix(ROUTE_PREFIX).trim('/')
         if (rest == "list") {
             return HydroHttpResponse.json(gson.toJson(mapOf("plugins" to listForClient())))
         }
@@ -268,6 +272,73 @@ class HydroKitRoutes(
         "svg" -> "image/svg+xml"
         "woff2" -> "font/woff2"
         else -> "application/octet-stream"
+    }
+
+    /**
+     * 同源透明代理 `/api/hydro/proxy?url=<targetUrl>`，对齐桌面端 [HydroServer.handleProxy]，
+     * 消除 WebView 对局域网/跨端口服务（如 OpenCode API）的 CORS 预检拦截与受限请求头限制。
+     */
+    private fun handleProxy(req: HydroHttpRequest): HydroHttpResponse {
+        val targetUrl = req.query["url"]?.trim().orEmpty()
+        if (targetUrl.isEmpty()) {
+            return HydroHttpResponse.json("""{"status":"error","message":"missing url parameter"}""", 400)
+        }
+        if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
+            return HydroHttpResponse.json("""{"status":"error","message":"only http and https schemes are supported"}""", 400)
+        }
+        var conn: java.net.HttpURLConnection? = null
+        return try {
+            val url = java.net.URL(targetUrl)
+            conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+                connectTimeout = 12000
+                readTimeout = 20000
+                instanceFollowRedirects = true
+                requestMethod = req.method.uppercase()
+            }
+            val hdrs = req.headers.entries.associate { (k, v) -> k.lowercase() to v }
+            val auth = hdrs["x-proxy-authorization"] ?: hdrs["authorization"]
+            if (!auth.isNullOrBlank()) conn.setRequestProperty("Authorization", auth)
+            val cookie = hdrs["x-proxy-cookie"] ?: hdrs["cookie"]
+            if (!cookie.isNullOrBlank()) conn.setRequestProperty("Cookie", cookie)
+            val referer = hdrs["x-proxy-referer"] ?: hdrs["referer"]
+            if (!referer.isNullOrBlank() && !referer.contains("127.0.0.1") && !referer.contains("localhost")) {
+                conn.setRequestProperty("Referer", referer)
+            }
+            val ua = hdrs["x-proxy-user-agent"] ?: hdrs["user-agent"]
+            if (!ua.isNullOrBlank()) conn.setRequestProperty("User-Agent", ua)
+            hdrs["x-opencode-directory"]?.takeIf { it.isNotBlank() }?.let {
+                conn.setRequestProperty("x-opencode-directory", it)
+            }
+            hdrs["content-type"]?.takeIf { it.isNotBlank() }?.let {
+                conn.setRequestProperty("Content-Type", it)
+            }
+            hdrs["accept"]?.takeIf { it.isNotBlank() }?.let {
+                conn.setRequestProperty("Accept", it)
+            }
+
+            val m = req.method.uppercase()
+            if (m in setOf("POST", "PUT", "PATCH") && !req.body.isNullOrEmpty()) {
+                conn.doOutput = true
+                val bytes = req.body.toByteArray(Charsets.UTF_8)
+                conn.outputStream.use { it.write(bytes) }
+            }
+
+            val code = conn.responseCode
+            val stream = (if (code in 200..399) conn.inputStream else conn.errorStream)
+            val respBytes = stream?.use { it.readBytes() } ?: ByteArray(0)
+            val ct = conn.contentType ?: "application/json; charset=utf-8"
+            HydroHttpResponse(
+                status = code,
+                contentType = ct,
+                body = String(respBytes, Charsets.UTF_8),
+                bytes = respBytes,
+            )
+        } catch (e: Exception) {
+            val msg = gson.toJson(e.message ?: "proxy request failed")
+            HydroHttpResponse.json("""{"status":"error","message":$msg}""", 502)
+        } finally {
+            conn?.disconnect()
+        }
     }
 }
 

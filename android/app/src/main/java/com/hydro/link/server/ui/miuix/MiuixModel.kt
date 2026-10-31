@@ -27,6 +27,7 @@ class MiuixModel {
     var notifListenerText by mutableStateOf("")
     var notifPermVisible by mutableStateOf(false)
     var notifPermText by mutableStateOf("")
+    var batteryOptVisible by mutableStateOf(false)
     var interconnectText by mutableStateOf("")
     var interconnectTone by mutableStateOf(Tone.Outline)
     var interconnectDetail by mutableStateOf("")
@@ -55,6 +56,8 @@ class MiuixModel {
     /** MD3 二级页：授权器选择页（整页覆盖，期间隐藏底栏与底栏胶囊）。 */
     var authorizerPage by mutableStateOf(false)
     var bootStart by mutableStateOf(false)
+    /** 配对通知样式：live（实时活动，含流体云/超级岛，默认） / standard（标准通知）。 */
+    var pairNotificationStyle by mutableStateOf("live")
     var liquidGlass by mutableStateOf(false)
     var miuix by mutableStateOf(false)
 
@@ -136,6 +139,8 @@ class MiuixActions(
     /** 仅刷新授权状态（不请求权限）。 */
     val onRefreshAuthorizerStatus: () -> Unit,
     val onToggleBoot: (Boolean) -> Unit,
+    /** 设置配对通知样式：live / standard。 */
+    val onSetPairNotificationStyle: (String) -> Unit,
     val onToggleGlass: (Boolean) -> Unit,
     val onToggleMiuix: (Boolean) -> Unit,
     /** 手动检查应用版本更新。 */

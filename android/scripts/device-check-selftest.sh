@@ -13,31 +13,21 @@ CHECK="$HERE/device-check.sh"
 
 MOCK_PY="$(mktemp --suffix=.py)"
 cat >"$MOCK_PY" <<'PY'
-import json, os, sys, re, base64
+import json, os, sys, re
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 MODE = os.environ.get("MOCK_MODE", "good")
 STORE = {}
-RELEASED = set()
 
 PLUGIN = {
     "package": {"id": "com.mock.plugin", "name": "Mock", "version": "1.0.0",
-                "permissions": ["storage", "fetch", "media"]},
+                "permissions": ["storage", "fetch"]},
     "apps": [{"id": "main", "name": "Mock"}],
     "widgets": [],
 }
 
 HOST_PAGE_GOOD = '<!DOCTYPE html><html><body><script src="/api/hydro/worker/host?file=worker.js"></script></body></html>'
 HOST_PAGE_BAD = '<!DOCTYPE html><html><body><script src="worker.js"></script></body></html>'
-
-# 1x1 单帧 GIF：bad 模式拿它冒充"视频切片"（帧数 <2、两段一模一样）
-STATIC_GIF = base64.b64decode('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7')
-GIF_DIR = os.environ.get("MEDIA_GIF_DIR", "")
-
-
-def golden(name):
-    with open(os.path.join(GIF_DIR, name), "rb") as f:
-        return f.read()
 
 
 class H(BaseHTTPRequestHandler):
@@ -76,16 +66,6 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, "application/javascript; charset=utf-8", "/* glue */")
         if path == "/api/music/art":
             return self._json(404, {"status": "error", "message": "没有可用的封面"})
-        if path.startswith("/api/hydro/media/mockjob/"):
-            idx = path.rsplit("/", 1)[-1].replace(".gif", "")
-            if "mockjob" in RELEASED:
-                return self._json(410, {"error": "作业已释放或过期"})
-            if MODE == "bad":
-                # 假切片：单帧、两段一模一样
-                return self._send(200, "image/gif", STATIC_GIF)
-            # 真切片：两段都是多帧、且画面不同
-            body = golden("golden-video.gif") if idx == "0" else golden("golden-noise.gif")
-            return self._send(200, "image/gif", body)
         if path.startswith("/api/hydro/com.mock.plugin/"):
             if MODE == "bad":
                 # 正文里塞一个 U+FFFD，检查脚本应当报"含乱码"
@@ -117,26 +97,6 @@ class H(BaseHTTPRequestHandler):
             if body.get("package") != "com.mock.plugin":
                 return self._json(403, {"error": "plugin 不存在或清单不可读"})
             return self._json(200, {"cpu": 1.0})
-        if path == "/api/hydro/worker/media":
-            if body.get("package") != "com.mock.plugin":
-                return self._json(403, {"error": "plugin 不存在或清单不可读"})
-            op = body.get("op")
-            if op == "release":
-                RELEASED.add(body.get("job") or "mockjob")
-                return self._json(200, {"ok": True})
-            if op == "hint":
-                return self._json(200, {"ok": True, "queued": [body.get("index")]})
-            if op == "status":
-                return self._json(200, {"job": body.get("job"), "segmentCount": 2})
-            base = "http://127.0.0.1:9000"
-            return self._json(200, {
-                "job": "mockjob", "durationMs": 3000, "srcWidth": 320, "srcHeight": 180,
-                "segmentMs": 1000, "fps": 5, "width": 240, "height": 135, "segmentCount": 2,
-                "segments": [
-                    {"index": 0, "url": base + "/api/hydro/media/mockjob/0.gif", "durationMs": 1000},
-                    {"index": 1, "url": base + "/api/hydro/media/mockjob/1.gif", "durationMs": 1000},
-                ],
-            })
         return self._json(404, {"status": "error"})
 
 
@@ -148,11 +108,10 @@ FAIL=0
 
 run_case() { # run_case <模式> <期望:pass|fail>
   local mode="$1" expect="$2" out
-  MEDIA_GIF_DIR="$HERE/../app/src/test/resources/media" \
   MOCK_MODE="$mode" python3 "$MOCK_PY" "$PORT" &
   local pid=$!
   sleep 0.6
-  out="$(MEDIA_URL="http://127.0.0.1:$PORT/sample.mp4" BASE_URL="http://127.0.0.1:$PORT" bash "$CHECK" 2>&1)"
+  out="$(BASE_URL="http://127.0.0.1:$PORT" bash "$CHECK" 2>&1)"
   local rc=$?
   kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
 
@@ -163,12 +122,10 @@ run_case() { # run_case <模式> <期望:pass|fail>
       echo "  FAIL 正常服务端却报错："; echo "$out" | sed 's/^/      /'; FAIL=1
     fi
   else
-    # bad 模式：胶水 404 + 正文乱码 + 假切片（单帧、两段一样），必须全都被抓到且退出码非 0
+    # bad 模式：胶水 404 + 正文乱码，必须全都被抓到且退出码非 0
     if [ "$rc" != "0" ] \
        && grep -q "胶水可取" <<<"$out" && grep -q FAIL <<<"$out" \
-       && grep -q "无乱码" <<<"$out" \
-       && grep -q "切片是真动图" <<<"$out" \
-       && grep -q "相邻段画面不同" <<<"$out"; then
+       && grep -q "无乱码" <<<"$out"; then
       echo "  PASS 坏服务端 → 抓到 $(grep -c FAIL <<<"$out") 项失败（退出码 $rc）"
       echo "$out" | grep FAIL | sed 's/^/      /'
     else

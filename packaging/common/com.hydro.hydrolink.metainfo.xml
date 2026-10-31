@@ -2,7 +2,7 @@
 <component type="desktop-application">
   <id>com.hydro.hydrolink</id>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>Apache-2.0</project_license>
+  <project_license>GPL-3.0-only</project_license>
   <name>HydroLink</name>
   <summary>Watch companion server and plugin platform</summary>
   <summary xml:lang="zh_CN">手表互联服务端与插件平台</summary>
@@ -31,6 +31,7 @@
   </requires>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="1.3.0" date="2026-10-31"/>
     <release version="1.2.3" date="2026-10-05"/>
     <release version="1.2.2" date="2026-10-03"/>
     <release version="1.2.1" date="2026-10-02"/>

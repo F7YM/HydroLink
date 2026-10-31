@@ -24,8 +24,9 @@
           onclick="onSelect(item.key)"
         >
           <div class="type-circle {{ selectedType === item.key ? 'type-circle-selected' : '' }}">
-            <image class="type-icon" src="/common/icons/{{ item.key }}.png"></image>
+            <image class="type-icon" src="{{ selectedType === item.key ? item.iconSelected : item.icon }}"></image>
           </div>
+          <text class="type-label">{{ item.label }}</text>
         </div>
       </div>
     </div>
@@ -71,6 +72,7 @@
   left: 0;
   right: 0;
   width: 100%;
+  padding-bottom: 90px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -105,6 +107,13 @@
   width: 56px;
   height: 56px;
 }
+.type-label {
+  font-size: 24px;
+  font-weight: bold;
+  color: #fff;
+  margin-top: 12px;
+  text-align: center;
+}
 
 /* ---- Press animation ---- */
 .pressable {
@@ -117,14 +126,14 @@
 }
 .press-down {
   animation-name: PressDown;
-  animation-duration: 80ms;
+  animation-duration: 150ms;
   animation-timing-function: ease-out;
   animation-iteration-count: 1;
   animation-fill-mode: forwards;
 }
 .press-up {
   animation-name: PressUp;
-  animation-duration: 140ms;
+  animation-duration: 250ms;
   animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
   animation-iteration-count: 1;
   animation-fill-mode: forwards;
@@ -187,6 +196,7 @@
   }
   .type-area {
     top: 65px;
+    padding-bottom: 65px;
   }
 }
 </style>
@@ -202,9 +212,24 @@ export default {
     selectedType: 'desktop',
     currentTime: '00:00',
     typeList: [
-      { key: 'cellphone' },
-      { key: 'laptop' },
-      { key: 'desktop' }
+      {
+        key: 'cellphone',
+        label: '手机',
+        icon: '/common/icons/cellphone.png',
+        iconSelected: '/common/icons/mobile_32dp_000000_FILL0_wght400_GRAD0_opsz40.png'
+      },
+      {
+        key: 'laptop',
+        label: '笔记本',
+        icon: '/common/icons/laptop.png',
+        iconSelected: '/common/icons/computer_32dp_000000_FILL0_wght400_GRAD0_opsz40.png'
+      },
+      {
+        key: 'desktop',
+        label: '台式机',
+        icon: '/common/icons/desktop.png',
+        iconSelected: '/common/icons/desktop_windows_32dp_000000_FILL0_wght400_GRAD0_opsz40.png'
+      }
     ],
     pressedKey: '',
     releasedKey: ''
@@ -213,7 +238,7 @@ export default {
   onInit() {
     this.selectedType = this.currentType || 'desktop'
     this.updateTime()
-    this._timeInterval = setInterval(() => this.updateTime(), 60000)
+    this._timeInterval = setInterval(() => this.updateTime(), 1000)
   },
 
   onDestroy() {
@@ -251,7 +276,7 @@ export default {
     this.releasedKey = key
     setTimeout(() => {
       if (this.releasedKey === key) this.releasedKey = ''
-    }, 160)
+    }, 270)
   },
 
   pressCancel(key) {

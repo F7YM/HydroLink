@@ -17,7 +17,7 @@
       <div class="form-list">
         <!-- App info card -->
         <div
-          class="app-card pressable {{ pressedKey === 'version' ? 'is-down press-down' : '' }} {{ releasedKey === 'version' ? 'press-up' : '' }}"
+          class="app-card pressable {{ pressedKey === 'version' ? 'is-down' : '' }}"
           ontouchstart="pressDown('version')"
           ontouchend="pressRelease('version')"
           ontouchcancel="pressCancel('version')"
@@ -32,7 +32,7 @@
 
         <!-- 关于 HydroLink -->
         <div
-          class="form-item pressable {{ pressedKey === 'about' ? 'is-down press-down' : '' }} {{ releasedKey === 'about' ? 'press-up' : '' }}"
+          class="form-item pressable {{ pressedKey === 'about' ? 'is-down' : '' }}"
           ontouchstart="pressDown('about')"
           ontouchend="pressRelease('about')"
           ontouchcancel="pressCancel('about')"
@@ -50,13 +50,25 @@
 
         <!-- 开箱新手引导 -->
         <div
-          class="form-item pressable {{ pressedKey === 'oobe' ? 'is-down press-down' : '' }} {{ releasedKey === 'oobe' ? 'press-up' : '' }}"
+          class="form-item pressable {{ pressedKey === 'oobe' ? 'is-down' : '' }}"
           ontouchstart="pressDown('oobe')"
           ontouchend="pressRelease('oobe')"
           ontouchcancel="pressCancel('oobe')"
           onclick="onOpenOobe"
         >
           <text class="form-label">新手引导</text>
+          <text class="app-chevron">›</text>
+        </div>
+
+        <!-- HydroApps 设置 -->
+        <div
+          class="form-item pressable {{ pressedKey === 'hydroSettings' ? 'is-down' : '' }}"
+          ontouchstart="pressDown('hydroSettings')"
+          ontouchend="pressRelease('hydroSettings')"
+          ontouchcancel="pressCancel('hydroSettings')"
+          onclick="onOpenHydroSettings"
+        >
+          <text class="form-label">HydroApps</text>
           <text class="app-chevron">›</text>
         </div>
 
@@ -220,14 +232,14 @@
 }
 .press-down {
   animation-name: PressDown;
-  animation-duration: 80ms;
+  animation-duration: 150ms;
   animation-timing-function: ease-out;
   animation-iteration-count: 1;
   animation-fill-mode: forwards;
 }
 .press-up {
   animation-name: PressUp;
-  animation-duration: 140ms;
+  animation-duration: 250ms;
   animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
   animation-iteration-count: 1;
   animation-fill-mode: forwards;
@@ -244,21 +256,18 @@
 /* ---- Circle screen adaptation ---- */
 @media (shape: circle) {
   .list-bottom-space {
-    height: 150px;
+    height: 80px;
   }
-  /* 圆屏：**不做压缩**——内容按正常尺寸排（卡片 156、开关行 100、间距 16），
-     装不下就滚。上下各留出余量，任何一项都能滚到圆心中段（可用宽度最大处）看。
-     注：圆屏上"贴弧线被切一点"是这类列表的常态，滚动才是解法，不是把内容压小。 */
   .form-list {
     padding-top: 24px;
   }
   .app-card {
-    width: 360px;
+    width: 400px;
     height: 120px;
     border-radius: 44px;
   }
   .form-item {
-    width: 360px;
+    width: 400px;
     height: 100px;
     border-radius: 50px;
   }
@@ -323,7 +332,7 @@ export default {
 
   onInit() {
     this.updateTime()
-    this._timeInterval = setInterval(() => this.updateTime(), 60000)
+    this._timeInterval = setInterval(() => this.updateTime(), 1000)
     try {
       const info = app.getInfo()
       if (info && info.versionName) this.appVersion = info.versionName
@@ -391,6 +400,10 @@ export default {
     router.push({ uri: '/pages/oobe' })
   },
 
+  onOpenHydroSettings() {
+    router.push({ uri: '/pages/hydroSettings' })
+  },
+
   pressDown(key) {
     this.releasedKey = ''
     this.pressedKey = key
@@ -401,7 +414,7 @@ export default {
     this.releasedKey = key
     setTimeout(() => {
       if (this.releasedKey === key) this.releasedKey = ''
-    }, 160)
+    }, 270)
   },
 
   pressCancel(key) {

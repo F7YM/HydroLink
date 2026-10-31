@@ -128,7 +128,7 @@ class HydroHttpServer(
     private val maxLogs = 100
 
     companion object {
-        private const val VERSION = "1.2.3"
+        private const val VERSION = "1.3.0"
 
         /** logcat tag（`adb logcat -s HydroLink`）。 */
         private const val TAG_LOGCAT = "HydroLink"
@@ -290,7 +290,7 @@ class HydroHttpServer(
                 (cleanUri == "/api/music/control" || cleanUri == "/music/control") && method == Method.POST ->
                     withTrusted(headers) { handleMusicControl(bodyJson) }
 
-                // 封面图：与桌面 desktop/internal/api/media.go 同一契约。
+                // 封面图：与桌面端实现 同一契约。
                 // 不带信任校验——手表渲染背景图时是渲染器直接取 URL，带不了
                 // X-Device-Id 头（桌面端同样是公开的）。
                 (cleanUri == "/api/music/art" || cleanUri == "/music/art") && method == Method.GET -> {
@@ -603,6 +603,15 @@ class HydroHttpServer(
         // Pending
         addLog("配对请求: ${deviceId.take(8)}...", "warning")
         dataManager.addPendingPair(deviceId, deviceName)
+        try {
+            com.hydro.link.server.notification.PairNotificationManager.notifyPairRequest(
+                context,
+                deviceId,
+                deviceName,
+            )
+        } catch (_: Throwable) {
+            // JVM 单测或通知渠道异常时不阻断 HTTP 响应
+        }
         return jsonResp(mapOf("status" to "pending", "message" to "Waiting for user confirmation"))
     }
 
@@ -655,6 +664,10 @@ class HydroHttpServer(
         }
 
         dataManager.removePendingPair(deviceId)
+        try {
+            com.hydro.link.server.notification.PairNotificationManager.cancel(context, deviceId)
+        } catch (_: Throwable) {
+        }
 
         if (action == "accept") {
             dataManager.addTrustedDevice(deviceId, deviceName)
@@ -805,11 +818,7 @@ class HydroHttpServer(
     }
 
     private fun getSystemInfo(): SystemInfo {
-        val hostname = try {
-            Build.MODEL ?: "Android Device"
-        } catch (e: Exception) {
-            "Android Device"
-        }
+        val hostname = NetworkUtil.deviceDisplayName(context)
         val version = "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})"
         return SystemInfo(hostname, version)
     }

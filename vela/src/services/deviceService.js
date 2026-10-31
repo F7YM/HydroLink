@@ -102,6 +102,7 @@ function isInterconnect(host) {
  * @returns {Promise<{code: number, data: object}>}
  */
 async function apiRequest(host, port, path, method, data, headers) {
+  interconnectService.ensureInit()
   if (isInterconnect(host)) {
     try {
       const response = await interconnectService.sendApiRequest(path, method || 'GET', data)
@@ -500,10 +501,11 @@ export default {
       let reqPath = path
       let reqBody = body
       const m = method || 'POST'
+      interconnectService.ensureInit()
       // 互联通道（host=localhost 或手表已连上手机）没有 HTTP 头，
       // X-Hydro-Store 会丢 —— 插件 watch 作用域状态就没了。改为放进
       // GET 的 query 或 POST 的 body.store；服务端两条路都认。
-      if (isInterconnect(host) && headers && headers['X-Hydro-Store']) {
+      if ((isInterconnect(host) || interconnectService.isReady()) && headers && headers['X-Hydro-Store']) {
         const raw = headers['X-Hydro-Store']
         if (m === 'GET') {
           reqPath = path + (path.indexOf('?') >= 0 ? '&' : '?') + 'store=' + encodeURIComponent(raw)

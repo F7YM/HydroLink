@@ -186,6 +186,7 @@ class MainActivity : AppCompatActivity() {
         onAuthorizeShizuku = { requestShizukuAuthorization() },
         onRefreshAuthorizerStatus = { updateAuthorizerStatus() },
         onToggleBoot = { forceSwitch(switchBoot, it); refreshData() },
+        onSetPairNotificationStyle = { style -> setPairNotificationStyle(style) },
         onToggleGlass = { forceSwitch(switchLiquidGlass, it); refreshData() },
         onToggleMiuix = { setMiuix(it) },
         onCheckAppUpdate = { checkAppUpdate(manual = true) },
@@ -807,6 +808,8 @@ class MainActivity : AppCompatActivity() {
         m.notifListenerText = tvNotificationStatus.text.toString()
         m.notifPermVisible = cardNotifPermission.visibility == View.VISIBLE
         m.notifPermText = tvPostNotifStatus.text.toString()
+        val pm = getSystemService(android.content.Context.POWER_SERVICE) as? android.os.PowerManager
+        m.batteryOptVisible = pm?.isIgnoringBatteryOptimizations(packageName) == false
         m.pairs = pairs
         m.devices = devices
         m.commands = commands
@@ -815,6 +818,7 @@ class MainActivity : AppCompatActivity() {
         val cfg = dataManager.loadConfig()
         m.authorizer = cfg.authorizer
         m.bootStart = cfg.bootStart
+        m.pairNotificationStyle = cfg.pairNotificationStyle
         m.liquidGlass = cfg.liquidGlass
         m.miuix = cfg.miuix
         if (::radioMiuix.isInitialized) {
@@ -906,6 +910,15 @@ class MainActivity : AppCompatActivity() {
         refreshData()
         updateAuthorizerStatus()
         if (kind == Authorizer.Kind.SHIZUKU) requestShizukuAuthorization()
+    }
+
+    /** 切换配对通知样式（live = 实时活动，standard = 标准通知）。 */
+    private fun setPairNotificationStyle(style: String) {
+        val normalized = if (style == "standard") "standard" else "live"
+        val cfg = dataManager.loadConfig()
+        cfg.pairNotificationStyle = normalized
+        dataManager.saveConfig(cfg)
+        refreshData()
     }
 
     /** Shizuku 去授权：请求权限 + 绑定用户服务，随后刷新状态。 */
@@ -1091,11 +1104,11 @@ class MainActivity : AppCompatActivity() {
         val message = com.hydro.link.server.update.AppUpdateHelper.dialogText(update, currentVersion)
         EngineDialog.confirm(
             activity = this,
-            title = if (isForce) "发现重要版本 (强制更新) v${update.version}" else "发现新版本 v${update.version}",
+            title = "发现新版本 v${update.version}",
             message = message,
             positive = "前往网盘下载",
             negative = if (isForce) null else "稍后提醒",
-            dangerWarning = if (isForce) "当前版本过低或已停止支持，请立即前往下载更新以继续使用。" else null,
+            dangerWarning = null,
             onNegative = if (isForce) null else {
                 {
                     val cfg = dataManager.loadConfig()
@@ -1129,12 +1142,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun deleteDevice(device: TrustedDevice) {
-        dataManager.removeTrustedDevice(device.deviceId)
-        refreshData()
-        notifyUser(rvDevices, "已删除设备")
+        val label = device.deviceName.ifBlank { device.deviceId.take(8) }
+        EngineDialog.confirm(
+            activity = this,
+            title = "删除已配对设备",
+            message = "确定删除设备「$label」？删除后该设备需要重新配对才能连接。",
+            positive = getString(R.string.delete),
+            negative = getString(R.string.cancel),
+            onConfirm = {
+                dataManager.removeTrustedDevice(device.deviceId)
+                refreshData()
+            },
+        )
     }
 
     private fun respondPair(pair: PairRequest, action: String) {
+        com.hydro.link.server.notification.PairNotificationManager.cancel(this, pair.deviceId)
         Thread {
             try {
                 val url = "http://127.0.0.1:$port/api/pair/respond"
@@ -1223,6 +1246,14 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        com.hydro.link.server.notification.PairActionReceiver.onPairHandled = {
+            handler.post {
+                if (miuixModel.pluginDialog?.title == "配对请求") {
+                    miuixModel.pluginDialog = null
+                }
+                refreshData()
+            }
+        }
         refreshData()
         // 每 2 秒刷新一次状态（服务/互联/worker 在线数都要是活的）
         handler.postDelayed(refreshRunnable, 2000)
@@ -1230,6 +1261,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        com.hydro.link.server.notification.PairActionReceiver.onPairHandled = null
         handler.removeCallbacks(refreshRunnable)
     }
 

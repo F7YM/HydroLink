@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Worker 通道用例，对齐 desktop/internal/hydrokit/bridge.go 的行为：
+ * Worker 通道用例，对齐桌面端实现的行为：
  * 长轮询领取、respond 回填、worker 离线快速失败 + 唤醒、超时、错误回填。
  */
 class WorkerBridgeTest {

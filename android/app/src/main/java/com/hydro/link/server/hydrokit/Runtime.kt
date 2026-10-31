@@ -7,7 +7,7 @@ import com.google.gson.JsonSyntaxException
 class HydroException(message: String) : Exception(message)
 
 /**
- * 清单解析与校验（对应 desktop/internal/hydrokit/manifest.go）。
+ * 清单解析与校验（对应桌面端实现）。
  *
  * 校验规则与桌面端保持一致：
  *   - package.id 必填
@@ -53,7 +53,7 @@ object Manifests {
 }
 
 /**
- * 注册表（对应 desktop/internal/hydrokit/runtime.go）。
+ * 注册表（对应桌面端实现）。
  *
  * 线程安全：桌面端用 RWMutex，这里用 synchronized + 快照，避免读时持锁调用插件。
  */

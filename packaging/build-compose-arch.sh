@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="$ROOT/dist"
 STAGE="$ROOT/packaging/build/compose-stage"
 WORK="$ROOT/packaging/build/compose-arch"
-VERSION="1.2.3"
+VERSION="1.3.0"
 PKG="hydrolink"
 MAINTAINER="float11 <2471825164@qq.com>"
 
@@ -89,7 +89,7 @@ builddate = {now}
 packager = {maintainer}
 size = {total}
 arch = x86_64
-license = Apache-2.0
+license = GPL-3.0-only
 depend = glibc
 depend = libx11
 depend = webkit2gtk-4.1

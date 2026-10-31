@@ -13,26 +13,40 @@ android {
         applicationId "com.hydro.link"
         minSdk 24
         targetSdk 34
-        versionCode 6
-        versionName "1.2.3"
+        versionCode 7
+        versionName "1.3.0"
         ndk {
             abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64'
         }
     }
 
+    def localProps = new Properties()
+    def localPropsFile = rootProject.file('local.properties')
+    if (localPropsFile.exists()) {
+        localPropsFile.withInputStream { localProps.load(it) }
+    }
+    def releaseStoreFilePath = localProps.getProperty('RELEASE_STORE_FILE') ?: System.getenv('RELEASE_STORE_FILE') ?: 'hydrolink-release.keystore'
+    def releaseStoreFile = file(releaseStoreFilePath)
+    def releaseStorePassword = localProps.getProperty('RELEASE_STORE_PASSWORD') ?: System.getenv('RELEASE_STORE_PASSWORD') ?: ''
+    def releaseKeyAlias = localProps.getProperty('RELEASE_KEY_ALIAS') ?: System.getenv('RELEASE_KEY_ALIAS') ?: ''
+    def releaseKeyPassword = localProps.getProperty('RELEASE_KEY_PASSWORD') ?: System.getenv('RELEASE_KEY_PASSWORD') ?: ''
+    def hasReleaseSigning = releaseStoreFile.exists() && !releaseStorePassword.isEmpty() && !releaseKeyAlias.isEmpty()
+
     signingConfigs {
         release {
-            storeFile file('hydrolink-release.keystore')
-            storePassword 'hydrostation'
-            keyAlias 'hydro'
-            keyPassword 'hydrostation'
+            if (hasReleaseSigning) {
+                storeFile releaseStoreFile
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
         }
     }
 
     buildTypes {
         release {
             minifyEnabled false
-            signingConfig signingConfigs.release
+            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
@@ -58,20 +72,15 @@ tasks.withType(Test).configureEach {
     inputs.dir(file('src/main/assets/hydrokit'))
         .withPropertyName('hydrokitAssets')
         .withPathSensitivity(PathSensitivity.RELATIVE)
-    inputs.files(fileTree('../../desktop/examples') { include '*.hpk' })
+    inputs.files(fileTree('../../plugin') { include '*.hpk' })
         .withPropertyName('examplePackages')
         .withPathSensitivity(PathSensitivity.RELATIVE)
         .optional(true)
-    // 切片器 golden（由 crates/hydro-media-wasm/test/make-golden.mjs 生成）：
-    // 改了 Rust 编码器重新生成 golden 时，Kotlin 侧的对拍必须真的重跑
-    inputs.dir(file('src/test/resources/media'))
-        .withPropertyName('mediaGoldens')
-        .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 dependencies {
     implementation fileTree(dir: "libs", include: ["*.aar", "*.jar"])
-    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.core:core-ktx:1.18.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
     // activity 1.13.0：ComponentActivity 实现 NavigationEventDispatcherOwner 并把它挂到
     // window decor 的 ViewTree 上。miuix 的 WindowDialog 内部用 NavigationBackHandler，

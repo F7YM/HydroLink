@@ -59,7 +59,7 @@ import top.yukonga.miuix.kmp.theme.ThemeController
  */
 class PermissionsActivity : AppCompatActivity() {
 
-    private val state = mutableStateOf(PermState(false, false, false))
+    private val state = mutableStateOf(PermState(false, false, false, false))
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -78,6 +78,7 @@ class PermissionsActivity : AppCompatActivity() {
                         startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                     },
                     onGrantPost = { openNotificationSettings() },
+                    onGrantBattery = { requestIgnoreBatteryOptimizations() },
                 )
             }
             if (miuix) {
@@ -100,7 +101,25 @@ class PermissionsActivity : AppCompatActivity() {
         } else {
             true
         }
-        return PermState(LockAccessibilityService.isRunning(), listener, post)
+        val pm = getSystemService(POWER_SERVICE) as? android.os.PowerManager
+        val battery = pm?.isIgnoringBatteryOptimizations(packageName) ?: true
+        return PermState(LockAccessibilityService.isRunning(), listener, post, battery)
+    }
+
+    private fun requestIgnoreBatteryOptimizations() {
+        val pkgUri = android.net.Uri.parse("package:$packageName")
+        val candidates = listOf(
+            Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, pkgUri),
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, pkgUri),
+            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
+        )
+        for (intent in candidates) {
+            try {
+                startActivity(intent)
+                return
+            } catch (_: Exception) {
+            }
+        }
     }
 
     private fun openNotificationSettings() {
@@ -115,7 +134,7 @@ class PermissionsActivity : AppCompatActivity() {
     }
 }
 
-private data class PermState(val acc: Boolean, val listener: Boolean, val post: Boolean)
+private data class PermState(val acc: Boolean, val listener: Boolean, val post: Boolean, val battery: Boolean)
 
 private data class PermItem(val title: String, val granted: Boolean, val onGrant: () -> Unit)
 
@@ -127,11 +146,13 @@ private fun PermissionsBody(
     onGrantAccessibility: () -> Unit,
     onGrantListener: () -> Unit,
     onGrantPost: () -> Unit,
+    onGrantBattery: () -> Unit,
 ) {
     val items = listOf(
         PermItem("无障碍服务", state.acc, onGrantAccessibility),
         PermItem("通知使用权", state.listener, onGrantListener),
         PermItem("通知权限", state.post, onGrantPost),
+        PermItem("后台无限制（防冻结）", state.battery, onGrantBattery),
     )
     if (miuix) {
         MiuixPermissionsContent(items, onBack)

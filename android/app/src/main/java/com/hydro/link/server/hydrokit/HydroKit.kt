@@ -3,10 +3,6 @@ package com.hydro.link.server.hydrokit
 import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.JsonParser
-import com.hydro.link.server.media.AndroidVideoFrames
-import com.hydro.link.server.media.MediaJobStore
-import com.hydro.link.server.media.MediaRoutes
-import com.hydro.link.server.media.VideoFrameSource
 import java.io.File
 
 /**
@@ -52,25 +48,23 @@ class HydroKit(
 
     private val kitRoutes = HydroKitRoutes(runtime, store, { level, message -> logFn(level, message) }, { hostInfo }, { capabilities.serverBase() })
 
-    /**
-     * 视频切片（media 权限）：宿主解码（[AndroidVideoFrames]，真机才有 MediaCodec）
-     * + 作业调度（[MediaJobStore]：前两段预热、其余懒生成、滑窗缓存 ≤2 段）。
-     * 分段是**按 URL 下发**的，手表自己按段取，不走 worker 回包（互联通道有 16KB 上限）。
-     */
-    private val videoFrames: VideoFrameSource =
-        AndroidVideoFrames(log = { msg -> logFn("info", msg) })
-    private val mediaJobs = MediaJobStore(videoFrames, log = { msg -> logFn("info", msg) })
-    private val mediaRoutes = MediaRoutes(mediaJobs, log = { msg -> logFn("info", msg) })
-
     private val kitApis =
-        KitRoutes(store, bridge, capabilities, { msg -> logFn("info", msg) }, { hostInfo }, mediaJobs)
+        KitRoutes(
+            store,
+            bridge,
+            capabilities,
+            { msg -> logFn("info", msg) },
+            { hostInfo },
+        )
     private val hostPages = HostPageRoutes(hostAssets)
 
     override fun log(level: String, message: String) = logFn(level, message)
 
-    /** 服务器入口：宿主页 → 切片分段 → kit/worker 端点 → 插件路由；都不匹配返回 null。 */
+    /** 服务器入口：宿主页 → kit/worker 端点 → 插件路由；都不匹配返回 null。 */
     fun handle(req: HydroHttpRequest): HydroHttpResponse? =
-        hostPages.handle(req) ?: mediaRoutes.handle(req) ?: kitApis.handle(req) ?: kitRoutes.handle(req)
+        hostPages.handle(req)
+            ?: kitApis.handle(req)
+            ?: kitRoutes.handle(req)
 
     /**
      * 启动时把磁盘上已安装的插件注册进运行时。

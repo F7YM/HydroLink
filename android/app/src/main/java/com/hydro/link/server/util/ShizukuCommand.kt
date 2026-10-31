@@ -34,27 +34,41 @@ object ShizukuCommand {
 
     fun init(context: Context) {
         appContext = context.applicationContext
+        try {
+            Shizuku.addBinderReceivedListenerSticky {
+                if (Authorizer.shizukuGranted()) bindIfNeeded()
+            }
+        } catch (_: Throwable) {
+        }
     }
 
     fun isBound(): Boolean = service != null
 
-    /** 绑定用户服务（异步；重复调用安全）。 */
+    /** 绑定用户服务（异步；重复调用安全，确保在主线程发起绑定）。 */
     fun bindIfNeeded() {
         val context = appContext ?: return
         if (service != null) return
-        try {
-            Shizuku.bindUserService(
-                Shizuku.UserServiceArgs(
-                    ComponentName(context, ShizukuShellService::class.java)
+        val bindTask = Runnable {
+            if (service != null) return@Runnable
+            try {
+                Shizuku.bindUserService(
+                    Shizuku.UserServiceArgs(
+                        ComponentName(context, ShizukuShellService::class.java)
+                    )
+                        .daemon(false)
+                        .processNameSuffix("shell")
+                        .debuggable(BuildConfig.DEBUG)
+                        .version(1),
+                    connection,
                 )
-                    .daemon(false)
-                    .processNameSuffix("shell")
-                    .debuggable(BuildConfig.DEBUG)
-                    .version(1),
-                connection,
-            )
-        } catch (_: Throwable) {
-            // Shizuku 未运行/未授权：状态由 Authorizer.statusText 反映
+            } catch (_: Throwable) {
+                // Shizuku 未运行/未授权：状态由 Authorizer.statusText 反映
+            }
+        }
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            bindTask.run()
+        } else {
+            android.os.Handler(android.os.Looper.getMainLooper()).post(bindTask)
         }
     }
 

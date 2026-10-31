@@ -1,0 +1,20 @@
+{
+  "id": "com.float11.opencode.ctrl",
+  "name": "OpenCode",
+  "author": "float11",
+  "version": "1.0.1",
+  "minHydroLink": "1.3.0",
+  "entry": "server.js",
+  "apps": [
+    {
+      "id": "main",
+      "name": "OpenCode",
+      "icon": "assets/icon.png"
+    }
+  ],
+  "permissions": [
+    "storage",
+    "fetch",
+    "notify"
+  ]
+}

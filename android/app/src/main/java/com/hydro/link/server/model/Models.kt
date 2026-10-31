@@ -50,6 +50,8 @@ data class AppConfig(
     /** 命令授权器：none / root / shizuku（默认 none）。 */
     @SerializedName("authorizer") var authorizer: String = "none",
     @SerializedName("boot_start") var bootStart: Boolean = false,
+    /** 配对请求通知样式：live（实时活动，含流体云/超级岛，默认） / standard（标准通知）。 */
+    @SerializedName("pair_notification_style") var pairNotificationStyle: String = "live",
     @SerializedName("liquid_glass") var liquidGlass: Boolean = false, // Liquid Glass 底栏（默认关）
     @SerializedName("miuix") var miuix: Boolean = false, // miuix 风格底栏（默认关）
     /** 插件市场来源：统一默认 Gh-Proxy。 */

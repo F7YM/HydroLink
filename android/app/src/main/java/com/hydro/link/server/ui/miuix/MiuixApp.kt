@@ -561,7 +561,7 @@ private fun StatusTab(
                 StatCard(
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                     title = "权限管理",
-                    value = if (model.accVisible || model.notifListenerVisible || model.notifPermVisible) {
+                    value = if (model.accVisible || model.notifListenerVisible || model.notifPermVisible || model.batteryOptVisible) {
                         "请授予权限"
                     } else {
                         "已授权"
@@ -844,6 +844,17 @@ private fun SettingsTab(padding: PaddingValues, model: MiuixModel, actions: Miui
                     summary = "重启手机后自动启动服务",
                     checked = model.bootStart,
                     onCheckedChange = actions.onToggleBoot,
+                )
+                WindowSpinnerPreference(
+                    title = "配对通知样式",
+                    items = listOf(
+                        DropdownItem(text = "实时活动", summary = "流体云 / 超级岛 / 实时更新"),
+                        DropdownItem(text = "标准通知", summary = "常规横幅通知"),
+                    ),
+                    selectedIndex = if (model.pairNotificationStyle == "standard") 1 else 0,
+                    onSelectedIndexChange = { index ->
+                        actions.onSetPairNotificationStyle(if (index == 1) "standard" else "live")
+                    },
                 )
             }
         }

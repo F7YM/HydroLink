@@ -6,7 +6,7 @@ import kotlin.math.roundToInt
 /**
  * 封面图（`/api/music/art`）的处理与输出。
  *
- * 桌面端 `desktop/internal/api/media.go` 是同一条契约的另一半：
+ *桌面端实现 是同一条契约的另一半：
  *
  *   GET /api/music/art                        → 原图
  *   GET /api/music/art?size=466&blur=26&dim=0.3 → 缩到 466、方框模糊、压暗到 30%

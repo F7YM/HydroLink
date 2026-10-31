@@ -257,10 +257,10 @@ export default {
       this.currentStroke = []
     }
 
-    // 500ms 抬笔超时自动提交识别
+    // 300ms 抬笔超时自动提交识别
     this.commitTimer = setTimeout(() => {
       this.commitStrokes()
-    }, 500)
+    }, 300)
   },
 
   onTouchCancel() {
@@ -271,7 +271,7 @@ export default {
     }
     this.commitTimer = setTimeout(() => {
       this.commitStrokes()
-    }, 500)
+    }, 300)
   },
 
   commitStrokes() {

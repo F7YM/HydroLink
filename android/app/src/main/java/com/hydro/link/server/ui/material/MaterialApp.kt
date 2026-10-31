@@ -260,7 +260,7 @@ private fun HomeTab(
         ip.isNotEmpty() -> ip
         else -> port
     }
-    val permissionsPending = model.accVisible || model.notifListenerVisible || model.notifPermVisible
+    val permissionsPending = model.accVisible || model.notifListenerVisible || model.notifPermVisible || model.batteryOptVisible
     MdPage(padding) {
         item {
             MdStatusCard(
@@ -541,6 +541,27 @@ private fun SettingsTab(padding: PaddingValues, model: MiuixModel, actions: Miui
                         checked = model.bootStart,
                         onCheckedChange = actions.onToggleBoot,
                     )
+                }
+            }
+        }
+        item {
+            MdSegmentedColumn(
+                title = "配对通知样式",
+                contentPadding = PaddingValues(bottom = 8.dp),
+            ) {
+                item {
+                    MdRadioWidget(
+                        title = "实时活动",
+                        description = "流体云 / 超级岛 / 实时更新",
+                        selected = model.pairNotificationStyle != "standard",
+                    ) { actions.onSetPairNotificationStyle("live") }
+                }
+                item {
+                    MdRadioWidget(
+                        title = "标准通知",
+                        description = "常规横幅通知",
+                        selected = model.pairNotificationStyle == "standard",
+                    ) { actions.onSetPairNotificationStyle("standard") }
                 }
             }
         }

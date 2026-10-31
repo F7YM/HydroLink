@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 清单解析/校验的用例，与桌面端 desktop/internal/hydrokit/manifest.go 的规则对齐：
+ * 清单解析/校验的用例，与桌面端桌面端实现的规则对齐：
  * package.id 必填、至少注册一个 app 或 widget、同 surface 内 item id 唯一。
  */
 class ManifestTest {

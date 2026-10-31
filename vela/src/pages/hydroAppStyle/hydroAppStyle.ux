@@ -1,0 +1,289 @@
+<template>
+  <div class="page-container">
+    <!-- Header -->
+    <div class="header">
+      <text class="time-display">{{ currentTime }}</text>
+      <text
+        class="title pressable {{ pressedKey === 'back' ? 'is-down press-down' : '' }} {{ releasedKey === 'back' ? 'press-up' : '' }}"
+        ontouchstart="pressDown('back')"
+        ontouchend="pressRelease('back')"
+        ontouchcancel="pressCancel('back')"
+        onclick="goBack"
+      >‹列表样式</text>
+    </div>
+
+    <!-- Style buttons (centered like deviceType.ux) -->
+    <div class="type-area">
+      <div class="type-list">
+        <div
+          for="{{ (index, item) in styleList }}"
+          class="type-item pressable {{ pressedKey === item.key ? 'is-down press-down' : '' }} {{ releasedKey === item.key ? 'press-up' : '' }}"
+          ontouchstart="pressDown(item.key)"
+          ontouchend="pressRelease(item.key)"
+          ontouchcancel="pressCancel(item.key)"
+          onclick="onSelect(item.key)"
+        >
+          <div class="type-circle {{ selectedStyle === item.key ? 'type-circle-selected' : '' }}">
+            <image class="type-icon" src="{{ selectedStyle === item.key ? item.iconSelected : item.icon }}"></image>
+          </div>
+          <text class="type-label">{{ item.label }}</text>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style>
+.page-container {
+  width: 100%;
+  height: 100%;
+  background-color: #000;
+  position: relative;
+}
+
+/* ---- Header ---- */
+.header {
+  width: 100%;
+  height: 90px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: #000;
+}
+.time-display {
+  font-size: 28px;
+  font-weight: bold;
+  color: #fff;
+  padding-top: 5px;
+  text-align: center;
+}
+.title {
+  font-size: 32px;
+  font-weight: bold;
+  color: #fff;
+  text-align: center;
+}
+
+/* ---- Type area ---- */
+.type-area {
+  position: absolute;
+  top: 90px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  padding-bottom: 90px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.type-list {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+.type-item {
+  flex-direction: column;
+  align-items: center;
+  margin: 0 24px;
+}
+.type-circle {
+  width: 120px;
+  height: 120px;
+  border-radius: 60px;
+  background-color: #2e323c;
+  border-width: 3px;
+  border-style: solid;
+  border-color: transparent;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.type-circle-selected {
+  background-color: #bac3ff;
+  border-color: #bac3ff;
+}
+.type-icon {
+  width: 56px;
+  height: 56px;
+}
+.type-label {
+  font-size: 24px;
+  font-weight: bold;
+  color: #fff;
+  margin-top: 12px;
+  text-align: center;
+}
+
+/* ---- Press animation ---- */
+.pressable {
+  transform-origin: 50% 50%;
+  transform: scale(1);
+  opacity: 1;
+}
+.is-down {
+  opacity: 0.75;
+}
+.press-down {
+  animation-name: PressDown;
+  animation-duration: 150ms;
+  animation-timing-function: ease-out;
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+.press-up {
+  animation-name: PressUp;
+  animation-duration: 250ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+@keyframes PressDown {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.94);
+    opacity: 0.75;
+  }
+}
+@keyframes PressUp {
+  0% {
+    transform: scale(0.94);
+    opacity: 0.75;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ---- Circle screen ---- */
+@media (shape: circle) {
+  .type-list {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  .type-item {
+    margin: 0 18px;
+  }
+  .type-circle {
+    width: 110px;
+    height: 110px;
+    border-radius: 55px;
+  }
+  .type-icon {
+    width: 50px;
+    height: 50px;
+  }
+}
+
+/* ---- Rect screen ---- */
+@media (shape: rect) {
+  .header {
+    height: 65px;
+    flex-direction: row-reverse;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 48px;
+  }
+  .title {
+    margin-left: 12px;
+  }
+  .time-display {
+    margin-right: 12px;
+  }
+  .type-area {
+    top: 65px;
+    padding-bottom: 65px;
+  }
+}
+</style>
+
+<script>
+import router from '@system.router'
+import settingsService from '../../services/settingsService.js'
+
+export default {
+  private: {
+    selectedStyle: 'grid',
+    currentTime: '00:00',
+    styleList: [
+      {
+        key: 'list',
+        label: '列表式',
+        icon: '/common/icons/list_alt_32dp_FFFFFF_FILL0_wght400_GRAD0_opsz40.png',
+        iconSelected: '/common/icons/list_alt_32dp_000000_FILL0_wght400_GRAD0_opsz40.png'
+      },
+      {
+        key: 'grid',
+        label: '图标式',
+        icon: '/common/icons/apps.png',
+        iconSelected: '/common/icons/apps_32dp_000000_FILL0_wght400_GRAD0_opsz40.png'
+      }
+    ],
+    pressedKey: '',
+    releasedKey: ''
+  },
+
+  onInit() {
+    this.updateTime()
+    this._timeInterval = setInterval(() => this.updateTime(), 1000)
+    this.loadStyle()
+  },
+
+  onDestroy() {
+    if (this._timeInterval) clearInterval(this._timeInterval)
+  },
+
+  onShow() {
+    this.updateTime()
+    this.loadStyle()
+  },
+
+  async loadStyle() {
+    try {
+      this.selectedStyle = await settingsService.getHydroAppsStyle()
+    } catch (e) {
+      this.selectedStyle = 'grid'
+    }
+  },
+
+  updateTime() {
+    const now = new Date()
+    this.currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  },
+
+  async onSelect(key) {
+    this.selectedStyle = key
+    try {
+      await settingsService.setHydroAppsStyle(key)
+    } catch (e) {
+      console.warn('[hydroAppStyle] save failed', e)
+    }
+  },
+
+  goBack() {
+    router.back()
+  },
+
+  pressDown(key) {
+    this.releasedKey = ''
+    this.pressedKey = key
+  },
+
+  pressRelease(key) {
+    this.pressedKey = ''
+    this.releasedKey = key
+    setTimeout(() => {
+      if (this.releasedKey === key) this.releasedKey = ''
+    }, 270)
+  },
+
+  pressCancel(key) {
+    if (this.pressedKey === key) this.pressedKey = ''
+    if (this.releasedKey === key) this.releasedKey = ''
+  }
+}
+</script>

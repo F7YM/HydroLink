@@ -1,4 +1,4 @@
-%{!?hydrolink_version:%global hydrolink_version 1.2.3}
+%{!?hydrolink_version:%global hydrolink_version 1.3.0}
 
 # 二进制包：不生成 debuginfo/debugsource（没有编译步骤，自动生成会因空文件失败）
 %global debug_package %{nil}
@@ -8,7 +8,7 @@ Version:        %{hydrolink_version}
 Release:        1%{?dist}
 Summary:        Watch companion server and HydroKit plugin platform
 Summary(zh_CN): 手表互联服务端与 HydroKit 插件平台
-License:        Apache-2.0
+License:        GPL-3.0-only
 # URL 暂缺（仓库未公开），有地址后补上
 BuildArch:      x86_64
 

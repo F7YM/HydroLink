@@ -28,13 +28,14 @@
 
           <!-- 下一步按钮：直接在内容流中居中跟随，不悬浮 -->
           <div
-            class="arrow-fab pressable {{ pressedKey === 'next' ? 'is-down press-down' : '' }} {{ releasedKey === 'next' ? 'press-up' : '' }}"
+            class="edge-btn pressable {{ pressedKey === 'next' ? 'is-down' : '' }}"
             ontouchstart="pressDown('next')"
             ontouchend="pressRelease('next')"
             ontouchcancel="pressCancel('next')"
             onclick="nextStep"
           >
-            <image class="arrow-icon" src="/common/icons/arrow-forward.png"></image>
+            <image class="edge-bg" src="/common/images/edge-btn-primary.png"></image>
+            <image class="edge-icon" src="/common/icons/arrow-forward.png"></image>
           </div>
         </div>
 
@@ -42,9 +43,7 @@
         <div if="{{ step === 1 }}" class="step-flow">
           <text class="step-title">多平台适配</text>
           <div class="platforms-row">
-            <image class="plat-icon" src="/common/icons/watch.png"></image>
-            <image class="plat-icon" src="/common/icons/cellphone.png"></image>
-            <image class="plat-icon" src="/common/icons/desktop.png"></image>
+            <image class="plat-icon" src="/common/icons/devices_other_42dp_FFFFFF_FILL0_wght400_GRAD0_opsz40.png"></image>
           </div>
           <div class="feature-card">
             <div class="feature-item">
@@ -68,13 +67,14 @@
 
           <!-- 下一步按钮 -->
           <div
-            class="arrow-fab pressable {{ pressedKey === 'next' ? 'is-down press-down' : '' }} {{ releasedKey === 'next' ? 'press-up' : '' }}"
+            class="edge-btn pressable {{ pressedKey === 'next' ? 'is-down' : '' }}"
             ontouchstart="pressDown('next')"
             ontouchend="pressRelease('next')"
             ontouchcancel="pressCancel('next')"
             onclick="nextStep"
           >
-            <image class="arrow-icon" src="/common/icons/arrow-forward.png"></image>
+            <image class="edge-bg" src="/common/images/edge-btn-primary.png"></image>
+            <image class="edge-icon" src="/common/icons/arrow-forward.png"></image>
           </div>
         </div>
 
@@ -106,13 +106,14 @@
 
           <!-- 下一步按钮 -->
           <div
-            class="arrow-fab pressable {{ pressedKey === 'next' ? 'is-down press-down' : '' }} {{ releasedKey === 'next' ? 'press-up' : '' }}"
+            class="edge-btn pressable {{ pressedKey === 'next' ? 'is-down' : '' }}"
             ontouchstart="pressDown('next')"
             ontouchend="pressRelease('next')"
             ontouchcancel="pressCancel('next')"
             onclick="nextStep"
           >
-            <image class="arrow-icon" src="/common/icons/arrow-forward.png"></image>
+            <image class="edge-bg" src="/common/images/edge-btn-primary.png"></image>
+            <image class="edge-icon" src="/common/icons/arrow-forward.png"></image>
           </div>
         </div>
 
@@ -150,7 +151,7 @@
             <!-- 我没有安卓手机（跳过按钮）：连接后自动隐藏 -->
             <div
               if="{{ !icConnected }}"
-              class="ghost-btn pressable {{ pressedKey === 'skipIc' ? 'is-down press-down' : '' }} {{ releasedKey === 'skipIc' ? 'press-up' : '' }}"
+              class="ghost-btn pressable {{ pressedKey === 'skipIc' ? 'is-down' : '' }}"
               ontouchstart="pressDown('skipIc')"
               ontouchend="pressRelease('skipIc')"
               ontouchcancel="pressCancel('skipIc')"
@@ -171,7 +172,7 @@
             <div if="{{ lanDevices.length > 0 }}" class="lan-list">
               <div
                 for="{{ (index, dev) in lanDevices }}"
-                class="device-card lan-item {{ dev.isAdded ? 'is-added' : 'pressable' }} {{ pressedKey === 'lan_' + index ? 'is-down press-down' : '' }} {{ releasedKey === 'lan_' + index ? 'press-up' : '' }}"
+                class="device-card lan-item {{ dev.isAdded ? 'is-added' : 'pressable' }} {{ pressedKey === 'lan_' + index ? 'is-down' : '' }}"
                 ontouchstart="pressDown('lan_' + index)"
                 ontouchend="pressRelease('lan_' + index)"
                 ontouchcancel="pressCancel('lan_' + index)"
@@ -193,9 +194,9 @@
             </div>
           </div>
 
-          <!-- 3. 手动输入 IP 选项（左右稍窄 350px，更适合圆表底部弧度） -->
+          <!-- 3. 手动输入 IP 选项（与上方卡片同宽 400px） -->
           <div
-            class="manual-btn pressable {{ pressedKey === 'manualIp' ? 'is-down press-down' : '' }} {{ releasedKey === 'manualIp' ? 'press-up' : '' }}"
+            class="manual-btn pressable {{ pressedKey === 'manualIp' ? 'is-down' : '' }}"
             ontouchstart="pressDown('manualIp')"
             ontouchend="pressRelease('manualIp')"
             ontouchcancel="pressCancel('manualIp')"
@@ -204,20 +205,19 @@
             <text class="manual-btn-text">手动输入 IP</text>
           </div>
 
-          <!-- 4. 完成按钮（左右稍窄 350px，文案为“进入 HydroLink”） -->
+          <!-- 4. 完成按钮：EdgeButton，滚到底时下沿贴合表盘 -->
           <div
-            class="finish-pill pressable {{ pressedKey === 'finish' ? 'is-down press-down' : '' }} {{ releasedKey === 'finish' ? 'press-up' : '' }}"
+            class="edge-btn pressable {{ pressedKey === 'finish' ? 'is-down' : '' }}"
             ontouchstart="pressDown('finish')"
             ontouchend="pressRelease('finish')"
             ontouchcancel="pressCancel('finish')"
             onclick="finishOobe"
           >
-            <text class="finish-pill-text">进入 HydroLink</text>
+            <image class="edge-bg" src="/common/images/edge-btn-primary.png"></image>
+            <text class="edge-text">开始使用</text>
           </div>
         </div>
-
-        <!-- 底部安全区占位，确保最后一项轻松滑到圆心中段舒适点击 -->
-        <div class="list-bottom-space"></div>
+        <!-- 每步末尾都是贴边按钮，不留底部空白，滚到底时按钮下沿正好贴合表盘 -->
       </div>
     </scroll>
   </div>
@@ -386,19 +386,39 @@
   background-color: #bac3ff;
 }
 
-/* Arrow FAB (下一步前进圆钮：处于内容流内部，自然居中跟随) */
-.arrow-fab {
-  width: 84px;
-  height: 84px;
-  border-radius: 42px;
-  background-color: #bac3ff;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 20px;
+/* MD3e 圆表底部按钮（下一步）：形状图由 vela/scripts/gen_edge_button.py 生成（240×104） */
+.edge-btn {
+  width: 240px;
+  height: 104px;
+  flex-shrink: 0;
+  margin-top: 4px;
 }
-.arrow-icon {
-  width: 44px;
-  height: 44px;
+.edge-bg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 240px;
+  height: 104px;
+}
+.edge-icon {
+  position: absolute;
+  left: 95px;
+  top: 21px;
+  width: 51px;
+  height: 51px;
+}
+/* 文字按官方内容定位：比正中高 1dp */
+.edge-text {
+  position: absolute;
+  left: 0;
+  top: 30px;
+  width: 240px;
+  height: 34px;
+  line-height: 34px;
+  font-size: 26px;
+  font-weight: bold;
+  color: #00237c;
+  text-align: center;
 }
 
 /* ---- Step 3 样式 ---- */
@@ -542,9 +562,9 @@
   text-align: center;
 }
 
-/* Manual & Finish Buttons: 宽度收窄至 350px，左右留白均匀，更加契合圆屏弧线 */
+/* 手动输入 IP：与上方卡片同宽 400px */
 .manual-btn {
-  width: 350px;
+  width: 400px;
   height: 80px;
   border-radius: 40px;
   background-color: #2e323c;
@@ -557,29 +577,6 @@
   font-size: 28px;
   font-weight: bold;
   color: #bac3ff;
-}
-
-.finish-pill {
-  width: 350px;
-  height: 88px;
-  border-radius: 44px;
-  background-color: #bac3ff;
-  justify-content: center;
-  align-items: center;
-  margin-top: 6px;
-  margin-bottom: 10px;
-}
-.finish-pill-text {
-  font-size: 30px;
-  font-weight: bold;
-  color: #00237c;
-}
-
-/* 底部防裁切安全边距：参考 home.ux / settings.ux */
-.list-bottom-space {
-  width: 100%;
-  height: 80px;
-  flex-shrink: 0;
 }
 
 /* 转圈动画：对齐 pairing.ux 的容器转动规范，精准中心轴 (24px 24px) */
@@ -617,14 +614,14 @@
 }
 .press-down {
   animation-name: PressDown;
-  animation-duration: 80ms;
+  animation-duration: 150ms;
   animation-timing-function: ease-out;
   animation-iteration-count: 1;
   animation-fill-mode: forwards;
 }
 .press-up {
   animation-name: PressUp;
-  animation-duration: 140ms;
+  animation-duration: 250ms;
   animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
   animation-iteration-count: 1;
   animation-fill-mode: forwards;
@@ -660,8 +657,21 @@
   .scroll-content {
     padding-top: 6px;
   }
-  .list-bottom-space {
-    height: 40px;
+  /* 方屏没有圆弧可贴：退回普通药丸按钮 */
+  .edge-bg {
+    display: none;
+  }
+  .edge-btn {
+    height: 96px;
+    border-radius: 48px;
+    background-color: #bac3ff;
+    margin-bottom: 20px;
+  }
+  .edge-icon {
+    top: 23px;
+  }
+  .edge-text {
+    top: 31px;
   }
 }
 </style>
@@ -690,7 +700,7 @@ export default {
 
   onInit() {
     this.updateTime()
-    this._timeInterval = setInterval(() => this.updateTime(), 60000)
+    this._timeInterval = setInterval(() => this.updateTime(), 1000)
     // 预初始化 Interconnect 监听
     this.initInterconnect()
     this.loadSavedDevices()
@@ -728,8 +738,12 @@ export default {
     try {
       interconnectService.ensureInit()
       interconnectService.setServerInfoHandler((info) => {
+        if (!info || !info.host) {
+          this.icConnected = false
+          return
+        }
         this.icConnected = true
-        if (info && info.name) this.icDeviceName = info.name
+        if (info.name) this.icDeviceName = info.name
         // 发现伴侣后，若处于 Step 3 且未跳过互联，立即触发并启动局域网持续扫描
         if (this.step === 3 && !this.skippedInterconnect) {
           this.startContinuousLanScan()
@@ -873,7 +887,7 @@ export default {
     this.releasedKey = key
     setTimeout(() => {
       if (this.releasedKey === key) this.releasedKey = ''
-    }, 160)
+    }, 270)
   },
 
   pressCancel(key) {

@@ -28,5 +28,6 @@ class HydroLinkApp : Application() {
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
         }
+        com.hydro.link.server.notification.PairNotificationManager.ensureChannels(this)
     }
 }

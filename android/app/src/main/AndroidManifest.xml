@@ -2,8 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- miuix-blur / miuix-shader 的 AAR 声明 minSdk 33；我们 minSdk 保持 24，
-         只在 API 33+ 真正调用模糊，低版本退化为纯色胶囊 -->
+    <!-- miuix-blur / miuix-shader 的 AAR 声明高 minSdk；我们 minSdk 保持 24，
+         只在受支持版本真正调用，低版本自动降级 -->
     <uses-sdk tools:overrideLibrary="top.yukonga.miuix.kmp.blur,top.yukonga.miuix.kmp.shader" />
 
     <uses-permission android:name="android.permission.INTERNET" />
@@ -16,8 +16,14 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <queries>
+        <package android:name="moe.shizuku.privileged.api" />
+    </queries>
 
     <application
         android:name=".HydroLinkApp"
@@ -130,6 +136,12 @@
             android:label="插件详情"
             android:parentActivityName=".ui.MarketActivity"
             android:theme="@style/Theme.HydroLinkServer" />
+
+        <!-- 配对请求通知/岛操作接收器（允许 / 拒绝） -->
+        <receiver
+            android:name=".notification.PairActionReceiver"
+            android:enabled="true"
+            android:exported="false" />
     </application>
 
 </manifest>

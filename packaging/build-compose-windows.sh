@@ -10,7 +10,8 @@ mkdir -p "$STAGE"
 
 echo "== 1. 确保 Windows 图标与版本资源 (.syso) 就绪 =="
 if [ ! -f "$WINDOWS_DIR/rsrc_windows_amd64.syso" ]; then
-    cp "$ROOT/desktop/rsrc_windows_amd64.syso" "$WINDOWS_DIR/rsrc_windows_amd64.syso"
+    echo "!! 缺少 packaging/windows/rsrc_windows_amd64.syso（Windows 图标与版本资源）" >&2
+    exit 1
 fi
 
 echo "== 2. 编译 Windows 专属启动引导器 (包含嵌入图标与 Java 环境智能探测) =="

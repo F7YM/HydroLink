@@ -7,7 +7,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 
 /**
- * 插件包仓库（对应 desktop/internal/store/plugins.go），语义与桌面对齐：
+ * 插件包仓库（对应桌面端实现），语义与桌面对齐：
  *
  *   · 每个插件装在 <root>/plugins/<package-id>/ 下
  *   · 安装包是 zip（.hpk/.zip），允许整体套一层顶层目录
@@ -76,8 +76,8 @@ class PluginStore(private val root: File) {
         const val RUNTIME_JS = "js"
         const val RUNTIME_WASM = "wasm"
 
-        /** 宿主（本 App）版本，装配处从 BuildConfig.VERSION_NAME 注入，用来校验 minHydroLink。 */
-        var hostVersion: String = "0.0.0"
+        /** 宿主（本 App）版本，默认取 BuildConfig.VERSION_NAME，用来校验 minHydroLink。 */
+        var hostVersion: String = com.hydro.link.server.BuildConfig.VERSION_NAME
 
         private val ID_RE = Regex("^[A-Za-z0-9][A-Za-z0-9._-]{1,120}$")
 

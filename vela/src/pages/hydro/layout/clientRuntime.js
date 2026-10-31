@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 float11
+//
 // HydroKit 手表端轻量客户端微脚本沙盒运行时 (clientRuntime.js)
 // 为手表端提供毫秒级本地响应式状态机 (Signal) 与生命周期防泄漏托管。
 // 避免高频交互 (如切段、秒表、播放控制、本地滑动条) 频繁往返蓝牙/互联通道造成延迟。
@@ -10,7 +13,6 @@ export function createClientSandbox(host) {
   const signals = Object.create(null);
   let queued = false;
   let clientExports = Object.create(null);
-  let playerController = null;
 
   function scheduleRefresh() {
     if (!active || queued) return;
@@ -82,20 +84,9 @@ export function createClientSandbox(host) {
     return s;
   }
 
-  // 本地播放器桥接控制句柄
-  const player = {
-    play() { if (playerController) playerController.play(); },
-    pause() { if (playerController) playerController.pause(); },
-    toggle() { if (playerController) playerController.toggle(); },
-    next() { if (playerController) playerController.next(); },
-    prev() { if (playerController) playerController.prev(); },
-    getCurrentIndex() { return playerController ? playerController.getIndex() : 0; }
-  };
-
   // 暴露给脚本的安全受限 API 集合
   const clientApi = {
     signal,
-    player,
     storage: {
       get(key, fallback) {
         return host && host.getStore ? host.getStore(key, fallback) : fallback;
@@ -131,13 +122,12 @@ export function createClientSandbox(host) {
       try {
         // 沙盒隔离：通过 Function 构造器注入白名单参数
         const runner = new Function(
-          'hk', 'signal', 'player', 'storage', 'emit', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'console',
+          'hk', 'signal', 'storage', 'emit', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'console',
           `"use strict";\n${code}`
         );
         const result = runner(
           clientApi,
           clientApi.signal,
-          clientApi.player,
           clientApi.storage,
           clientApi.emit,
           safeTimers.setTimeout,
@@ -178,13 +168,6 @@ export function createClientSandbox(host) {
     },
 
     /**
-     * 注册当前页面存活的播放器控制器实例
-     */
-    setPlayerController(ctrl) {
-      playerController = ctrl;
-    },
-
-    /**
      * 取得已注册的 Signal
      */
     getSignal(key) {
@@ -211,7 +194,6 @@ export function createClientSandbox(host) {
       });
       activeTimers.clear();
       clientExports = Object.create(null);
-      playerController = null;
     }
   };
 }

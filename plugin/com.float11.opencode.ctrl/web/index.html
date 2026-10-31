@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
+  <title>OpenCode 控制器配置</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", sans-serif;
+      background: #0B0D13;
+      color: #E5E7EB;
+      padding: 28px 16px 40px;
+      display: flex;
+      justify-content: center;
+    }
+    .container {
+      width: 100%;
+      max-width: 520px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .logo {
+      width: 44px;
+      height: 44px;
+      margin-right: 12px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
+    .header-text h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #F9FAFB;
+    }
+
+    /* 独立顶部连接状态卡片 */
+    .status-card {
+      background: #141821;
+      border: 1px solid #262C3A;
+      border-radius: 16px;
+      padding: 16px 18px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .status-card.is-ok {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.10), rgba(20, 24, 33, 0.95));
+      border-color: rgba(52, 211, 153, 0.35);
+    }
+    .status-card.is-err {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.10), rgba(20, 24, 33, 0.95));
+      border-color: rgba(248, 113, 113, 0.35);
+    }
+    .status-card.is-busy {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.10), rgba(20, 24, 33, 0.95));
+      border-color: rgba(56, 189, 248, 0.35);
+    }
+    .status-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+      flex: 1;
+    }
+    .status-indicator {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      background: #1E2433;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .status-card.is-ok .status-indicator { background: rgba(16, 185, 129, 0.16); }
+    .status-card.is-err .status-indicator { background: rgba(239, 68, 68, 0.16); }
+    .status-card.is-busy .status-indicator { background: rgba(56, 189, 248, 0.16); }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #6B7280;
+    }
+    .status-card.is-ok .dot {
+      background: #34D399;
+      box-shadow: 0 0 10px rgba(52, 211, 153, 0.65);
+    }
+    .status-card.is-err .dot {
+      background: #F87171;
+      box-shadow: 0 0 10px rgba(248, 113, 113, 0.55);
+    }
+    .status-card.is-busy .dot {
+      background: #38BDF8;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.65);
+    }
+    .status-body {
+      min-width: 0;
+      flex: 1;
+    }
+    .status-title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .status-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #F3F4F6;
+    }
+    .status-badge {
+      font-size: 11px;
+      font-family: monospace;
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #D1D5DB;
+      display: none;
+    }
+    .status-meta {
+      font-size: 12px;
+      color: #9CA3AF;
+      margin-top: 4px;
+      line-height: 1.45;
+      word-break: break-all;
+    }
+    .status-action {
+      flex: 0 0 auto;
+      padding: 8px 12px;
+      border-radius: 10px;
+      background: #232938;
+      color: #E5E7EB;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid #31384B;
+      cursor: pointer;
+    }
+    .status-action:hover { background: #2B3244; }
+
+    .card {
+      background: #151821;
+      border: 1px solid #242938;
+      border-radius: 16px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #F3F4F6;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .form-group {
+      margin-bottom: 14px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      color: #9CA3AF;
+      margin-bottom: 6px;
+    }
+    .form-group input {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #2A3042;
+      background: #0E1017;
+      color: #F3F4F6;
+      font-size: 13px;
+      font-family: monospace;
+    }
+    .form-group input:focus {
+      outline: none;
+      border-color: #3B82F6;
+    }
+    .cmd-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #0E1017;
+      border: 1px solid #2A3042;
+      border-radius: 10px;
+      padding: 8px 12px;
+      margin-bottom: 8px;
+    }
+    .cmd-box code {
+      font-family: monospace;
+      font-size: 14px;
+      color: #38BDF8;
+      user-select: all;
+    }
+    .btn-copy {
+      flex: 0 0 auto;
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: #242938;
+      color: #E5E7EB;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid #363E52;
+      cursor: pointer;
+    }
+    .btn-copy:hover { background: #2E3547; }
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 6px;
+    }
+    button {
+      flex: 1;
+      padding: 11px 14px;
+      border-radius: 10px;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, background 0.15s;
+    }
+    button:hover { opacity: 0.92; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary {
+      background: #2563EB;
+      color: #FFF;
+    }
+    .btn-accent {
+      background: linear-gradient(135deg, #2563EB, #0891B2);
+      color: #FFF;
+    }
+    .btn-secondary {
+      background: #242938;
+      color: #E5E7EB;
+    }
+    .divider {
+      height: 1px;
+      background: #222736;
+      margin: 16px 0 14px;
+    }
+    .hint {
+      font-size: 12px;
+      color: #6B7280;
+      line-height: 1.5;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img class="logo" src="/api/hydro/worker/asset?package=com.float11.opencode.ctrl&amp;path=assets/icon.png" alt="OpenCode" />
+      <div class="header-text">
+        <h1>OpenCode 控制器</h1>
+      </div>
+    </div>
+
+    <!-- 顶部独立连接状态卡片 -->
+    <div id="statusCard" class="status-card">
+      <div class="status-left">
+        <div class="status-indicator">
+          <span id="statusDot" class="dot"></span>
+        </div>
+        <div class="status-body">
+          <div class="status-title-row">
+            <span id="statusTitle" class="status-title">正在检测连接…</span>
+            <span id="statusBadge" class="status-badge"></span>
+          </div>
+          <div id="statusMeta" class="status-meta">等待读取本地 OpenCode 配置</div>
+        </div>
+      </div>
+      <button id="btnRefreshStatus" class="status-action" type="button">检测</button>
+    </div>
+
+    <!-- 快速配对卡片 -->
+    <div class="card">
+      <div class="card-title">
+        <span>快速配对</span>
+      </div>
+      <div class="cmd-box">
+        <code>opencode pair</code>
+        <button id="btnCopyCmd" class="btn-copy" type="button">复制命令</button>
+      </div>
+      <p class="hint">在终端中运行上述命令，OpenCode 将生成一次性配对链接（5 分钟内有效）。复制该链接粘贴到下方并点击「立即配对」，将自动兑换并保存长期凭证。</p>
+
+      <div class="form-group" style="margin-top: 14px;">
+        <label>配对链接 或 Code</label>
+        <input id="pairUrlInput" type="text" placeholder="http://127.0.0.1:49374/auth/connect/xxxx 或 xxxx" />
+      </div>
+      <div class="btn-row">
+        <button class="btn-primary" id="btnRedeem" type="button">立即配对</button>
+      </div>
+    </div>
+
+    <!-- 手动连接配置 -->
+    <div class="card">
+      <div class="card-title">
+        <span>连接参数配置</span>
+      </div>
+      <div class="form-group">
+        <label>服务端地址 (Base URL，默认端口 Linux/macOS: 49374, Windows: 28894)</label>
+        <input id="baseUrlInput" type="text" placeholder="http://127.0.0.1:49374" />
+      </div>
+      <div class="form-group">
+        <label>用户名 (Basic Auth Username，默认 opencode)</label>
+        <input id="usernameInput" type="text" placeholder="opencode" value="opencode" />
+      </div>
+      <div class="form-group">
+        <label>密码 或 配对 Token (Password / Token)</label>
+        <input id="passwordInput" type="password" placeholder="服务端密码或自动配对生成的 Token" />
+      </div>
+      <div class="form-group">
+        <label>默认工作目录 (可选，x-opencode-directory)</label>
+        <input id="directoryInput" type="text" placeholder="/path/to/workspace（留空则使用服务端默认）" />
+      </div>
+      <div class="btn-row">
+        <button class="btn-primary" id="btnSave" type="button">保存并测试连接</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var PKG = 'com.float11.opencode.ctrl';
+      var CONFIG_KEY = 'opencode_config';
+
+      function $(id) { return document.getElementById(id); }
+
+      function b64(str) {
+        if (typeof btoa === 'function') {
+          try {
+            return btoa(str);
+          } catch (e) {
+            if (typeof TextEncoder !== 'undefined') {
+              var u8 = new TextEncoder().encode(str);
+              var bin = '';
+              for (var i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
+              return btoa(bin);
+            }
+          }
+        }
+        return '';
+      }
+
+      function normalizeUrl(raw) {
+        var s = String(raw || '').trim();
+        if (!s) return '';
+        if (!/^https?:\/\//i.test(s)) s = 'http://' + s;
+        return s.replace(/\/+$/, '');
+      }
+
+      function setStatus(state, title, meta, badgeText) {
+        var card = $('statusCard');
+        card.className = 'status-card' +
+          (state === 'ok' ? ' is-ok' : (state === 'err' ? ' is-err' : (state === 'busy' ? ' is-busy' : '')));
+        $('statusTitle').textContent = title || '未连接';
+        $('statusMeta').textContent = meta || '';
+        var badge = $('statusBadge');
+        if (badgeText) {
+          badge.style.display = 'inline-block';
+          badge.textContent = badgeText;
+        } else {
+          badge.style.display = 'none';
+          badge.textContent = '';
+        }
+      }
+
+      async function storeGet(key) {
+        var res = await fetch('/api/hydro/worker/store', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          body: JSON.stringify({ package: PKG, op: 'get', key: key, scope: 'server' })
+        });
+        var d = await res.json();
+        return (d && d.found) ? d.value : null;
+      }
+
+      async function storeSet(key, value) {
+        await fetch('/api/hydro/worker/store', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          body: JSON.stringify({ package: PKG, op: 'set', key: key, value: value, scope: 'server' })
+        });
+      }
+
+      async function smartFetch(url, options) {
+        options = options || {};
+        try {
+          return await fetch(url, options);
+        } catch (directErr) {
+          var proxyUrl = '/api/hydro/proxy?url=' + encodeURIComponent(url);
+          return await fetch(proxyUrl, options);
+        }
+      }
+
+      function readForm() {
+        return {
+          baseUrl: normalizeUrl($('baseUrlInput').value) || 'http://127.0.0.1:49374',
+          username: String($('usernameInput').value || 'opencode').trim() || 'opencode',
+          password: String($('passwordInput').value || '').trim(),
+          directory: String($('directoryInput').value || '').trim()
+        };
+      }
+
+      function fillForm(cfg) {
+        if (!cfg) return;
+        $('baseUrlInput').value = cfg.baseUrl || 'http://127.0.0.1:49374';
+        $('usernameInput').value = cfg.username || 'opencode';
+        $('passwordInput').value = cfg.password || cfg.token || '';
+        $('directoryInput').value = cfg.directory || '';
+      }
+
+      async function testConnection(cfg) {
+        setStatus('busy', '正在检测连接…', '正在请求 ' + cfg.baseUrl + '/api/info');
+        try {
+          var headers = { 'Accept': 'application/json' };
+          if (cfg.password) {
+            var auth = 'Basic ' + b64((cfg.username || 'opencode') + ':' + cfg.password);
+            headers['Authorization'] = auth;
+            headers['X-Proxy-Authorization'] = auth;
+          }
+          if (cfg.directory) {
+            headers['x-opencode-directory'] = cfg.directory;
+          }
+          var res = await smartFetch(cfg.baseUrl + '/api/info', { method: 'GET', headers: headers });
+          if (!res.ok) {
+            var errDetail = '';
+            try {
+              var errJson = await res.json();
+              errDetail = (errJson && (errJson.message || errJson.error)) || '';
+            } catch (e) {
+              errDetail = await res.text();
+            }
+            setStatus(
+              'err',
+              '连接未就绪 (HTTP ' + res.status + ')',
+              errDetail || '需要认证或 Token 已失效，请点击下方「一键本机自动配对」',
+              'HTTP ' + res.status
+            );
+            return false;
+          }
+          var info = await res.json();
+          var hostPart = (info.hostname || 'localhost') + (info.pid ? (' · PID ' + info.pid) : '');
+          setStatus(
+            'ok',
+            '已连接 OpenCode',
+            cfg.baseUrl + ' · ' + hostPart,
+            info.version ? ('v' + info.version) : 'ONLINE'
+          );
+          return true;
+        } catch (e) {
+          setStatus(
+            'err',
+            '无法访问 OpenCode 服务',
+            (e && e.message ? e.message : String(e)) + '（请确认 OpenCode 正在运行）'
+          );
+          return false;
+        }
+      }
+
+      async function redeemAndSave(rawUrlOrCode) {
+        var raw = String(rawUrlOrCode || '').trim();
+        if (!raw) {
+          throw new Error('未获取到有效的配对链接');
+        }
+        var defaultBase = normalizeUrl($('baseUrlInput').value) || 'http://127.0.0.1:49374';
+        var redeemUrl = '';
+        var origin = '';
+        if (/^https?:\/\//i.test(raw)) {
+          var u = new URL(raw);
+          origin = u.origin;
+          redeemUrl = u.toString();
+        } else {
+          var code = raw.replace(/^.*auth\/connect\//, '').replace(/^\/+/, '').trim();
+          origin = defaultBase;
+          redeemUrl = defaultBase + '/auth/connect/' + code;
+        }
+
+        setStatus('busy', '正在兑换配对凭据…', redeemUrl);
+        var res = await smartFetch(redeemUrl, {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' }
+        });
+        if (!res.ok) {
+          var errText = '';
+          try {
+            var errJson = await res.json();
+            errText = (errJson && (errJson.message || errJson.error)) || '';
+          } catch (e) {
+            errText = await res.text();
+          }
+          if (res.status === 401) {
+            throw new Error('配对链接已失效或已被使用，请在终端重新运行 opencode pair 获取');
+          }
+          throw new Error('兑换失败（HTTP ' + res.status + '）' + (errText ? (': ' + errText) : ''));
+        }
+        var data = await res.json();
+        var token = (data && data.token) || '';
+        if (!token) {
+          throw new Error('响应中未包含 token');
+        }
+        var cfg = {
+          baseUrl: origin,
+          username: 'opencode',
+          password: token,
+          directory: String($('directoryInput').value || '').trim()
+        };
+        fillForm(cfg);
+        await storeSet(CONFIG_KEY, cfg);
+        await testConnection(cfg);
+      }
+
+      // 复制 opencode pair 命令
+      $('btnCopyCmd').addEventListener('click', function () {
+        var cmd = 'opencode pair';
+        var btn = $('btnCopyCmd');
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(cmd).then(function () {
+            btn.textContent = '已复制!';
+            setTimeout(function () { btn.textContent = '复制命令'; }, 1500);
+          }).catch(function () {
+            btn.textContent = '请手动复制';
+          });
+        } else {
+          var ta = document.createElement('textarea');
+          ta.value = cmd;
+          document.body.appendChild(ta);
+          ta.select();
+          try {
+            document.execCommand('copy');
+            btn.textContent = '已复制!';
+            setTimeout(function () { btn.textContent = '复制命令'; }, 1500);
+          } catch (e) {
+            btn.textContent = '请手动复制';
+          }
+          document.body.removeChild(ta);
+        }
+      });
+
+      $('btnRedeem').addEventListener('click', async function () {
+        var raw = String($('pairUrlInput').value || '').trim();
+        if (!raw) {
+          setStatus('err', '配对链接为空', '请先在终端运行 opencode pair 并将生成的链接粘贴到上方');
+          return;
+        }
+        try {
+          await redeemAndSave(raw);
+        } catch (e) {
+          setStatus('err', '兑换配对失败', e && e.message ? e.message : String(e));
+        }
+      });
+
+      $('btnSave').addEventListener('click', async function () {
+        var cfg = readForm();
+        await storeSet(CONFIG_KEY, cfg);
+        await testConnection(cfg);
+      });
+
+      $('btnRefreshStatus').addEventListener('click', async function () {
+        var cfg = readForm();
+        await testConnection(cfg);
+      });
+
+      (async function init() {
+        var saved = await storeGet(CONFIG_KEY);
+        if (saved && saved.baseUrl) {
+          fillForm(saved);
+          await testConnection(saved);
+        } else {
+          $('baseUrlInput').value = 'http://127.0.0.1:49374';
+          setStatus('err', '尚未配对 OpenCode', '请运行 opencode pair 获取链接并在上方完成配对');
+        }
+      })();
+    })();
+  </script>
+</body>
+</html>
