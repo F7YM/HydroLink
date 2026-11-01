@@ -358,7 +358,7 @@ function viewTree(children, title, fab) {
 
 module.exports = {
   manifest: function () {
-    return { package: { id: PKG, name: 'HydroBili', version: '0.1.3' }, apps: [{ id: 'main', name: 'HydroBili', icon: 'assets/icon.png' }] };
+    return { package: { id: PKG, name: 'HydroBili', version: '0.1.4' }, apps: [{ id: 'main', name: 'HydroBili', icon: 'assets/icon.png' }] };
   },
   async view(surface, item, req) {
     if (surface !== 'app' || item !== 'main') return null;

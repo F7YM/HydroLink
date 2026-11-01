@@ -2,7 +2,7 @@
   "id": "com.hydro.bili",
   "name": "HydroBili",
   "author": "HydroLink",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "minHydroLink": "1.3.0",
   "entry": "server.js",
   "apps": [

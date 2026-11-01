@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
+  <title>DeepSeek Harness 控制器配置</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", sans-serif;
+      background: #0B0D13;
+      color: #E5E7EB;
+      padding: 28px 16px 40px;
+      display: flex;
+      justify-content: center;
+    }
+    .container {
+      width: 100%;
+      max-width: 520px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .logo {
+      width: 44px;
+      height: 44px;
+      margin-right: 12px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
+    .header-text h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #F9FAFB;
+    }
+    .header-text p {
+      font-size: 13px;
+      color: #94A3B8;
+      margin-top: 2px;
+    }
+
+    /* 独立顶部连接状态卡片 */
+    .status-card {
+      background: #141821;
+      border: 1px solid #262C3A;
+      border-radius: 16px;
+      padding: 16px 18px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .status-card.is-ok {
+      background: linear-gradient(135deg, rgba(29, 99, 255, 0.12), rgba(20, 24, 33, 0.95));
+      border-color: rgba(56, 189, 248, 0.35);
+    }
+    .status-card.is-err {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.10), rgba(20, 24, 33, 0.95));
+      border-color: rgba(248, 113, 113, 0.35);
+    }
+    .status-card.is-busy {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.10), rgba(20, 24, 33, 0.95));
+      border-color: rgba(56, 189, 248, 0.35);
+    }
+    .status-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+      flex: 1;
+    }
+    .status-indicator {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      background: #1E2433;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .status-card.is-ok .status-indicator { background: rgba(29, 99, 255, 0.20); }
+    .status-card.is-err .status-indicator { background: rgba(239, 68, 68, 0.16); }
+    .status-card.is-busy .status-indicator { background: rgba(56, 189, 248, 0.16); }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #6B7280;
+    }
+    .status-card.is-ok .dot {
+      background: #38BDF8;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.65);
+    }
+    .status-card.is-err .dot {
+      background: #F87171;
+      box-shadow: 0 0 10px rgba(248, 113, 113, 0.55);
+    }
+    .status-card.is-busy .dot {
+      background: #FBBF24;
+      box-shadow: 0 0 10px rgba(251, 191, 36, 0.65);
+    }
+    .status-body {
+      min-width: 0;
+      flex: 1;
+    }
+    .status-title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .status-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #F3F4F6;
+    }
+    .status-badge {
+      font-size: 11px;
+      font-family: monospace;
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #D1D5DB;
+      display: none;
+    }
+    .status-badge.bridge-badge {
+      background: rgba(16, 185, 129, 0.20);
+      color: #34D399;
+      border: 1px solid rgba(52, 211, 153, 0.3);
+    }
+    .status-meta {
+      font-size: 12px;
+      color: #9CA3AF;
+      margin-top: 4px;
+      line-height: 1.45;
+      word-break: break-all;
+    }
+    .status-action {
+      flex: 0 0 auto;
+      padding: 8px 12px;
+      border-radius: 10px;
+      background: #232938;
+      color: #E5E7EB;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid #31384B;
+      cursor: pointer;
+    }
+    .status-action:hover { background: #2B3244; }
+
+    .card {
+      background: #151821;
+      border: 1px solid #242938;
+      border-radius: 16px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #F3F4F6;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .form-group {
+      margin-bottom: 14px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      color: #9CA3AF;
+      margin-bottom: 6px;
+    }
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #2A3042;
+      background: #0E1017;
+      color: #F3F4F6;
+      font-size: 13px;
+      font-family: monospace;
+    }
+    .form-group input:focus, .form-group select:focus {
+      outline: none;
+      border-color: #1D63FF;
+    }
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 12px;
+      margin-bottom: 4px;
+      cursor: pointer;
+    }
+    .checkbox-group input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #1D63FF;
+      cursor: pointer;
+    }
+    .checkbox-group span {
+      font-size: 13px;
+      color: #E5E7EB;
+    }
+    .cmd-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #0E1017;
+      border: 1px solid #2A3042;
+      border-radius: 10px;
+      padding: 8px 12px;
+      margin-bottom: 8px;
+    }
+    .cmd-box code {
+      font-family: monospace;
+      font-size: 13px;
+      color: #38BDF8;
+      user-select: all;
+      overflow-x: auto;
+      white-space: nowrap;
+      margin-right: 8px;
+    }
+    .btn-copy {
+      flex: 0 0 auto;
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: #242938;
+      color: #E5E7EB;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid #363E52;
+      cursor: pointer;
+    }
+    .btn-copy:hover { background: #2E3547; }
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    button {
+      flex: 1;
+      padding: 11px 14px;
+      border-radius: 10px;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, background 0.15s;
+    }
+    button:hover { opacity: 0.92; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary {
+      background: #1D63FF;
+      color: #FFF;
+    }
+    .btn-secondary {
+      background: #242938;
+      color: #E5E7EB;
+    }
+    .hint {
+      font-size: 12px;
+      color: #6B7280;
+      line-height: 1.5;
+      margin-top: 6px;
+    }
+    .hint-light {
+      color: #94A3B8;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img class="logo" src="/api/hydro/worker/asset?package=com.float11.dsh.ctrl&amp;path=assets/icon.png" alt="DeepSeek Harness" />
+      <div class="header-text">
+        <h1>DeepSeek Harness 控制器</h1>
+        <p>连接 DeepSeek Harness 官方服务，在手表上查看会话、运行任务与审批权限</p>
+      </div>
+    </div>
+
+    <!-- 顶部独立连接状态卡片 -->
+    <div id="statusCard" class="status-card">
+      <div class="status-left">
+        <div class="status-indicator">
+          <span id="statusDot" class="dot"></span>
+        </div>
+        <div class="status-body">
+          <div class="status-title-row">
+            <span id="statusTitle" class="status-title">正在检测连接…</span>
+            <span id="statusBadge" class="status-badge"></span>
+            <span id="bridgeBadge" class="status-badge bridge-badge">BRIDGE ON</span>
+          </div>
+          <div id="statusMeta" class="status-meta">等待读取本地配置</div>
+        </div>
+      </div>
+      <button id="btnRefreshStatus" class="status-action" type="button">检测</button>
+    </div>
+
+    <!-- 快速连接卡片 -->
+    <div class="card">
+      <div class="card-title">
+        <span>快速连接</span>
+      </div>
+      <div class="cmd-box">
+        <code>dsh web</code>
+        <button id="btnCopyDirectCmd" class="btn-copy" type="button">复制命令</button>
+      </div>
+      <p class="hint">在终端运行上述命令，启动后 DSH 将输出包含 Token 的访问链接（如 <code>http://127.0.0.1:3080/?token=...</code>）。请直接复制该链接粘贴到下方并点击「立即连接」，本插件将自动兑换并保存长期 Cookie 凭据。</p>
+
+      <div class="form-group" style="margin-top: 14px;">
+        <label>DSH 启动链接 或 Token</label>
+        <input id="connectUrlInput" type="text" placeholder="http://127.0.0.1:3080/?token=xxxx 或 xxxx" />
+      </div>
+      <div class="btn-row">
+        <button class="btn-primary" id="btnConnect" type="button">立即连接</button>
+      </div>
+    </div>
+
+    <!-- 伴侣桥接卡片（可选） -->
+    <div class="card">
+      <div class="card-title">
+        <span>配套 Cordis 桥接插件（可选）</span>
+      </div>
+      <div class="cmd-box">
+        <code id="patchCmdText">dsh web --patch ./bridge/cordis.yml</code>
+        <button id="btnCopyPatchCmd" class="btn-copy" type="button">复制命令</button>
+      </div>
+      <p class="hint">若需在智能手表上实时弹出卡片审批工具权限与交互提问，可使用上述 <code>--patch</code> 参数加载内置的伴侣桥接插件（位于 <code>bridge/dsh-hydro-bridge.ts</code>，无需侵入修改 DSH 源码）。</p>
+    </div>
+
+    <!-- 手动连接配置卡片 -->
+    <div class="card">
+      <div class="card-title">
+        <span>连接参数配置</span>
+      </div>
+      <div class="form-group">
+        <label>服务端地址 (Base URL，默认 http://127.0.0.1:3080)</label>
+        <input id="baseUrlInput" type="text" placeholder="http://127.0.0.1:3080" />
+      </div>
+      <div class="form-group">
+        <label>会话 Cookie 或 Token (dsh_sess 会话 Cookie 或 Token)</label>
+        <input id="cookieInput" type="password" placeholder="点击上方「立即连接」自动获取，或手动粘贴" />
+      </div>
+      <div class="form-group">
+        <label>新建会话默认工作目录 (CWD，可选，留空使用 DSH 当前目录)</label>
+        <input id="directoryInput" type="text" placeholder="/path/to/workspace" />
+      </div>
+      <div class="form-group">
+        <label>默认语言模型 (Default Model)</label>
+        <select id="modelSelect">
+          <option value="deepseek-chat">deepseek-chat (DeepSeek-V3)</option>
+          <option value="deepseek-reasoner">deepseek-reasoner (DeepSeek-R1)</option>
+        </select>
+      </div>
+      <label class="checkbox-group">
+        <input id="notifyCheckbox" type="checkbox" checked />
+        <span>生成完成时发送震动/手表通知提醒</span>
+      </label>
+      <div class="btn-row" style="margin-top: 16px;">
+        <button class="btn-primary" id="btnSave" type="button">保存并测试连接</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var PKG = 'com.float11.dsh.ctrl';
+      var CONFIG_KEY = 'dsh_config';
+
+      function $(id) { return document.getElementById(id); }
+
+      function normalizeUrl(raw) {
+        var s = String(raw || '').trim();
+        if (!s) return '';
+        if (!/^https?:\/\//i.test(s)) s = 'http://' + s;
+        return s.replace(/\/+$/, '');
+      }
+
+      function setStatus(state, title, meta, badgeText, hasBridge) {
+        var card = $('statusCard');
+        card.className = 'status-card' +
+          (state === 'ok' ? ' is-ok' : (state === 'err' ? ' is-err' : (state === 'busy' ? ' is-busy' : '')));
+        $('statusTitle').textContent = title || '未连接';
+        $('statusMeta').textContent = meta || '';
+        
+        var badge = $('statusBadge');
+        if (badgeText) {
+          badge.style.display = 'inline-block';
+          badge.textContent = badgeText;
+        } else {
+          badge.style.display = 'none';
+          badge.textContent = '';
+        }
+
+        var bridgeBadge = $('bridgeBadge');
+        if (hasBridge) {
+          bridgeBadge.style.display = 'inline-block';
+        } else {
+          bridgeBadge.style.display = 'none';
+        }
+      }
+
+      async function storeGet(key) {
+        var res = await fetch('/api/hydro/worker/store', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          body: JSON.stringify({ package: PKG, op: 'get', key: key, scope: 'server' })
+        });
+        var d = await res.json();
+        return (d && d.found) ? d.value : null;
+      }
+
+      async function storeSet(key, value) {
+        await fetch('/api/hydro/worker/store', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          body: JSON.stringify({ package: PKG, op: 'set', key: key, value: value, scope: 'server' })
+        });
+      }
+
+      async function smartFetch(url, options) {
+        options = options || {};
+        try {
+          return await fetch(url, options);
+        } catch (directErr) {
+          var proxyUrl = '/api/hydro/proxy?url=' + encodeURIComponent(url);
+          return await fetch(proxyUrl, options);
+        }
+      }
+
+      function readForm() {
+        var cookieVal = String($('cookieInput').value || '').trim();
+        return {
+          baseUrl: normalizeUrl($('baseUrlInput').value) || 'http://127.0.0.1:3080',
+          cookie: cookieVal,
+          token: cookieVal.indexOf('=') >= 0 ? '' : cookieVal,
+          directory: String($('directoryInput').value || '').trim(),
+          defaultModel: $('modelSelect').value || 'deepseek-chat',
+          notifyOnComplete: $('notifyCheckbox').checked
+        };
+      }
+
+      function fillForm(cfg) {
+        if (!cfg) return;
+        $('baseUrlInput').value = cfg.baseUrl || 'http://127.0.0.1:3080';
+        $('cookieInput').value = cfg.cookie || cfg.token || '';
+        $('directoryInput').value = cfg.directory || '';
+        if (cfg.defaultModel) {
+          $('modelSelect').value = cfg.defaultModel;
+        }
+        $('notifyCheckbox').checked = cfg.notifyOnComplete !== false;
+      }
+
+      // 测试连接：同时检测桥接接口 /hydro-dsh/ping 与原生 RPC
+      async function testConnection(cfg) {
+        setStatus('busy', '正在检测连接…', '正在测试 ' + cfg.baseUrl);
+        var base = cfg.baseUrl;
+        var headers = {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json; charset=utf-8',
+          'Origin': base,
+          'X-Proxy-Origin': base
+        };
+        if (cfg.cookie) {
+          headers['Cookie'] = cfg.cookie;
+          headers['X-Proxy-Cookie'] = cfg.cookie;
+        }
+        if (cfg.token) {
+          headers['Authorization'] = 'Bearer ' + cfg.token;
+          headers['X-Proxy-Authorization'] = 'Bearer ' + cfg.token;
+        }
+
+        var bridgeOnline = false;
+        var bridgeData = null;
+
+        // 1. 尝试检测配套桥接插件
+        try {
+          var bridgeRes = await smartFetch(base + '/hydro-dsh/ping', {
+            method: 'GET',
+            headers: headers
+          });
+          if (bridgeRes.ok) {
+            var bj = await bridgeRes.json();
+            if (bj && bj.status === 'ok') {
+              bridgeOnline = true;
+              bridgeData = bj;
+            }
+          }
+        } catch (e) {}
+
+        // 2. 尝试调用 DSH 原生 RPC session/list
+        try {
+          var rpcPayload = {
+            type: 'client-request',
+            rpcId: 'ping_' + Date.now(),
+            method: 'session/list',
+            payload: {
+              args: {
+                _request: {}
+              }
+            }
+          };
+          var rpcRes = await smartFetch(base + '/api/session/list', {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(rpcPayload)
+          });
+
+          if (!rpcRes.ok) {
+            if (rpcRes.status === 401 || rpcRes.status === 403) {
+              setStatus('err', '认证未就绪 (HTTP ' + rpcRes.status + ')', 'DSH 开启了凭据认证，请在上方复制运行 dsh web 输出的链接并在「快速连接」中粘贴', 'AUTH REQUIRED', bridgeOnline);
+              return false;
+            }
+            if (bridgeOnline) {
+              setStatus('ok', '桥接模式在线', cfg.baseUrl + ' · 桥接插件就绪 (原生 RPC HTTP ' + rpcRes.status + ')', 'ONLINE', true);
+              return true;
+            }
+            var errBody = '';
+            try {
+              var j = await rpcRes.json();
+              errBody = j.message || j.error || '';
+            } catch (e) {}
+            setStatus('err', '连接异常 (HTTP ' + rpcRes.status + ')', errBody || '请确认 DSH 服务地址与凭据是否正确', 'HTTP ' + rpcRes.status, false);
+            return false;
+          }
+
+          var rpcJson = await rpcRes.json();
+          if (rpcJson && rpcJson.type === 'server-response' && rpcJson.result && rpcJson.result.ok === false) {
+            var rpcErr = rpcJson.result.error || {};
+            setStatus('err', 'RPC 错误', rpcErr.message || '调用失败', 'RPC ERROR', bridgeOnline);
+            return false;
+          }
+          var sessCount = 0;
+          if (rpcJson && rpcJson.result && rpcJson.result.value && Array.isArray(rpcJson.result.value.items)) {
+            sessCount = rpcJson.result.value.items.length;
+          } else if (bridgeData && typeof bridgeData.sessionCount === 'number') {
+            sessCount = bridgeData.sessionCount;
+          }
+
+          var metaText = cfg.baseUrl + ' · ' + sessCount + ' 个会话活跃';
+          if (bridgeOnline) {
+            metaText += ' · 配套桥接插件就绪';
+          } else {
+            metaText += ' · 原生 RPC 直连模式';
+          }
+
+          setStatus('ok', '已连接 DeepSeek Harness', metaText, 'ONLINE', bridgeOnline);
+
+          // 动态拉取可用模型列表更新下拉框
+          try {
+            var catRes = await smartFetch(base + '/api/session/modelCatalog', {
+              method: 'POST',
+              headers: headers,
+              body: JSON.stringify({
+                type: 'client-request',
+                rpcId: 'cat_' + Date.now(),
+                method: 'session/modelCatalog',
+                payload: { args: {} }
+              })
+            });
+            if (catRes.ok) {
+              var catJson = await catRes.json();
+              var catVal = catJson && catJson.result && catJson.result.value;
+              if (catVal && Array.isArray(catVal.groups)) {
+                var curSelected = $('modelSelect').value || cfg.defaultModel;
+                var routable = Array.isArray(catVal.routableProviders) && catVal.routableProviders.length ? catVal.routableProviders : null;
+                var hasModels = false;
+                var frag = document.createDocumentFragment();
+                catVal.groups.forEach(function (g) {
+                  if (routable && routable.indexOf(g.id) < 0) return;
+                  (g.models || []).forEach(function (m) {
+                    if (!m.id) return;
+                    hasModels = true;
+                    var opt = document.createElement('option');
+                    opt.value = m.id;
+                    opt.textContent = (m.name || m.id) + ' (' + (g.name || g.id) + ')';
+                    if (m.id === curSelected) opt.selected = true;
+                    frag.appendChild(opt);
+                  });
+                });
+                if (hasModels) {
+                  $('modelSelect').innerHTML = '';
+                  $('modelSelect').appendChild(frag);
+                  if (curSelected) $('modelSelect').value = curSelected;
+                }
+              }
+            }
+          } catch (eCat) {}
+
+          return true;
+        } catch (e) {
+          if (bridgeOnline) {
+            setStatus('ok', '桥接插件在线', cfg.baseUrl + ' · 配套桥接插件就绪', 'ONLINE', true);
+            return true;
+          }
+          setStatus(
+            'err',
+            '无法连接 DeepSeek Harness',
+            (e && e.message ? e.message : String(e)) + '（请确认 dsh web 正在运行）',
+            'OFFLINE',
+            false
+          );
+          return false;
+        }
+      }
+
+      // 粘贴启动链接一键兑换 Session Cookie
+      async function redeemLaunchUrl(rawInput) {
+        var raw = String(rawInput || '').trim();
+        if (!raw) {
+          throw new Error('请输入有效链接或 Token');
+        }
+
+        var defaultBase = normalizeUrl($('baseUrlInput').value) || 'http://127.0.0.1:3080';
+        var targetBase = defaultBase;
+        var token = '';
+
+        if (raw.indexOf('=') >= 0 && (raw.indexOf('dsh_sess') >= 0 || raw.indexOf('dsh-auth') >= 0 || raw.indexOf('v1.') >= 0)) {
+          // 直接是 Cookie 字符串
+          var cfgCookie = readForm();
+          cfgCookie.cookie = raw;
+          fillForm(cfgCookie);
+          await storeSet(CONFIG_KEY, cfgCookie);
+          await testConnection(cfgCookie);
+          return;
+        }
+
+        if (/^https?:\/\//i.test(raw)) {
+          var u = new URL(raw);
+          targetBase = u.origin;
+          token = u.searchParams.get('token') || '';
+        } else if (raw.startsWith('?token=')) {
+          token = raw.slice('?token='.length);
+        } else {
+          token = raw;
+        }
+
+        if (!token) {
+          throw new Error('未在链接中找到有效的 ?token 参数');
+        }
+
+        setStatus('busy', '正在兑换会话凭据…', targetBase + '/?token=' + token);
+
+        var redeemUrl = targetBase + '/?token=' + encodeURIComponent(token);
+        var proxyUrl = '/api/hydro/proxy?url=' + encodeURIComponent(redeemUrl);
+
+        var res = await fetch(proxyUrl, {
+          method: 'GET',
+          headers: {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'X-Proxy-No-Redirect': 'true',
+            'X-Proxy-Origin': targetBase
+          }
+        });
+
+        var cookie = res.headers.get('X-Proxy-Set-Cookie') || res.headers.get('set-cookie') || '';
+        if (!cookie) {
+          if (res.status === 401) {
+            throw new Error('Token 已失效或已被使用，请在终端重新运行 dsh web 获取');
+          }
+        }
+
+        var cfg = {
+          baseUrl: targetBase,
+          cookie: cookie,
+          token: cookie ? '' : token,
+          directory: String($('directoryInput').value || '').trim(),
+          defaultModel: $('modelSelect').value || 'deepseek-chat',
+          notifyOnComplete: $('notifyCheckbox').checked
+        };
+
+        fillForm(cfg);
+        await storeSet(CONFIG_KEY, cfg);
+        await testConnection(cfg);
+      }
+
+      function setupCopy(btnId, textGetter) {
+        var btn = $(btnId);
+        btn.addEventListener('click', function () {
+          var cmd = textGetter();
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(cmd).then(function () {
+              btn.textContent = '已复制!';
+              setTimeout(function () { btn.textContent = '复制命令'; }, 1500);
+            }).catch(function () {
+              btn.textContent = '请手动复制';
+            });
+          } else {
+            var ta = document.createElement('textarea');
+            ta.value = cmd;
+            document.body.appendChild(ta);
+            ta.select();
+            try {
+              document.execCommand('copy');
+              btn.textContent = '已复制!';
+              setTimeout(function () { btn.textContent = '复制命令'; }, 1500);
+            } catch (e) {
+              btn.textContent = '请手动复制';
+            }
+            document.body.removeChild(ta);
+          }
+        });
+      }
+
+      setupCopy('btnCopyDirectCmd', function () { return 'dsh web'; });
+      setupCopy('btnCopyPatchCmd', function () { return $('patchCmdText').textContent; });
+
+      $('btnConnect').addEventListener('click', async function () {
+        var raw = $('connectUrlInput').value;
+        try {
+          await redeemLaunchUrl(raw);
+        } catch (e) {
+          setStatus('err', '兑换凭据失败', e && e.message ? e.message : String(e));
+        }
+      });
+
+      $('btnSave').addEventListener('click', async function () {
+        var cfg = readForm();
+        await storeSet(CONFIG_KEY, cfg);
+        await testConnection(cfg);
+      });
+
+      $('btnRefreshStatus').addEventListener('click', async function () {
+        var cfg = readForm();
+        await testConnection(cfg);
+      });
+
+      (async function init() {
+        var saved = await storeGet(CONFIG_KEY);
+        if (saved && saved.baseUrl) {
+          fillForm(saved);
+          await testConnection(saved);
+        } else {
+          $('baseUrlInput').value = 'http://127.0.0.1:3080';
+          setStatus('busy', '等待连接', '请运行 dsh web 并将终端生成的链接粘贴到上方快速连接');
+        }
+      })();
+    })();
+  </script>
+</body>
+</html>

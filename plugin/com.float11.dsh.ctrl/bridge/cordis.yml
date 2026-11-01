@@ -1,0 +1,7 @@
+# DeepSeek Harness Cordis 插件覆盖层（用于加载 HydroLink 桥接插件）
+# 启动方式：
+# dsh web --patch ./bridge/cordis.yml
+# 注意：若执行目录不在当前路径，请将下方的相对路径替换为 dsh-hydro-bridge.ts 的绝对路径
+- insert:
+    - id: hydro-dsh-bridge
+      name: './bridge/dsh-hydro-bridge.ts'
