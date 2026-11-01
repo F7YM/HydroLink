@@ -288,18 +288,21 @@ class HydroKitRoutes(
         }
         var conn: java.net.HttpURLConnection? = null
         return try {
+            val hdrs = req.headers.entries.associate { (k, v) -> k.lowercase() to v }
+            val noRedirect = hdrs["x-proxy-no-redirect"]?.equals("true", ignoreCase = true) == true
             val url = java.net.URL(targetUrl)
             conn = (url.openConnection() as java.net.HttpURLConnection).apply {
                 connectTimeout = 12000
                 readTimeout = 20000
-                instanceFollowRedirects = true
+                instanceFollowRedirects = !noRedirect
                 requestMethod = req.method.uppercase()
             }
-            val hdrs = req.headers.entries.associate { (k, v) -> k.lowercase() to v }
             val auth = hdrs["x-proxy-authorization"] ?: hdrs["authorization"]
             if (!auth.isNullOrBlank()) conn.setRequestProperty("Authorization", auth)
             val cookie = hdrs["x-proxy-cookie"] ?: hdrs["cookie"]
             if (!cookie.isNullOrBlank()) conn.setRequestProperty("Cookie", cookie)
+            val origin = hdrs["x-proxy-origin"] ?: hdrs["origin"]
+            if (!origin.isNullOrBlank()) conn.setRequestProperty("Origin", origin)
             val referer = hdrs["x-proxy-referer"] ?: hdrs["referer"]
             if (!referer.isNullOrBlank() && !referer.contains("127.0.0.1") && !referer.contains("localhost")) {
                 conn.setRequestProperty("Referer", referer)
@@ -327,11 +330,20 @@ class HydroKitRoutes(
             val stream = (if (code in 200..399) conn.inputStream else conn.errorStream)
             val respBytes = stream?.use { it.readBytes() } ?: ByteArray(0)
             val ct = conn.contentType ?: "application/json; charset=utf-8"
+            val setCookies = conn.headerFields["Set-Cookie"] ?: emptyList()
+            val extraHeaders = mutableMapOf<String, String>(
+                "Cache-Control" to "no-store",
+                "Access-Control-Expose-Headers" to "*"
+            )
+            if (setCookies.isNotEmpty()) {
+                extraHeaders["X-Proxy-Set-Cookie"] = setCookies.joinToString("; ") { it.substringBefore(';') }
+            }
             HydroHttpResponse(
                 status = code,
                 contentType = ct,
                 body = String(respBytes, Charsets.UTF_8),
                 bytes = respBytes,
+                headers = extraHeaders
             )
         } catch (e: Exception) {
             val msg = gson.toJson(e.message ?: "proxy request failed")

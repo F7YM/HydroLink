@@ -32,6 +32,7 @@ object WebKitSecurity {
         fun webkit_settings_get_disable_web_security(settings: Pointer): Boolean
         fun webkit_settings_set_allow_universal_access_from_file_urls(settings: Pointer, allow: Boolean)
         fun webkit_settings_set_allow_file_access_from_file_urls(settings: Pointer, allow: Boolean)
+        fun gtk_window_set_default_size(window: Pointer, width: Int, height: Int)
     }
 
     private val lib: WebKitGtkLib? by lazy {
@@ -85,9 +86,23 @@ object WebKitSecurity {
         return runCatching {
             val peer = peerField.getLong(offscreen)
             if (peer == 0L) return false
-            // OffEngine 结构体偏移 8 (0x8) 为 WebKitWebView*
+            // OffEngine 结构体偏移 0 (0x0) 为 GtkOffscreenWindow*，偏移 8 (0x8) 为 WebKitWebView*
             val webViewPtr = Pointer(peer).getPointer(8) ?: return false
-            applyToWebView(nativeLib, webViewPtr)
+            val ok = applyToWebView(nativeLib, webViewPtr)
+            // 在 GTK 线程将 GtkOffscreenWindow 的 default_size 重置为 1x1，
+            // 确保窗口缩小时 WebKitWebView 的视口尺寸不会因 MAX(size_request, default_size) 卡在初始值。
+            runCatching {
+                offscreen.dispatch {
+                    val currentPeer = runCatching { peerField.getLong(offscreen) }.getOrDefault(0L)
+                    if (currentPeer != 0L) {
+                        val windowPtr = Pointer(currentPeer).getPointer(0)
+                        if (windowPtr != null) {
+                            nativeLib.gtk_window_set_default_size(windowPtr, 1, 1)
+                        }
+                    }
+                }
+            }
+            ok
         }.getOrDefault(false)
     }
 

@@ -1081,8 +1081,17 @@ class HydroServer(
 
     private val proxyHttpClient: java.net.http.HttpClient by lazy {
         java.net.http.HttpClient.newBuilder()
+            .version(java.net.http.HttpClient.Version.HTTP_1_1)
             .connectTimeout(java.time.Duration.ofSeconds(15))
             .followRedirects(java.net.http.HttpClient.Redirect.NORMAL)
+            .build()
+    }
+
+    private val proxyNoRedirectClient: java.net.http.HttpClient by lazy {
+        java.net.http.HttpClient.newBuilder()
+            .version(java.net.http.HttpClient.Version.HTTP_1_1)
+            .connectTimeout(java.time.Duration.ofSeconds(15))
+            .followRedirects(java.net.http.HttpClient.Redirect.NEVER)
             .build()
     }
 
@@ -1194,7 +1203,14 @@ class HydroServer(
                 reqBuilder.header("Accept", it)
             }
 
-            val response = proxyHttpClient.send(
+            val customOrigin = clientHeaders.getFirst("X-Proxy-Origin")
+            if (!customOrigin.isNullOrBlank()) {
+                reqBuilder.header("Origin", customOrigin)
+            }
+
+            val noRedirect = clientHeaders.getFirst("X-Proxy-No-Redirect")?.equals("true", ignoreCase = true) == true
+            val client = if (noRedirect) proxyNoRedirectClient else proxyHttpClient
+            val response = client.send(
                 reqBuilder.build(),
                 java.net.http.HttpResponse.BodyHandlers.ofByteArray()
             )

@@ -69,9 +69,25 @@ object SystemWebEngine {
     fun create(quiet: Boolean): WebViewComponent {
         val component = onEdt { WebViewComponent.create(mode) }
         onEdt {
-            // 给定初始窗口尺寸，避免 addNotify 时因 getWidth()/getHeight()=0 导致 1x1 离屏创建并触发 GTK alloc_needed 断言
-            component.setSize(900, 700)
-            component.setBounds(0, 0, 900, 700)
+            // 初始设为 1x1，避免 GtkOffscreenWindow 的 default_size 被锁死在 900x700：
+            // GtkOffscreenWindow 的 preferred_size = MAX(child_size_request, default_size)，
+            // 若初始为 900x700，实际 SwingPanel 高度（扣除窗口标题栏与顶栏后约 607px，或窗口缩小后更小）
+            // 小于 700 时，WebKit 视口高度仍会卡在 700px，导致页面底部落在可视区下方无法滚到底。
+            component.setSize(1, 1)
+            component.setBounds(0, 0, 1, 1)
+            component.addHierarchyListener { e ->
+                if ((e.changeFlags and java.awt.event.HierarchyEvent.DISPLAYABILITY_CHANGED.toLong()) != 0L &&
+                    component.isDisplayable &&
+                    (component.width > 1 || component.height > 1)
+                ) {
+                    component.dispatchEvent(
+                        java.awt.event.ComponentEvent(
+                            component,
+                            java.awt.event.ComponentEvent.COMPONENT_RESIZED,
+                        )
+                    )
+                }
+            }
 
             // 密码管理器会把插件页里的密码写进系统钥匙串，还要弹确认框 —— 一律不要。
             component.setPasswordManagerEnabled(false)

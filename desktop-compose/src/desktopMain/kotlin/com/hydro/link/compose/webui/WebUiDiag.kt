@@ -130,6 +130,48 @@ fun main() {
                     println("[WebUiDiag] ✅ 成功: $name ($pkg) 渲染正常！")
                 }
 
+                // 验证 WebKit 视口高度与 Swing 组件真实高度一致（防止卡在 700px 导致滚不到底）
+                var compRef: ca.weblite.webview.swing.WebViewComponent? = null
+                var compW = 0
+                var compH = 0
+                SwingUtilities.invokeAndWait {
+                    compRef = findWebViewComponent(testWindow)
+                    compW = compRef?.width ?: 0
+                    compH = compRef?.height ?: 0
+                }
+                val webComp = compRef
+                if (webComp != null && compH > 0) {
+                    val metricsJson = webComp.evalAsync(
+                        """
+                        return (function() {
+                            window.scrollTo(0, 999999);
+                            var de = document.documentElement;
+                            var body = document.body;
+                            var sh = Math.max(de ? de.scrollHeight : 0, body ? body.scrollHeight : 0);
+                            var st = window.scrollY || (de ? de.scrollTop : 0) || (body ? body.scrollTop : 0);
+                            return window.innerWidth + "," + window.innerHeight + "," + sh + "," + Math.round(st) + "," + (window.devicePixelRatio || 1);
+                        })();
+                        """.trimIndent()
+                    ).get(3, java.util.concurrent.TimeUnit.SECONDS).trim().trim('"')
+                    val parts = metricsJson.split(",")
+                    val innerW = parts.getOrNull(0)?.toIntOrNull() ?: -1
+                    val innerH = parts.getOrNull(1)?.toIntOrNull() ?: -1
+                    val scrollH = parts.getOrNull(2)?.toIntOrNull() ?: -1
+                    val scrollTop = parts.getOrNull(3)?.toIntOrNull() ?: -1
+                    val dpr = parts.getOrNull(4)?.toDoubleOrNull() ?: 1.0
+                    val scaledH = kotlin.math.round(innerH * dpr).toInt()
+                    println("[WebUiDiag] $name ($pkg) 视口与滚动度量: Swing=${compW}x${compH}, WebKit=${innerW}x${innerH} (dpr=$dpr, physicalH=$scaledH), scrollHeight=$scrollH, maxScrollTop=$scrollTop")
+                    if (kotlin.math.abs(scaledH - compH) > 2) {
+                        System.err.println("[WebUiDiag] ❌ 失败: $name ($pkg) WebKit 物理视口高度($scaledH, innerHeight=$innerH*dpr=$dpr) != Swing height($compH)，底部会被截断 ${scaledH - compH}px！")
+                        exitProcess(1)
+                    }
+                    if (scrollH > innerH && scrollTop + innerH < scrollH - 2) {
+                        System.err.println("[WebUiDiag] ❌ 失败: $name ($pkg) 无法滚到底部: scrollTop($scrollTop) + innerHeight($innerH) < scrollHeight($scrollH)")
+                        exitProcess(1)
+                    }
+                    println("[WebUiDiag] ✅ 视口对齐与滚到底部验证通过: physicalH=$scaledH == SwingHeight=$compH")
+                }
+
                 // 切换前清空，重置组件
                 SwingUtilities.invokeAndWait {
                     activePkg = null
@@ -175,4 +217,16 @@ fun main() {
             }
         }
     }
+}
+
+private fun findWebViewComponent(root: java.awt.Component?): ca.weblite.webview.swing.WebViewComponent? {
+    if (root == null) return null
+    if (root is ca.weblite.webview.swing.WebViewComponent) return root
+    if (root is java.awt.Container) {
+        for (child in root.components) {
+            val found = findWebViewComponent(child)
+            if (found != null) return found
+        }
+    }
+    return null
 }
